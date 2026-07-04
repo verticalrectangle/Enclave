@@ -191,16 +191,16 @@ struct AskCard: View {
 
 // MARK: - misc
 
+/// The thinking state: just the enclave eye, its pupil dilating and closing on a
+/// slow breath — no text. Clean, single-glyph, unmistakably Enclave.
 struct ThinkingLine: View {
     let t: Theme
-    @State private var dots = ""
-    let timer = Timer.publish(every: 0.35, on: .main, in: .common).autoconnect()
+    @State private var open: CGFloat = 0.25
     var body: some View {
-        HStack(spacing: 8) {
-            LiveDot(t: t)
-            Text("thinking\(dots)").font(.term(15)).foregroundStyle(t.accent)
-        }
-        .onReceive(timer) { _ in dots = dots.count >= 3 ? "" : dots + "." }
+        LogoMark(t: t, size: 22, color: t.accent, open: open)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.15).repeatForever(autoreverses: true)) { open = 1.3 }
+            }
     }
 }
 
@@ -224,11 +224,11 @@ struct ImageViewer: View {
 
 // bespoke ring + sealed-slit logomark
 struct LogoMark: View {
-    let t: Theme; var size: CGFloat = 24; var color: Color
+    let t: Theme; var size: CGFloat = 24; var color: Color; var open: CGFloat = 1
     var body: some View {
         ZStack {
             Circle().stroke(color, lineWidth: size * 0.075)
-            EnclaveSlit().stroke(color, style: StrokeStyle(lineWidth: size * 0.06, lineCap: .round, lineJoin: .round))
+            EnclaveSlit(open: open).stroke(color, style: StrokeStyle(lineWidth: size * 0.06, lineCap: .round, lineJoin: .round))
         }
         // Inset the mark within its footprint so a circular Liquid Glass toolbar
         // chip doesn't clip the ring at the top and bottom.
