@@ -58,14 +58,24 @@ struct TurnRow: View {
     }
 
     private var agentLine: some View {
-        // Agent prose as clean serif, full width — no logo mark.
-        // Inline markdown (bold / `code`) renders; streaming just extends the text.
-        Text(inlineMarkdown(turn.text)).font(.serif(16)).foregroundStyle(t.txt)
-            .textSelection(.enabled)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contextMenu {
-                Button { UIPasteboard.general.string = turn.text } label: { Label("Copy", systemImage: "doc.on.doc") }
+        // Serif prose with fenced code rendered as scrollable monospace boxes.
+        VStack(alignment: .leading, spacing: 9) {
+            ForEach(Array(markdownBlocks(turn.text).enumerated()), id: \.offset) { _, seg in
+                switch seg {
+                case .prose(let p):
+                    if !p.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(inlineMarkdown(p)).font(.serif(16)).foregroundStyle(t.txt)
+                            .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                case .code(let lang, let body):
+                    CodeBlock(lang: lang, code: body, t: t)
+                }
             }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contextMenu {
+            Button { UIPasteboard.general.string = turn.text } label: { Label("Copy", systemImage: "doc.on.doc") }
+        }
     }
 
     private var advisorNote: some View {
@@ -78,6 +88,65 @@ struct TurnRow: View {
             Spacer(minLength: 0)
         }
         .background(t.glassFill2)
+    }
+}
+
+// MARK: - Markdown blocks (prose + fenced code)
+
+enum MDBlock { case prose(String); case code(lang: String, body: String) }
+
+/// Split agent text into prose runs and fenced ``` code blocks. Tolerant of an
+/// unclosed fence (still streaming): everything after the opener renders as code.
+func markdownBlocks(_ s: String) -> [MDBlock] {
+    var out: [MDBlock] = []
+    var prose: [String] = []
+    let lines = s.components(separatedBy: "\n")
+    var i = 0
+    func flush() { if !prose.isEmpty { out.append(.prose(prose.joined(separator: "\n"))); prose = [] } }
+    while i < lines.count {
+        if lines[i].trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+            flush()
+            let lang = String(lines[i].trimmingCharacters(in: .whitespaces).dropFirst(3)).trimmingCharacters(in: .whitespaces)
+            var body: [String] = []; i += 1
+            while i < lines.count, !lines[i].trimmingCharacters(in: .whitespaces).hasPrefix("```") { body.append(lines[i]); i += 1 }
+            if i < lines.count { i += 1 }   // consume closing fence
+            out.append(.code(lang: lang, body: body.joined(separator: "\n")))
+        } else { prose.append(lines[i]); i += 1 }
+    }
+    flush()
+    return out
+}
+
+/// A fenced code block: language label + copy button over a scrollable monospace body.
+struct CodeBlock: View {
+    let lang: String; let code: String; let t: Theme
+    @State private var copied = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Text(lang.isEmpty ? "CODE" : lang.uppercased()).font(.labl(8.5)).tracking(1.5).foregroundStyle(t.txtMuted)
+                Spacer()
+                Button {
+                    UIPasteboard.general.string = code
+                    copied = true
+                    Task { try? await Task.sleep(nanoseconds: 1_400_000_000); copied = false }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.system(size: 10))
+                        Text(copied ? "COPIED" : "COPY").font(.labl(8.5)).tracking(1)
+                    }.foregroundStyle(copied ? t.cOk : t.txtMuted)
+                }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .overlay(Rectangle().frame(height: 0.5).foregroundStyle(t.lineFaint), alignment: .bottom)
+            ScrollView(.horizontal, showsIndicators: false) {
+                Text(code).font(.system(size: 12.5, design: .monospaced)).foregroundStyle(t.txtBody)
+                    .textSelection(.enabled).padding(12)
+            }
+        }
+        .background(t.bg2)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(t.lineFaint))
     }
 }
 
