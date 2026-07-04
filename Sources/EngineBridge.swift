@@ -419,8 +419,15 @@ final class GuestClient: ObservableObject {
         case "entry":
             if let e = f["entry"] as? [String: Any] {
                 entries.append(e)
-                if streamDone, isAssistantMessage(e) { stream = nil; streamDone = false }
-                if let eid = e["id"] as? String, isAssistantMessage(e), let s = thoughtSeconds { thoughtForEntry[eid] = s }
+                if isAssistantMessage(e) {
+                    if streamDone { stream = nil; streamDone = false }
+                    // Stamp the thinking duration onto this finalizing message. Fall back to
+                    // "now − thinkStart" so a thinking→tool message (no text) still shows it.
+                    if let eid = e["id"] as? String, let start = thinkStart, entryHasThinking(e) {
+                        thoughtForEntry[eid] = thoughtSeconds ?? max(1, Int(Date().timeIntervalSince(start).rounded()))
+                    }
+                    thinkStart = nil; thoughtSeconds = nil   // next message in the turn measures fresh
+                }
             }
         case "event":
             applyEvent(f["event"] as? [String: Any])
@@ -536,9 +543,18 @@ final class GuestClient: ObservableObject {
     private func measureThinking(_ m: [String: Any]) {
         let blocks = m["content"] as? [[String: Any]] ?? []
         let hasThinking = blocks.contains { ($0["type"] as? String == "thinking" || $0["type"] as? String == "redactedThinking") && !(($0["thinking"] as? String ?? "").isEmpty) }
-        let hasText = blocks.contains { $0["type"] as? String == "text" && !(($0["text"] as? String ?? "").isEmpty) }
+        // Thinking ends when the model starts acting — a text answer OR a tool call.
+        let hasAction = blocks.contains {
+            let ty = $0["type"] as? String
+            return (ty == "text" && !(($0["text"] as? String ?? "").isEmpty)) || ty == "toolCall"
+        }
         if hasThinking, thinkStart == nil { thinkStart = Date() }
-        if hasText, thoughtSeconds == nil, let s = thinkStart { thoughtSeconds = max(1, Int(Date().timeIntervalSince(s).rounded())) }
+        if hasAction, thoughtSeconds == nil, let s = thinkStart { thoughtSeconds = max(1, Int(Date().timeIntervalSince(s).rounded())) }
+    }
+
+    private func entryHasThinking(_ e: [String: Any]) -> Bool {
+        guard let msg = e["message"] as? [String: Any], let blocks = msg["content"] as? [[String: Any]] else { return false }
+        return blocks.contains { $0["type"] as? String == "thinking" || $0["type"] as? String == "redactedThinking" }
     }
 
     private func applyState(_ s: [String: Any]?) {
