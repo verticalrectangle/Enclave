@@ -209,11 +209,15 @@ struct ThinkingLine: View {
 struct ThinkingBlock: View {
     let turn: UITurn; let t: Theme
     @State private var expanded = false
+    private var header: String {
+        guard let s = turn.thoughtSeconds else { return "THINKING" }
+        return s < 60 ? "THOUGHT FOR \(s)s" : "THOUGHT FOR \(s / 60)m \(s % 60)s"
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button { withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() } } label: {
                 HStack(spacing: 6) {
-                    Text("THINKING").font(.labl(9)).tracking(1.6).foregroundStyle(t.txtMuted)
+                    Text(header).font(.labl(9)).tracking(1.6).foregroundStyle(t.txtMuted)
                     Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(t.txtGhost)
                     Spacer(minLength: 0)
                 }.contentShape(Rectangle())

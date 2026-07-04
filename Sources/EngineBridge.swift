@@ -283,6 +283,11 @@ final class GuestClient: ObservableObject {
     private var streamDone = false
     private var activeTools: [(id: String, tool: [String: Any])] = []
     private var uiRequest: [String: Any]?
+    // Thinking-duration timing: from the first thinking content to the first answer
+    // text, stamped onto the finalizing entry so its block shows "thought for Xs".
+    private var thinkStart: Date?
+    private var thoughtSeconds: Int?
+    private var thoughtForEntry: [String: Int] = [:]
     @Published private(set) var welcomed = false   // a host actually answered (got a welcome)
 
     init?(link: String, name: String) {
@@ -409,6 +414,7 @@ final class GuestClient: ObservableObject {
             if let e = f["entry"] as? [String: Any] {
                 entries.append(e)
                 if streamDone, isAssistantMessage(e) { stream = nil; streamDone = false }
+                if let eid = e["id"] as? String, isAssistantMessage(e), let s = thoughtSeconds { thoughtForEntry[eid] = s }
             }
         case "event":
             applyEvent(f["event"] as? [String: Any])
@@ -501,9 +507,9 @@ final class GuestClient: ObservableObject {
         guard let e, let type = e["type"] as? String else { return }
         switch type {
         case "message_start", "message_update":
-            if let m = e["message"] as? [String: Any], m["role"] as? String == "assistant" { stream = m; streamDone = false }
+            if let m = e["message"] as? [String: Any], m["role"] as? String == "assistant" { stream = m; streamDone = false; measureThinking(m) }
         case "message_end":
-            if let m = e["message"] as? [String: Any], m["role"] as? String == "assistant" { stream = m; streamDone = true }
+            if let m = e["message"] as? [String: Any], m["role"] as? String == "assistant" { stream = m; streamDone = true; measureThinking(m) }
         case "tool_execution_start", "tool_execution_update":
             if let id = e["toolCallId"] as? String {
                 activeTools.removeAll { $0.id == id }
@@ -511,12 +517,22 @@ final class GuestClient: ObservableObject {
             }
         case "tool_execution_end":
             if let id = e["toolCallId"] as? String { activeTools.removeAll { $0.id == id } }
-        case "agent_start": working = true; stream = nil; streamDone = false
+        case "agent_start": working = true; stream = nil; streamDone = false; thinkStart = nil; thoughtSeconds = nil
         // Turn done: drop the streaming ghost — the finalized entry now carries it
         // (otherwise the ghost and the entry both render, duplicating the reply).
         case "agent_end": working = false; stream = nil; streamDone = false
         default: break
         }
+    }
+
+    /// Time thinking: start the clock when thinking content first appears, stop it
+    /// when the answer text starts — that span is what "thought for Xs" reports.
+    private func measureThinking(_ m: [String: Any]) {
+        let blocks = m["content"] as? [[String: Any]] ?? []
+        let hasThinking = blocks.contains { ($0["type"] as? String == "thinking" || $0["type"] as? String == "redactedThinking") && !(($0["thinking"] as? String ?? "").isEmpty) }
+        let hasText = blocks.contains { $0["type"] as? String == "text" && !(($0["text"] as? String ?? "").isEmpty) }
+        if hasThinking, thinkStart == nil { thinkStart = Date() }
+        if hasText, thoughtSeconds == nil, let s = thinkStart { thoughtSeconds = max(1, Int(Date().timeIntervalSince(s).rounded())) }
     }
 
     private func applyState(_ s: [String: Any]?) {
@@ -579,7 +595,7 @@ final class GuestClient: ObservableObject {
                             toolIndex[id] = out.count - 1
                         case "thinking", "redactedThinking":
                             let think = block["thinking"] as? String ?? block["text"] as? String ?? ""
-                            if !think.isEmpty { out.append(thinkingTurn(id: "\(eid)#\(i)", text: think)) }
+                            if !think.isEmpty { out.append(thinkingTurn(id: "\(eid)#\(i)", text: think, seconds: thoughtForEntry[eid])) }
                         default: break
                         }
                     }
@@ -643,8 +659,8 @@ final class GuestClient: ObservableObject {
         t.image = firstImage(content)
         return t
     }
-    private func thinkingTurn(id: String, text: String) -> UITurn {
-        var t = UITurn(id: id, type: .thinking); t.text = text; return t
+    private func thinkingTurn(id: String, text: String, seconds: Int? = nil) -> UITurn {
+        var t = UITurn(id: id, type: .thinking); t.text = text; t.thoughtSeconds = seconds; return t
     }
     private func agentTurn(id: String, text: String) -> UITurn {
         var t = UITurn(id: id, type: .agent); t.text = text; return t

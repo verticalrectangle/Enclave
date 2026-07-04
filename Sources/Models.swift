@@ -29,9 +29,12 @@ struct UITurn: Identifiable, Equatable {
     var pending = false
     var reqId: Int? = nil          // live host ui-request id (answered via GuestClient)
 
+    // thinking
+    var thoughtSeconds: Int? = nil // set once thinking finishes → "thought for Xs"
+
     static func == (a: UITurn, b: UITurn) -> Bool {
         a.id == b.id && a.text == b.text && a.streaming == b.streaming && a.pending == b.pending
-            && a.meta == b.meta && a.lines == b.lines
+            && a.meta == b.meta && a.lines == b.lines && a.thoughtSeconds == b.thoughtSeconds
     }
 
     static func sys(_ kind: String, _ text: String) -> UITurn {
