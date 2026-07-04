@@ -16,27 +16,31 @@ push (the extension originates APNs when an ask is waiting).
 - **Per-session, not global.** Control what's in front of you (this session's
   model, this session's rewind), never a fleet/config surface.
 
-## Transport
+## Transport — `/enclave` is its own host (no omp patch)
 
-The collab guest frame set is fixed (`hello/prompt/abort/ui-response/agent-cmd/
-fetch-transcript`); the host `switch` drops anything else and extensions can't
-see collab. So there is **no clean seam on stock omp** — a clean channel is an
-omp-core change. Two implementations, one client interface:
+`/enclave` is a standalone extension that **hosts a superset of the collab
+protocol itself**, over the same relay + crypto. We own both ends (the extension
+*and* the Enclave app), so we define the wire; omp core is never modified.
 
-- **Clean (`ext` frame):** add `{ t:"ext", ns, method, params, reqId }` guest→host
-  and `{ t:"ext-result", reqId, … }` / `{ t:"ext-event", ns, data }` host→guest,
-  routed to extensions via a new `ctx.collab.onRequest(ns, handler)` /
-  `emit(ns, event)` API. ~5 files (pi-wire union, guest.ts, host.ts, extension
-  context, collab-web mirror). Backward-compatible: the host's `default:` already
-  ignores unknown frames and both guests tolerate unknown host frames. **Strong
-  upstream-PR candidate; we own the box so we can run it patched without waiting.**
-- **Sentinel (stock omp, zero fork):** encode a command in a `prompt` with a
-  sentinel prefix; the extension's `before_agent_start` hook detects it, **blocks
-  it from the LLM**, runs the op, and replies via a `custom_message`. Works today.
+Why this is clean (confirmed against the extension API):
+- **Stream the transcript:** `ctx.sessionManager` (read-only) gives the same
+  snapshot + entry-append + subscribe primitives `CollabHost` uses. The plugin
+  replicates the session to guests exactly like `/collab` does.
+- **Reuse transport/crypto:** `ctx.pi` injects the whole `pi-coding-agent`
+  module, so the plugin reuses omp's collab sealing / relay-client / link-format
+  code (fallback: reimplement AES-256-GCM sealing — trivial, we already have it
+  in Swift).
+- **Superset frames:** the plugin's host emits the standard transcript
+  `HostFrame`s **plus** its own capability/control frames on the same sealed
+  channel — legal because *we* wrote the host and the relay forwards opaque
+  bytes. omp's own collab-web ignores unknown frames; our app handles them.
+- **Control never enters the prompt pipeline.** Commands arrive as control frames
+  and are handled directly (`ctx.setModel`, `ctx.navigateTree`, …). Nothing to
+  intercept — `before_agent_start` can't suppress a prompt anyway (its result only
+  injects context), and this design never needs it to.
 
-**Client `ControlChannel` is transport-agnostic** (request / response / subscribe).
-Sentinel and `ext` are just two backends; the UI never changes. Ship sentinel if
-impatient, swap to `ext` when merged — no churn.
+Client side: the app connects the same way it does today (same link/QR, same
+`EngineBridge` transcript path); we add a `ControlChannel` for the new frames.
 
 ## The `enclave` extension (host)
 
@@ -72,21 +76,29 @@ Skip the old fiction entirely: paired-devices, host fingerprint.
   gated on the handshake.
 - Edit→rewind returns in the editor, gated on the plugin.
 
-## Open items (confirm before code)
+## Resolved (research done)
 
-1. Exact extension-facing **rewind / session-tree** method (or trigger a builtin
-   `/rewind`-style slash command).
-2. Confirm `before_agent_start` can **suppress** the sentinel prompt (not just
-   observe) for the stock-omp path.
-3. Decide **upstream PR vs. run-patched-on-our-box** for the `ext` frame.
+1. **Rewind** → `ctx.navigateTree(entryId, {summarize?})` (+ `ctx.branch(entryId)`).
+   Guest sends `rewind {toEntryId}`; entry IDs are already the app's `UITurn` ids.
+2. **Prompt suppression** → not needed. `before_agent_start` can read the prompt
+   but its result only injects context (no block/cancel), and this design routes
+   control on its own channel, never through the prompt path.
+3. **omp patch** → none. The plugin hosts its own superset channel via
+   `ctx.sessionManager` + `ctx.pi` + the control methods.
+
+**One build-time check:** exactly which collab helpers `ctx.pi` re-exports (sealing
+/ relay-client / `formatCollabLink`). If any are missing, reimplement that piece in
+the extension (small; the crypto is standard AES-256-GCM).
 
 ## Build order
 
-1. Client `ControlChannel` + capability-detect scaffolding (no behavior yet).
-2. `enclave` extension: `/enclave` + handshake + `slash`/`set-model`/`set-thinking`
-   over the **sentinel** transport. Test on the Hetzner box (omp + extension →
-   `/enclave` → connect from the app).
-3. Wire the slash palette + Trust model/thinking to the channel.
-4. Add `rewind`.
-5. (parallel) `ext` frame + `ctx.collab` — upstream PR; swap the transport.
-6. Push: `register-push` + APNs from the extension.
+1. `enclave` extension skeleton: `registerCommand("enclave")`, and a host loop
+   that (via `ctx.pi`) opens a relay room + seals frames and (via
+   `ctx.sessionManager`) streams the transcript — i.e. reach `/collab` parity.
+   Test on the Hetzner box: `omp` → `/enclave` → connect from the app.
+2. Capability handshake frame (models / thinking / commands / current).
+3. Control frames + handlers: `set-model`, `set-thinking`, `slash`; wire the app's
+   `ControlChannel` + return the slash palette (capability-gated) and the live
+   model/thinking controls in Trust.
+4. `rewind` (`navigateTree`) + edit→rewind UI.
+5. Push: `register-push` + APNs from the extension.
