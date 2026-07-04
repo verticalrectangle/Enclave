@@ -80,10 +80,10 @@ struct SlashPalette: View {
 }
 
 struct MetaChip: View {
-    let t: Theme; let text: String
+    let t: Theme; let text: String; var tint: Color? = nil
     var body: some View {
-        Text(text).font(.labl(9)).tracking(1).foregroundStyle(t.txtMuted)
+        Text(text).font(.labl(9)).tracking(1).foregroundStyle(tint ?? t.txtMuted)
             .padding(.horizontal, 8).padding(.vertical, 3)
-            .overlay(Capsule().stroke(t.line))
+            .overlay(Capsule().stroke((tint ?? t.line).opacity(tint == nil ? 1 : 0.5)))
     }
 }

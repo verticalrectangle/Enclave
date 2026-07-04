@@ -25,14 +25,13 @@ struct SessionsView: View {
                         emptyState
                     } else {
                         LazyVStack(spacing: 11) {
-                            ForEach(app.sessions) { s in
-                                Button { app.connect(link: s.link, name: deviceName) } label: {
-                                    JoinedCard(session: s, t: t)
-                                }
-                                .press()
-                                .contextMenu {
-                                    Button(role: .destructive) { app.remove(s) } label: { Label("Remove", systemImage: "trash") }
-                                }
+                            ForEach(liveSessions) { s in card(s, live: true) }
+                            if !offlineSessions.isEmpty {
+                                HStack(spacing: 8) {
+                                    Text("OFFLINE").font(.labl(9)).tracking(2).foregroundStyle(t.txtMuted)
+                                    Rectangle().frame(height: 0.5).foregroundStyle(t.lineFaint)
+                                }.padding(.top, 6)
+                                ForEach(offlineSessions) { s in card(s, live: false).opacity(0.6) }
                             }
                         }.padding(.horizontal, 16)
                     }
@@ -51,11 +50,30 @@ struct SessionsView: View {
             .background(t.bg.ignoresSafeArea())
             .enclaveTopBar()
             .toolbarBackground(t.bg, for: .navigationBar)
+            .refreshable { app.refreshLiveness() }
         }
         .tint(t.accent)
+        .task { app.refreshLiveness() }
     }
 
     private var deviceName: String { UIDevice.current.name }
+
+    private var liveSessions: [JoinedSession] {
+        app.sessions.filter { app.live[$0.id] == true }.sorted { $0.savedAt > $1.savedAt }
+    }
+    private var offlineSessions: [JoinedSession] {
+        app.sessions.filter { app.live[$0.id] != true }.sorted { $0.savedAt > $1.savedAt }
+    }
+
+    @ViewBuilder private func card(_ s: JoinedSession, live: Bool) -> some View {
+        Button { app.connect(link: s.link, name: deviceName) } label: {
+            JoinedCard(session: s, t: t, live: live)
+        }
+        .press()
+        .contextMenu {
+            Button(role: .destructive) { app.remove(s) } label: { Label("Remove", systemImage: "trash") }
+        }
+    }
 
     private var emptyState: some View {
         VStack(spacing: 12) {
@@ -69,20 +87,23 @@ struct SessionsView: View {
 }
 
 struct JoinedCard: View {
-    let session: JoinedSession; let t: Theme
+    let session: JoinedSession; let t: Theme; var live: Bool = false
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                Circle().fill(t.txtGhost).frame(width: 7, height: 7)
+                Circle().fill(live ? t.cOk : t.txtGhost).frame(width: 7, height: 7)
                 Text(session.title).font(.disp(17)).foregroundStyle(t.txt).textCase(.uppercase).lineLimit(1)
                 Spacer()
                 Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(t.txtGhost)
             }.padding(.bottom, 11)
             HStack(spacing: 6) {
+                if let enh = session.enhanced {
+                    MetaChip(t: t, text: enh ? "enclave" : "collab", tint: enh ? t.accent : nil)
+                }
                 MetaChip(t: t, text: session.readOnly ? "watch" : "control")
                 MetaChip(t: t, text: session.relay)
                 Spacer()
-                Text("tap to join").font(.term(12)).foregroundStyle(t.txtGhost)
+                Text(live ? "tap to join" : "offline").font(.term(12)).foregroundStyle(t.txtGhost)
             }
         }
         .padding(13)

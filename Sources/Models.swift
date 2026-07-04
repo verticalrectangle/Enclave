@@ -129,4 +129,5 @@ struct JoinedSession: Identifiable, Codable, Equatable {
     var relay: String
     var readOnly: Bool
     var savedAt: Date
+    var enhanced: Bool? = nil   // true = /enclave, false = /collab, nil = never connected
 }

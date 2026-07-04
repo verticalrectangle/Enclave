@@ -25,7 +25,17 @@ const ROOM_RE = /^\/r\/([A-Za-z0-9_-]{10,64})$/;
 /** roomId -> { host, guests: Map<peerId, ws>, nextPeerId } */
 const rooms = new Map();
 
-const server = http.createServer((_req, res) => {
+const server = http.createServer((req, res) => {
+  // Liveness probe: GET /r/<roomId> (non-upgrade) → {live} — is a host connected?
+  // Lets the app group offline sessions without opening a phantom guest peer.
+  let pathname = "";
+  try { pathname = new URL(req.url, "http://x").pathname; } catch {}
+  const m = ROOM_RE.exec(pathname);
+  if (m) {
+    res.writeHead(200, { "content-type": "application/json", "access-control-allow-origin": "*" });
+    res.end(JSON.stringify({ live: rooms.has(m[1]) }));
+    return;
+  }
   res.writeHead(426, { "content-type": "text/plain" });
   res.end("websocket upgrade required");
 });

@@ -14,6 +14,7 @@ final class AppModel: ObservableObject {
     @Published var active: GuestClient?
     @Published var showEditor = false
     @Published var tab = 0          // selected main tab; the logo button jumps here to 0
+    @Published var live: [String: Bool] = [:]   // session.id → host currently connected
 
     private let key = "enclave.sessions"
     private let liveActivity = LiveActivityController()
@@ -53,6 +54,10 @@ final class AppModel: ObservableObject {
            let link = connectedLink, let i = sessions.firstIndex(where: { $0.link == link }), sessions[i].title != c.title {
             sessions[i].title = c.title; save()
         }
+        // Flag the room /enclave the moment its capabilities arrive.
+        if c.enhanced, let link = connectedLink, let i = sessions.firstIndex(where: { $0.link == link }), sessions[i].enhanced != true {
+            sessions[i].enhanced = true; live[sessions[i].id] = true; save()
+        }
         // Local notification the first time each host ask appears.
         if let ask = c.turns.last(where: { $0.type == .ask }), let rq = ask.reqId, rq != lastAskReqId {
             lastAskReqId = rq
@@ -66,6 +71,7 @@ final class AppModel: ObservableObject {
         if let c = active, let link = connectedLink, let i = sessions.firstIndex(where: { $0.link == link }) {
             sessions[i].title = c.title
             sessions[i].readOnly = c.readOnly
+            sessions[i].enhanced = c.enhanced   // authoritative once we've connected
             save()
         }
         cancellable?.cancel(); cancellable = nil
@@ -76,7 +82,37 @@ final class AppModel: ObservableObject {
         showEditor = false
     }
 
-    func remove(_ s: JoinedSession) { sessions.removeAll { $0.id == s.id }; save() }
+    func remove(_ s: JoinedSession) { sessions.removeAll { $0.id == s.id }; live[s.id] = nil; save() }
+
+    /// Ping each saved room's relay status endpoint to see if a host is connected.
+    /// Sessions whose relay has no status endpoint (or is unreachable) read offline.
+    func refreshLiveness() {
+        let connected = connectedLink
+        for s in sessions {
+            if s.link == connected { live[s.id] = true; continue }  // we're in it
+            guard let url = statusURL(for: s.link) else { live[s.id] = false; continue }
+            Task { [weak self] in
+                var req = URLRequest(url: url)
+                req.timeoutInterval = 6
+                req.cachePolicy = .reloadIgnoringLocalCacheData
+                var isLive = false
+                if let (data, resp) = try? await URLSession.shared.data(for: req),
+                   (resp as? HTTPURLResponse)?.statusCode == 200,
+                   let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    isLive = obj["live"] as? Bool ?? false
+                }
+                await MainActor.run { self?.live[s.id] = isLive }
+            }
+        }
+    }
+
+    private func statusURL(for link: String) -> URL? {
+        guard case let .ok(parsed) = CollabLink.parse(link) else { return nil }
+        var s = parsed.wsURL.absoluteString
+        if s.hasPrefix("wss://") { s = "https://" + s.dropFirst(6) }
+        else if s.hasPrefix("ws://") { s = "http://" + s.dropFirst(5) }
+        return URL(string: s)
+    }
 
     private var connectedLink: String?
 
