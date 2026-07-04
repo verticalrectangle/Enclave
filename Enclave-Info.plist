@@ -24,6 +24,10 @@
 	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>Scan the QR code from omp /collab to join a session.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Dictate messages to the agent instead of typing.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Transcribe your dictation into the message composer.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSSupportsLiveActivities</key>

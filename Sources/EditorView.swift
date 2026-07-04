@@ -5,12 +5,24 @@
 //  replaced by a read-only bar.
 
 import SwiftUI
+import PhotosUI
+
+/// A picked, downscaled image ready to send with a prompt.
+struct Attachment: Identifiable {
+    let id = UUID()
+    let image: UIImage      // thumbnail to show
+    let data: Data          // JPEG bytes to send
+    let mime: String
+}
 
 struct EditorView: View {
     @EnvironmentObject var theme: ThemeStore
     @StateObject var vm: SessionVM
+    @StateObject private var dictation = Dictation()
     @State private var draft = ""
     @State private var viewer: String? = nil
+    @State private var pickerItem: PhotosPickerItem?
+    @State private var attachment: Attachment?
 
     init(client: GuestClient) {
         let seed = Session(id: "live", repo: client.title, branch: client.readOnly ? "watch" : "control",
@@ -104,15 +116,41 @@ struct EditorView: View {
     }
 
     private var composer: some View {
-        HStack(spacing: 8) {
-            TextField("", text: $draft, prompt: Text(vm.isRunning ? "Steer the turn…" : "Message the agent…").foregroundStyle(t.txtMuted), axis: .vertical)
-                .font(.bodyF(14)).foregroundStyle(t.txt).tint(t.accent)
-                .lineLimit(1...5)
-                .onSubmit(doSend)
-            sendOrStop
+        VStack(spacing: 0) {
+            if let a = attachment {
+                HStack(spacing: 9) {
+                    Image(uiImage: a.image).resizable().scaledToFill()
+                        .frame(width: 40, height: 40).clipShape(RoundedRectangle(cornerRadius: 4))
+                    Text("image attached · sent with your message").font(.term(13)).foregroundStyle(t.txtMuted)
+                    Spacer()
+                    Button { attachment = nil } label: { Image(systemName: "xmark").font(.system(size: 14)).foregroundStyle(t.txtMuted) }
+                }
+                .padding(.horizontal, 10).padding(.vertical, 8)
+                .overlay(Rectangle().frame(height: 0.5).foregroundStyle(t.lineFaint), alignment: .bottom)
+            }
+            HStack(spacing: 4) {
+                PhotosPicker(selection: $pickerItem, matching: .images) {
+                    Image(systemName: "paperclip").font(.system(size: 20)).foregroundStyle(t.txtMuted).frame(width: 34, height: 34)
+                }
+                TextField("", text: $draft, prompt: Text(placeholder).foregroundStyle(t.txtMuted), axis: .vertical)
+                    .font(.bodyF(14)).foregroundStyle(t.txt).tint(t.accent)
+                    .lineLimit(1...5)
+                    .onSubmit(doSend)
+                Button { dictation.toggle() } label: {
+                    Image(systemName: dictation.recording ? "mic.fill" : "mic").font(.system(size: 20))
+                        .foregroundStyle(dictation.recording ? t.accent : t.txtMuted).frame(width: 34, height: 34)
+                }
+                sendOrStop
+            }
+            .padding(.horizontal, 8).padding(.vertical, 5)
         }
-        .padding(.horizontal, 10).padding(.vertical, 7)
         .glass(t, 4)
+        .onChange(of: pickerItem) { _, item in loadAttachment(item) }
+        .onAppear { dictation.onText = { draft = $0 } }
+    }
+
+    private var placeholder: String {
+        dictation.recording ? "Listening…" : (vm.isRunning ? "Steer the turn…" : "Message the agent…")
     }
 
     @ViewBuilder private var sendOrStop: some View {
@@ -131,8 +169,28 @@ struct EditorView: View {
 
     private func doSend() {
         let x = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !x.isEmpty else { return }
-        vm.send(x); draft = ""
+        var images: [(mime: String, base64: String)] = []
+        if let a = attachment { images = [(a.mime, a.data.base64EncodedString())] }
+        guard !x.isEmpty || !images.isEmpty else { return }
+        if dictation.recording { dictation.stop() }
+        vm.send(x, images: images)
+        draft = ""; attachment = nil
+    }
+
+    /// Load, downscale (max 1024px, JPEG 0.6) and stage a picked photo.
+    private func loadAttachment(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        Task {
+            defer { Task { @MainActor in pickerItem = nil } }
+            guard let data = try? await item.loadTransferable(type: Data.self),
+                  let ui = UIImage(data: data) else { return }
+            let maxDim: CGFloat = 1024
+            let scale = min(1, maxDim / max(ui.size.width, ui.size.height))
+            let size = CGSize(width: ui.size.width * scale, height: ui.size.height * scale)
+            let resized = UIGraphicsImageRenderer(size: size).image { _ in ui.draw(in: CGRect(origin: .zero, size: size)) }
+            guard let jpeg = resized.jpegData(compressionQuality: 0.6), let thumb = UIImage(data: jpeg) else { return }
+            await MainActor.run { attachment = Attachment(image: thumb, data: jpeg, mime: "image/jpeg") }
+        }
     }
 }
 

@@ -44,9 +44,9 @@ final class SessionVM: ObservableObject {
                           lastSeen: "live", action: action, tokens: live.tokensLabel, cost: live.costLabel)
     }
 
-    func send(_ text: String) {
+    func send(_ text: String, images: [(mime: String, base64: String)] = []) {
         guard !readOnly else { return }
-        live.sendPrompt(text)   // host echoes it back as an entry
+        live.sendPrompt(text, images: images)   // host echoes it back as an entry
     }
 
     func stop() { guard !readOnly else { return }; live.sendAbort() }
