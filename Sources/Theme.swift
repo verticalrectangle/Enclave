@@ -5,17 +5,26 @@
 
 import SwiftUI
 
-enum Appearance: String { case dark, light }
+enum Appearance: String { case system, dark, light }
 
 @MainActor
 final class ThemeStore: ObservableObject {
+    // Default off the bat: follow the system appearance (persisted once the user toggles).
     @Published var mode: Appearance = {
-        Appearance(rawValue: UserDefaults.standard.string(forKey: "enclave.theme") ?? "dark") ?? .dark
+        Appearance(rawValue: UserDefaults.standard.string(forKey: "enclave.theme") ?? "system") ?? .system
     }() {
         didSet { UserDefaults.standard.set(mode.rawValue, forKey: "enclave.theme") }
     }
-    func toggle() { withAnimation(.easeInOut(duration: 0.35)) { mode = mode == .dark ? .light : .dark } }
-    var t: Theme { Theme(mode) }
+    /// The live OS appearance, fed from the environment by RootView; used when mode == .system.
+    @Published var systemDark = true
+
+    /// Resolved dark/light after applying the system default.
+    var effective: Appearance { mode == .system ? (systemDark ? .dark : .light) : mode }
+    /// nil = follow the OS; otherwise force the chosen appearance.
+    var preferredScheme: ColorScheme? { mode == .system ? nil : (mode == .dark ? .dark : .light) }
+
+    func toggle() { withAnimation(.easeInOut(duration: 0.35)) { mode = effective == .dark ? .light : .dark } }
+    var t: Theme { Theme(effective) }
 }
 
 struct Theme {

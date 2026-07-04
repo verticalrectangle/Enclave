@@ -21,6 +21,7 @@ struct EnclaveApp: App {
     var body: some Scene {
         WindowGroup {
             RootView().environmentObject(theme).environmentObject(app)
+                .preferredColorScheme(theme.preferredScheme)   // applied above RootView so its colorScheme read stays true to the OS
         }
     }
 }

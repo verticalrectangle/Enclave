@@ -147,7 +147,7 @@ struct EnclaveTopBar: ViewModifier {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { theme.toggle() } label: {
-                    Image(systemName: theme.mode == .dark ? "sun.max" : "moon").foregroundStyle(t.txtMuted)
+                    Image(systemName: theme.effective == .dark ? "sun.max" : "moon").foregroundStyle(t.txtMuted)
                 }
             }
         }
@@ -160,6 +160,7 @@ extension View {
 struct RootView: View {
     @EnvironmentObject var theme: ThemeStore
     @EnvironmentObject var app: AppModel
+    @Environment(\.colorScheme) private var colorScheme
     @State private var showPair = ProcessInfo.processInfo.environment["ENCLAVE_SHOW_PAIR"] == "1"
     private var t: Theme { theme.t }
 
@@ -203,7 +204,7 @@ struct RootView: View {
             }
         }
         .tint(t.accent)
-        .preferredColorScheme(theme.mode == .dark ? .dark : .light)
+        .onChange(of: colorScheme, initial: true) { _, new in theme.systemDark = (new == .dark) }
         .task {
             // Launch seam / deep-link: auto-join a collab session from an env var.
             guard app.active == nil,
@@ -220,7 +221,7 @@ struct RootView: View {
             Button { app.tab = 0 } label: { LogoMark(t: t, size: 22, color: t.txt) }
             Spacer()
             Button { theme.toggle() } label: {
-                Image(systemName: theme.mode == .dark ? "sun.max" : "moon").font(.system(size: 17)).foregroundStyle(t.txtMuted)
+                Image(systemName: theme.effective == .dark ? "sun.max" : "moon").font(.system(size: 17)).foregroundStyle(t.txtMuted)
             }
         }
         .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 8)

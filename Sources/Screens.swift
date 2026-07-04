@@ -154,7 +154,7 @@ struct SubagentSheet: View {
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { dismiss() } label: { Image(systemName: "xmark").foregroundStyle(t.txt) } } }
             .toolbarBackground(t.bg, for: .navigationBar)
         }
-        .tint(t.accent).preferredColorScheme(theme.mode == .dark ? .dark : .light)
+        .tint(t.accent).preferredColorScheme(theme.preferredScheme)
         .task {
             if let r = await client.fetchTranscript(agentId: agent.id, fromByte: 0) { text = r.text }
             loading = false
@@ -245,6 +245,6 @@ struct PairView: View {
         .fullScreenCover(isPresented: $showScanner) {
             ScannerScreen(onFound: scanned, onCancel: { showScanner = false }).environmentObject(theme)
         }
-        .preferredColorScheme(theme.mode == .dark ? .dark : .light)
+        .preferredColorScheme(theme.preferredScheme)
     }
 }
