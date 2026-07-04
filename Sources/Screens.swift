@@ -19,7 +19,10 @@ struct ActivityView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 11) {
-                    Text("Activity").font(.disp(40)).foregroundStyle(t.txt).textCase(.uppercase).padding(.bottom, 3)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("LIVE · THIS SESSION").font(.labl(9)).tracking(1.6).foregroundStyle(t.txtLabel)
+                        Text("Activity").font(.disp(40)).foregroundStyle(t.txt).textCase(.uppercase)
+                    }.padding(.bottom, 3)
                     if let client = app.active {
                         ActivityLive(client: client, t: t)
                     } else {
@@ -33,7 +36,6 @@ struct ActivityView: View {
                 }.padding(16)
             }
             .background(t.bg.ignoresSafeArea())
-            .toolbar { ToolbarItem(placement: .topBarLeading) { Text("LIVE · THIS SESSION").font(.labl(9)).tracking(1.6).foregroundStyle(t.txtLabel) } }
             .toolbarBackground(t.bg, for: .navigationBar)
         }.tint(t.accent)
     }

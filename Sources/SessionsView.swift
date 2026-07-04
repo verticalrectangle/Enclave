@@ -16,8 +16,10 @@ struct SessionsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    Text("ENCLAVE").font(.labl(10)).tracking(2.5).foregroundStyle(t.txtLabel)
+                        .padding(.horizontal, 16).padding(.top, 6).padding(.bottom, 2)
                     Text("Sessions").font(.disp(40)).foregroundStyle(t.txt).textCase(.uppercase)
-                        .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 14)
+                        .padding(.horizontal, 16).padding(.bottom, 14)
 
                     if app.sessions.isEmpty {
                         emptyState
@@ -49,7 +51,7 @@ struct SessionsView: View {
             .background(t.bg.ignoresSafeArea())
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    HStack(spacing: 9) { LogoMark(t: t, size: 22, color: t.txt); Text("ENCLAVE").font(.disp(16)).foregroundStyle(t.txt) }
+                    LogoMark(t: t, size: 22, color: t.txt)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { theme.toggle() } label: { Image(systemName: theme.mode == .dark ? "sun.max" : "moon").foregroundStyle(t.txtMuted) }

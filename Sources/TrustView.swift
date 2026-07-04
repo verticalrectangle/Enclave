@@ -15,6 +15,8 @@ struct TrustView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    Text("ZERO-TRUST · SEALED RELAY").font(.labl(9)).tracking(1.6).foregroundStyle(t.txtLabel)
+                        .padding(.horizontal, 16).padding(.top, 6).padding(.bottom, 2)
                     Text("Trust").font(.disp(40)).foregroundStyle(t.txt).textCase(.uppercase)
                         .padding(.horizontal, 16).padding(.bottom, 14)
                     if let client = app.active {
@@ -30,7 +32,6 @@ struct TrustView: View {
                 }.padding(.bottom, 20)
             }
             .background(t.bg.ignoresSafeArea())
-            .toolbar { ToolbarItem(placement: .topBarLeading) { Text("ZERO-TRUST · SEALED RELAY").font(.labl(9)).tracking(1.6).foregroundStyle(t.txtLabel) } }
             .toolbarBackground(t.bg, for: .navigationBar)
         }
         .tint(t.accent)
