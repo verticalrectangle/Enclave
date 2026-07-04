@@ -127,7 +127,9 @@ struct JoinedCard: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 Circle().fill(live ? t.cOk : t.txtGhost).frame(width: 7, height: 7)
+                    .padding(.leading, 3)
                 Text(session.title).font(.disp(17)).foregroundStyle(t.txt).textCase(.uppercase).lineLimit(1)
+                    .padding(.leading, 2)
                 Spacer()
                 Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(t.txtGhost)
             }.padding(.bottom, 11)
