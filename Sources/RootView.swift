@@ -33,7 +33,7 @@ final class AppModel: ObservableObject {
         client.connect()
         // Showcase/screenshot mode connects in the background so the tabs stay visible.
         showEditor = ProcessInfo.processInfo.environment["ENCLAVE_SHOWCASE"] != "1"
-        upsert(JoinedSession(id: link, link: link, title: "omp session",
+        upsert(JoinedSession(id: link, link: link, title: "live session",
                              relay: client.relay, readOnly: client.readOnly, savedAt: Date()))
         // Drive the Live Activity + ask notifications from live frames.
         if ProcessInfo.processInfo.environment["ENCLAVE_SCREENSHOT"] != "1" { Notifier.requestAuth() }
@@ -47,7 +47,7 @@ final class AppModel: ObservableObject {
         if c.phase == "ended" { liveActivity.end() }
         else { liveActivity.sync(sessionId: c.sessionId, state: LiveActivityController.state(from: c)) }
         // Keep the saved room's title fresh from the live header.
-        if !c.title.isEmpty, c.title != "omp session",
+        if !c.title.isEmpty, c.title != "live session",
            let link = connectedLink, let i = sessions.firstIndex(where: { $0.link == link }), sessions[i].title != c.title {
             sessions[i].title = c.title; save()
         }

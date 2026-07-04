@@ -208,7 +208,7 @@ struct PairView: View {
                     }.padding(.bottom, 18)
 
                     Text("Join a\nsession.").font(.disp(34)).foregroundStyle(t.txt).textCase(.uppercase).padding(.bottom, 12)
-                    (Text("Run ").foregroundStyle(t.txtBody) + Text("omp /collab").font(.term(15)).foregroundStyle(t.accent) + Text(" on the box, then scan its QR. Frames are sealed on-device — the relay never sees your keys.").foregroundStyle(t.txtBody))
+                    (Text("Share a session from your coding agent. Run ").foregroundStyle(t.txtBody) + Text("omp /collab").font(.term(15)).foregroundStyle(t.accent) + Text(" on the box, then scan its QR. Frames are sealed on-device — the relay never sees your keys.").foregroundStyle(t.txtBody))
                         .font(.bodyF(14)).padding(.bottom, 22)
 
                     Button { error = nil; showScanner = true } label: {

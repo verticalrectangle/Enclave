@@ -107,7 +107,7 @@ struct ScannerScreen: View {
                     }.padding(16)
                 }
                 Spacer()
-                Text("Scan the QR from  omp /collab")
+                Text("Scan your agent's session QR")
                     .font(.term(16)).foregroundStyle(.white)
                     .padding(.horizontal, 16).padding(.vertical, 10)
                     .background(.black.opacity(0.5), in: Capsule())
