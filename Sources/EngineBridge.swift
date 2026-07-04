@@ -283,7 +283,7 @@ final class GuestClient: ObservableObject {
     private var streamDone = false
     private var activeTools: [(id: String, tool: [String: Any])] = []
     private var uiRequest: [String: Any]?
-    private var welcomed = false
+    @Published private(set) var welcomed = false   // a host actually answered (got a welcome)
 
     init?(link: String, name: String) {
         switch CollabLink.parse(link) {

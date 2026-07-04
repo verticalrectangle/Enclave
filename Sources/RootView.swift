@@ -38,7 +38,6 @@ final class AppModel: ObservableObject {
         showEditor = ProcessInfo.processInfo.environment["ENCLAVE_SHOWCASE"] != "1"
         upsert(JoinedSession(id: link, link: link, title: "live session",
                              relay: client.relay, readOnly: client.readOnly, savedAt: Date()))
-        live[link] = true   // we're connecting to it → it's live (probe/leave will correct)
         // Drive the Live Activity + ask notifications from live frames.
         if ProcessInfo.processInfo.environment["ENCLAVE_SCREENSHOT"] != "1" { Notifier.requestAuth() }
         lastAskReqId = nil
@@ -50,14 +49,15 @@ final class AppModel: ObservableObject {
         guard let c = active else { return }
         if c.phase == "ended" { liveActivity.end() }
         else { liveActivity.sync(sessionId: c.sessionId, state: LiveActivityController.state(from: c)) }
-        // Keep the saved room's title fresh from the live header.
-        if !c.title.isEmpty, c.title != "live session",
-           let link = connectedLink, let i = sessions.firstIndex(where: { $0.link == link }), sessions[i].title != c.title {
-            sessions[i].title = c.title; save()
-        }
-        // Flag the room /enclave the moment its capabilities arrive.
-        if c.enhanced, let link = connectedLink, let i = sessions.firstIndex(where: { $0.link == link }), sessions[i].enhanced != true {
-            sessions[i].enhanced = true; live[sessions[i].id] = true; save()
+        // Only trust a WELCOMED connection (a host actually answered). Tapping a
+        // dead room connects but never welcomes — don't overwrite the saved room's
+        // title/badge with the client's pre-welcome defaults, and don't call it live.
+        if let link = connectedLink, let i = sessions.firstIndex(where: { $0.link == link }) {
+            live[sessions[i].id] = c.welcomed
+            if c.welcomed {
+                if !c.title.isEmpty, c.title != "live session", sessions[i].title != c.title { sessions[i].title = c.title; save() }
+                if c.enhanced, sessions[i].enhanced != true { sessions[i].enhanced = true; save() }
+            }
         }
         // Local notification the first time each host ask appears.
         if let ask = c.turns.last(where: { $0.type == .ask }), let rq = ask.reqId, rq != lastAskReqId {
@@ -69,10 +69,10 @@ final class AppModel: ObservableObject {
     }
 
     func leave() {
-        if let c = active, let link = connectedLink, let i = sessions.firstIndex(where: { $0.link == link }) {
+        if let c = active, c.welcomed, let link = connectedLink, let i = sessions.firstIndex(where: { $0.link == link }) {
             sessions[i].title = c.title
             sessions[i].readOnly = c.readOnly
-            sessions[i].enhanced = c.enhanced   // authoritative once we've connected
+            sessions[i].enhanced = c.enhanced   // authoritative once actually welcomed
             save()
         }
         cancellable?.cancel(); cancellable = nil
@@ -80,7 +80,9 @@ final class AppModel: ObservableObject {
         liveActivity.end()
         active?.close()
         active = nil
+        connectedLink = nil
         showEditor = false
+        refreshLiveness()   // re-probe now that we've left
     }
 
     func remove(_ s: JoinedSession) { sessions.removeAll { $0.id == s.id }; live[s.id] = nil; save() }
@@ -90,7 +92,7 @@ final class AppModel: ObservableObject {
     func refreshLiveness() {
         let connected = connectedLink
         for s in sessions {
-            if s.link == connected { live[s.id] = true; continue }  // we're in it
+            if s.link == connected { live[s.id] = active?.welcomed ?? false; continue }  // in it → live iff a host answered
             guard let url = statusURL(for: s.link) else { live[s.id] = false; continue }
             Task { [weak self] in
                 var req = URLRequest(url: url)
