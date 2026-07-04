@@ -196,10 +196,8 @@ struct EditorView: View {
         .glass(t, 16)
         .onChange(of: pickerItem) { _, item in loadAttachment(item) }
         .onAppear { dictation.onText = { draft = $0 } }
-        .alert("Vision is off for this session", isPresented: $showVisionHelp) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text("This model can't read images yet. On the box, enable it:\n\nomp config set inspect_image.enabled true\n\nthen reconnect — or switch to a vision-capable model.")
+        .sheet(isPresented: $showVisionHelp) {
+            VisionHelpSheet(t: t) { showVisionHelp = false }.environmentObject(theme)
         }
     }
 
@@ -251,3 +249,45 @@ struct EditorView: View {
 }
 
 struct IdStr: Identifiable { let v: String; var id: String { v }; init(_ v: String) { self.v = v } }
+
+/// "Vision is off" help — the enable command lives in a one-line monospace box
+/// (horizontal-scroll if it overflows) so it never wraps into two lines that read
+/// as two commands. Tap to copy.
+struct VisionHelpSheet: View {
+    let t: Theme
+    let onClose: () -> Void
+    @State private var copied = false
+    private let cmd = "omp config set inspect_image.enabled true"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("VISION IS OFF").font(.labl(11)).tracking(1.6).foregroundStyle(t.txtMuted)
+            Text("This model can’t read images yet.").font(.disp(21)).foregroundStyle(t.txt)
+            Text("Run this on the box once, then reconnect — or switch to a vision-capable model.")
+                .font(.bodyF(14)).foregroundStyle(t.txtBody).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 10) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    Text(cmd).font(.term(15)).foregroundStyle(t.accent).lineLimit(1).fixedSize()
+                }
+                Button {
+                    UIPasteboard.general.string = cmd
+                    withAnimation { copied = true }
+                } label: {
+                    Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.system(size: 14)).foregroundStyle(t.txtMuted)
+                }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 11)
+            .glass(t, 14, flat: true)
+            Button { onClose() } label: {
+                Text("GOT IT").font(.labl(12)).tracking(1.2).foregroundStyle(t.txt)
+                    .frame(maxWidth: .infinity).padding(.vertical, 14)
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(t.lineStrong))
+            }
+        }
+        .padding(22)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .presentationDetents([.height(300)])
+        .presentationBackground(t.bg)
+        .presentationCornerRadius(28)
+    }
+}
