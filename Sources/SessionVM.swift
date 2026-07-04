@@ -24,6 +24,9 @@ final class SessionVM: ObservableObject {
     var viaVisionModel: Bool { live.canSendImages && !live.nativeVision }  // routed through the vision fallback
     var commands: [EnclaveCommand] { live.commands }
 
+    @Published var awaitingVision = false   // this turn is reading an image via the vision fallback
+    private var sawWorking = false
+
     init(live client: GuestClient, seed s: Session) {
         session = s
         seed = s
@@ -38,11 +41,14 @@ final class SessionVM: ObservableObject {
 
     private func syncLive() {
         turns = live.turns
+        if live.working { sawWorking = true } else if sawWorking { awaitingVision = false; sawWorking = false }
         let action: String
         switch live.phase {
         case "connecting", "waiting", "reconnecting": action = live.phase.uppercased() + "…"
         case "ended": action = "ENDED · \(live.endedReason ?? "session closed")"
-        default: action = live.working ? "STREAMING" : (turns.contains { $0.type == .ask } ? "WAITING · ANSWER" : "LIVE")
+        default:
+            action = awaitingVision && live.working ? "READING YOUR IMAGE VIA VISION…"
+                : (live.working ? "STREAMING" : (turns.contains { $0.type == .ask } ? "WAITING · ANSWER" : "LIVE"))
         }
         session = Session(id: seed.id, repo: live.title, branch: live.readOnly ? "watch" : "control",
                           dir: live.cwd, model: live.modelName,
@@ -52,6 +58,7 @@ final class SessionVM: ObservableObject {
 
     func send(_ text: String, images: [(mime: String, base64: String)] = []) {
         guard !readOnly else { return }
+        if !images.isEmpty && viaVisionModel { awaitingVision = true; sawWorking = false }
         live.sendPrompt(text, images: images)   // host echoes it back as an entry
     }
 

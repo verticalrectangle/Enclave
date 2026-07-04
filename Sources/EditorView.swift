@@ -100,7 +100,7 @@ struct EditorView: View {
         VStack(spacing: 8) {
             if vm.isRunning {
                 HStack(spacing: 8) {
-                    LiveDot(t: t)
+                    if vm.awaitingVision { Image(systemName: "eye").font(.system(size: 13)).foregroundStyle(t.accent) } else { LiveDot(t: t) }
                     Text(vm.session.action).font(.term(14)).foregroundStyle(t.accent).lineLimit(1)
                     Spacer()
                     Text("\(vm.session.tokens) · \(vm.session.model)").font(.term(13)).foregroundStyle(t.txtMuted).lineLimit(1)
