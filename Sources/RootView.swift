@@ -38,6 +38,7 @@ final class AppModel: ObservableObject {
         showEditor = ProcessInfo.processInfo.environment["ENCLAVE_SHOWCASE"] != "1"
         upsert(JoinedSession(id: link, link: link, title: "live session",
                              relay: client.relay, readOnly: client.readOnly, savedAt: Date()))
+        live[link] = true   // we're connecting to it → it's live (probe/leave will correct)
         // Drive the Live Activity + ask notifications from live frames.
         if ProcessInfo.processInfo.environment["ENCLAVE_SCREENSHOT"] != "1" { Notifier.requestAuth() }
         lastAskReqId = nil

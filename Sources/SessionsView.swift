@@ -25,13 +25,15 @@ struct SessionsView: View {
                         emptyState
                     } else {
                         LazyVStack(spacing: 11) {
-                            ForEach(liveSessions) { s in card(s, live: true) }
-                            if !offlineSessions.isEmpty {
-                                HStack(spacing: 8) {
-                                    Text("OFFLINE").font(.labl(9)).tracking(2).foregroundStyle(t.txtMuted)
-                                    Rectangle().frame(height: 0.5).foregroundStyle(t.lineFaint)
-                                }.padding(.top, 6)
-                                ForEach(offlineSessions) { s in card(s, live: false).opacity(0.6) }
+                            ForEach(ordered) { s in
+                                if s.id == firstOfflineId {
+                                    HStack(spacing: 8) {
+                                        Text("OFFLINE").font(.labl(9)).tracking(2).foregroundStyle(t.txtMuted)
+                                        Rectangle().frame(height: 0.5).foregroundStyle(t.lineFaint)
+                                    }.padding(.top, 6)
+                                }
+                                card(s, live: app.live[s.id] == true)
+                                    .opacity(app.live[s.id] == true ? 1 : 0.6)
                             }
                         }.padding(.horizontal, 16)
                     }
@@ -64,6 +66,10 @@ struct SessionsView: View {
     private var offlineSessions: [JoinedSession] {
         app.sessions.filter { app.live[$0.id] != true }.sorted { $0.savedAt > $1.savedAt }
     }
+    // One ordered list (live first) so a session moving between groups keeps a
+    // stable identity and its `live` value re-derives instead of going stale.
+    private var ordered: [JoinedSession] { liveSessions + offlineSessions }
+    private var firstOfflineId: String? { offlineSessions.first?.id }
 
     @ViewBuilder private func card(_ s: JoinedSession, live: Bool) -> some View {
         Button { app.connect(link: s.link, name: deviceName) } label: {
