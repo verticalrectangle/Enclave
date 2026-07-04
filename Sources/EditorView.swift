@@ -65,7 +65,9 @@ struct EditorView: View {
     private var transcript: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
+                // Eager VStack (not Lazy): the whole transcript is laid out up front, so
+                // tapping a session doesn't render rows in as you hit them.
+                VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(vm.turns.enumerated()), id: \.element.id) { _, turn in
                         TurnRow(turn: turn, t: t,
                                 onImage: { viewer = $0 },
@@ -79,12 +81,10 @@ struct EditorView: View {
                 }
                 .padding(16)
             }
-            .onChange(of: scrollKey) { _, _ in
-                withAnimation(.easeOut(duration: 0.18)) { proxy.scrollTo("bottom", anchor: .bottom) }
-            }
-            // Keep the last message pinned as the keyboard opens AND closes — raising
-            // it rides the content up; dismissing lets it settle back down instead of
-            // staying stuck in the keyboard-up position.
+            // Start at — and stay pinned to — the newest message. As the snapshot loads
+            // and the agent streams, content grows against the bottom edge instead of
+            // triggering an animated jump per chunk (the source of the jitter).
+            .defaultScrollAnchor(.bottom)
             .onChange(of: composerFocused) { _, _ in
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
                     withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("bottom", anchor: .bottom) }
@@ -99,11 +99,6 @@ struct EditorView: View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
-    /// Changes on a new turn AND as the streaming turn's text grows, so the view
-    /// follows the agent live instead of jumping only when the turn finishes.
-    private var scrollKey: String {
-        "\(vm.turns.count)|\(vm.turns.first(where: { $0.id == "stream" })?.text.count ?? 0)"
-    }
 
     // MARK: composer
 
