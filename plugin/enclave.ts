@@ -1,68 +1,181 @@
 /**
  * enclave — an omp extension: `/collab`, but with a control channel for the
- * Enclave iOS app (per-session model / thinking / slash / rewind), and the
- * origin point for push notifications.
+ * Enclave iOS app (per-session model / thinking / slash / rewind) and, later,
+ * push. It hosts a *superset* of the collab protocol itself, so omp core is
+ * never touched.
  *
- * It hosts a *superset* of the collab protocol: identical transcript frames
- * (so the app connects exactly like a normal guest) plus `enclave-caps` /
- * `enclave-cmd` / `enclave-result` control frames on the same sealed channel.
- * omp core is never touched.
+ * Self-contained on purpose: the installed omp is a compiled binary, so this
+ * imports nothing from omp internals. The seal/link/envelope below are the same
+ * scheme as omp's collab codec (verified against packages/collab-web/src/lib),
+ * and the runtime (bun) provides crypto.subtle + WebSocket. The transcript comes
+ * from ctx.sessionManager; control uses confirmed ctx methods.
  *
- * Status: control + capabilities below use confirmed `ctx` APIs. The transport
- * (relay socket + AES-256-GCM seal + transcript replication) is marked TODO —
- * it reuses the same wire the Swift client already implements
- * (EngineBridge.swift) and CollabHost's replication approach; wire it against
- * omp on the box, then this is complete.
+ *   Load for dev:   omp -e /home/alexis/dev/Enclave/plugin/enclave.ts
+ *   Then in omp:    /enclave           (prints the link the app joins)
+ *   Relay:          $ENCLAVE_RELAY (default wss://wickrunner.com:8443)
  *
  * Protocol (matches Sources/EngineBridge.swift + the mock host):
- *   host→guest  enclave-caps    { version, vision, thinking[], models[], commands[], current }
- *   guest→host  enclave-cmd     { reqId, method, params }
- *   host→guest  enclave-result  { reqId, ok, message? }
- * methods: set-model {model} · set-thinking {level} · slash {name,args} ·
- *          rewind {toEntryId} · register-push {token}
+ *   host→guest  welcome / snapshot-chunk / entry / state / event / enclave-caps / enclave-result
+ *   guest→host  hello / prompt / abort / enclave-cmd
  */
 
-import type { ExtensionContext } from "@oh-my-pi/pi-coding-agent"; // adjust to the real path on the box
+const COLLAB_PROTO = 3;
+const ROOM_ID_BYTES = 16;
+const WRITE_TOKEN_BYTES = 16;
+const IV = 12;
+const RELAY: string = (globalThis as any).process?.env?.ENCLAVE_RELAY || "wss://wickrunner.com:8443";
 
-export default function activate(ctx: ExtensionContext): void {
-  ctx.registerCommand("enclave", {
-    description: "Share this session to the Enclave app (collab + control channel)",
-    handler: async () => {
-      // TODO(transport): open the relay room + print the QR. Reuse omp's collab
-      // link/seal, or the same [4B peerId][12B IV][ct+tag] AES-256-GCM framing
-      // the Swift client uses. Stream the transcript via ctx.sessionManager
-      // (snapshot for replication + subscribe to appended entries), exactly as
-      // CollabHost does. On each new guest, send the capability handshake:
-      sendToGuest(buildCaps(ctx));
-    },
-  });
+// ── base64url / crypto / envelope (mirror of omp's collab codec) ──────────────
+
+const enc = new TextEncoder();
+const dec = new TextDecoder();
+function rand(n: number): Uint8Array { const a = new Uint8Array(n); crypto.getRandomValues(a); return a; }
+function b64url(bytes: Uint8Array): string {
+  let s = ""; for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+}
+function importKey(raw: Uint8Array): Promise<CryptoKey> {
+  return crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
+}
+async function seal(key: CryptoKey, frame: unknown): Promise<Uint8Array> {
+  const iv = rand(IV);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(JSON.stringify(frame))));
+  const out = new Uint8Array(IV + ct.byteLength); out.set(iv, 0); out.set(ct, IV); return out;
+}
+async function open(key: CryptoKey, data: Uint8Array): Promise<any> {
+  const pt = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: data.subarray(0, IV) }, key, data.subarray(IV)));
+  return JSON.parse(dec.decode(pt));
+}
+function packEnvelope(peerId: number, sealed: Uint8Array): Uint8Array {
+  const out = new Uint8Array(4 + sealed.byteLength); new DataView(out.buffer).setUint32(0, peerId, false); out.set(sealed, 4); return out;
+}
+function unpackEnvelope(data: Uint8Array): { peerId: number; payload: Uint8Array } | null {
+  if (data.byteLength < 4) return null;
+  return { peerId: new DataView(data.buffer, data.byteOffset, 4).getUint32(0, false), payload: data.subarray(4) };
+}
+function formatLink(roomId: string, key: Uint8Array, token: Uint8Array): string {
+  const secret = new Uint8Array(key.byteLength + token.byteLength); secret.set(key, 0); secret.set(token, key.byteLength);
+  const host = RELAY.replace(/^wss?:\/\//, "");
+  return `${RELAY.startsWith("ws://") ? "ws://" : "wss://"}${host}/r/${roomId}.${b64url(secret)}`;
 }
 
-// ── capability handshake ─────────────────────────────────────────────────────
+// ── the extension ─────────────────────────────────────────────────────────────
 
-function buildCaps(ctx: ExtensionContext) {
-  const current = ctx.models.current();
-  // Vision = the model accepts image input (omp: model.input.includes("image")).
-  const vision = !!current && Array.isArray((current as any).input) && (current as any).input.includes("image");
+export default function activate(ctx: any): void {
+  ctx.registerCommand?.("enclave", {
+    description: "Share this session to the Enclave app (collab + control channel)",
+    handler: () => startShare(ctx),
+  });
+  // Headless testing seam: ENCLAVE_SHARE=1 starts the share on load.
+  if ((globalThis as any).process?.env?.ENCLAVE_SHARE === "1") startShare(ctx);
+}
 
+async function startShare(ctx: any): Promise<string> {
+  const roomId = b64url(rand(ROOM_ID_BYTES));
+  const rawKey = rand(32);
+  const writeToken = rand(WRITE_TOKEN_BYTES);
+  const key = await importKey(rawKey);
+  const link = formatLink(roomId, rawKey, writeToken);
+
+  const peers = new Map<number, string>();
+  const ws = new WebSocket(`${RELAY}/r/${roomId}?role=host`);
+  (ws as any).binaryType = "arraybuffer";
+
+  const send = async (frame: unknown, peer = 0) => {
+    try { ws.send(packEnvelope(peer, await seal(key, frame))); } catch (e) { /* socket closed */ }
+  };
+  const stateFrame = () => ({
+    isStreaming: !!ctx.isStreaming,
+    queuedMessageCount: 0,
+    sessionName: snapHeader?.title,
+    cwd: snapHeader?.cwd ?? ctx.cwd,
+    model: ctx.models?.current?.(),
+    thinkingLevel: ctx.getThinkingLevel?.(),
+    contextUsage: ctx.getContextUsage?.(),
+    participants: [{ name: ctx.hostName ?? "host", role: "host" }, ...[...peers.values()].map(name => ({ name, role: "guest" }))],
+  });
+  let snapHeader: any;
+
+  ws.onopen = () => log(ctx, `\n  enclave: sharing this session\n  ${link}\n`);
+  ws.onmessage = async (ev: any) => {
+    if (typeof ev.data === "string") {                    // relay control
+      const c = JSON.parse(ev.data);
+      if (c.t === "peer-left") peers.delete(c.peer);
+      return;
+    }
+    const env = unpackEnvelope(new Uint8Array(ev.data));
+    if (!env) return;
+    let frame: any; try { frame = await open(key, env.payload); } catch { return; }
+    await onGuestFrame(frame, env.peerId);
+  };
+
+  async function onGuestFrame(frame: any, peer: number): Promise<void> {
+    switch (frame.t) {
+      case "hello": {
+        peers.set(peer, (frame.name || `guest-${peer}`).slice(0, 64));
+        const snap = ctx.sessionManager.snapshotForReplication();
+        snapHeader = snap.header;
+        await send({ t: "welcome", proto: COLLAB_PROTO, header: snap.header, state: stateFrame(), agents: [], entryCount: snap.entries.length }, peer);
+        await send({ t: "snapshot-chunk", entries: snap.entries, final: true }, peer);
+        await send(buildCaps(ctx), peer);
+        await send({ t: "state", state: stateFrame() }, peer);
+        return;
+      }
+      case "prompt":
+        // Guest drives a turn. Steer if a turn is in flight, else start one.
+        ctx.sendUserMessage?.(frame.text, ctx.isStreaming ? { deliverAs: "steer" } : undefined);
+        return;
+      case "abort":
+        ctx.abort?.();
+        return;
+      case "enclave-cmd": {
+        const r = await handleControl(ctx, frame.method, frame.params);
+        await send({ t: "enclave-result", reqId: frame.reqId, ...r }, peer);
+        return;
+      }
+    }
+  }
+
+  // Live stream to guests: new entries + agent events + state transitions.
+  if (ctx.sessionManager) ctx.sessionManager.onEntryAppended = (entry: any) => { void send({ t: "entry", entry }); };
+  const fwd = (type: string) => (e: any) => { void send({ t: "event", event: { type, ...e } }); };
+  for (const ev of ["message_start", "message_update", "message_end", "tool_execution_start", "tool_execution_update", "tool_execution_end"]) {
+    ctx.on?.(ev, fwd(ev));
+  }
+  ctx.on?.("agent_start", () => { void send({ t: "event", event: { type: "agent_start" } }); void send({ t: "state", state: stateFrame() }); });
+  ctx.on?.("agent_end", () => { void send({ t: "event", event: { type: "agent_end" } }); void send({ t: "state", state: stateFrame() }); });
+
+  return link;
+}
+
+function log(ctx: any, msg: string): void {
+  try { ctx.ui?.write?.(msg); } catch {}
+  try { (globalThis as any).process?.stderr?.write?.(msg + "\n"); } catch {}
+}
+
+// ── capability handshake ──────────────────────────────────────────────────────
+
+function buildCaps(ctx: any) {
+  const current = ctx.models?.current?.();
+  const vision = !!current && Array.isArray(current.input) && current.input.includes("image");
   return {
     t: "enclave-caps",
     version: 1,
     vision,
     thinking: ["minimal", "low", "medium", "high", "xhigh"],
-    models: ctx.models.list().map(m => ({ id: (m as any).id, name: (m as any).name ?? (m as any).id })),
-    commands: ctx.getCommands().map(c => ({ name: (c as any).name, summary: (c as any).description ?? "" })),
-    current: { model: (current as any)?.id, thinking: ctx.getThinkingLevel?.() },
+    models: (ctx.models?.list?.() ?? []).map((m: any) => ({ id: m.id, name: m.name ?? m.id })),
+    commands: (ctx.getCommands?.() ?? []).map((c: any) => ({ name: c.name, summary: c.description ?? "" })),
+    current: { model: current?.id, thinking: ctx.getThinkingLevel?.() },
   };
 }
 
-// ── control dispatch ─────────────────────────────────────────────────────────
+// ── control dispatch ──────────────────────────────────────────────────────────
 
-async function handleControl(ctx: ExtensionContext, method: string, params: any): Promise<{ ok: boolean; message?: string }> {
+async function handleControl(ctx: any, method: string, params: any): Promise<{ ok: boolean; message?: string }> {
   try {
     switch (method) {
       case "set-model": {
-        const model = ctx.models.resolve(params.model);
+        const model = ctx.models?.resolve?.(params.model);
         if (!model) return { ok: false, message: `unknown model ${params.model}` };
         const ok = await ctx.setModel(model);
         return { ok, message: ok ? `model → ${params.model}` : "no API key for that model" };
@@ -71,22 +184,17 @@ async function handleControl(ctx: ExtensionContext, method: string, params: any)
         await ctx.setThinkingLevel(params.level);
         return { ok: true, message: `thinking → ${params.level}` };
       case "rewind": {
-        const { cancelled } = await ctx.navigateTree(params.toEntryId);
-        return { ok: !cancelled, message: cancelled ? "rewind cancelled" : "rewound" };
+        const r = await ctx.navigateTree(params.toEntryId);
+        return { ok: !r?.cancelled, message: r?.cancelled ? "rewind cancelled" : "rewound" };
       }
       case "slash": {
-        // Map the common ones to direct ctx primitives; fall back to the
-        // registered command's handler for the rest. Interactive commands
-        // that call ctx.ui.ask(...) surface to the app as normal ui-requests.
-        const cmd = ctx.getCommands().find(c => (c as any).name === params.name);
+        const cmd = (ctx.getCommands?.() ?? []).find((c: any) => c.name === params.name);
         if (!cmd) return { ok: false, message: `no such command /${params.name}` };
-        await (cmd as any).handler?.(params.args ?? "");
+        await cmd.handler?.(params.args ?? "");
         return { ok: true, message: `ran /${params.name}` };
       }
       case "register-push":
-        // TODO(push): persist params.token; when a ui-request/ask appears, send
-        // an APNs push to it (box holds the .p8). See docs/enclave-plugin.md.
-        return { ok: true };
+        return { ok: true }; // TODO(push): persist token; APNs on asks
       default:
         return { ok: false, message: `unknown method ${method}` };
     }
@@ -94,15 +202,3 @@ async function handleControl(ctx: ExtensionContext, method: string, params: any)
     return { ok: false, message: String(err) };
   }
 }
-
-// ── transport stubs (wire on the box) ────────────────────────────────────────
-
-// Replace with the real sealed relay send once the room is stood up.
-function sendToGuest(_frame: unknown): void {
-  // TODO(transport): seal(frame) → [4B peerId][12B IV][ct+tag] → relay socket.
-}
-
-// When a guest control frame arrives (after unsealing), route it:
-//   const result = await handleControl(ctx, frame.method, frame.params);
-//   sendToGuest({ t: "enclave-result", reqId: frame.reqId, ...result });
-export { handleControl };
