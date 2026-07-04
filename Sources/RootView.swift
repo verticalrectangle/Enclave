@@ -31,11 +31,12 @@ final class AppModel: ObservableObject {
         guard let client = GuestClient(link: link, name: name) else { return false }
         active = client
         client.connect()
-        showEditor = true
+        // Showcase/screenshot mode connects in the background so the tabs stay visible.
+        showEditor = ProcessInfo.processInfo.environment["ENCLAVE_SHOWCASE"] != "1"
         upsert(JoinedSession(id: link, link: link, title: "omp session",
                              relay: client.relay, readOnly: client.readOnly, savedAt: Date()))
         // Drive the Live Activity + ask notifications from live frames.
-        Notifier.requestAuth()
+        if ProcessInfo.processInfo.environment["ENCLAVE_SCREENSHOT"] != "1" { Notifier.requestAuth() }
         lastAskReqId = nil
         cancellable = client.objectWillChange.receive(on: RunLoop.main).sink { [weak self] in self?.onClientChanged() }
         return true
@@ -45,6 +46,11 @@ final class AppModel: ObservableObject {
         guard let c = active else { return }
         if c.phase == "ended" { liveActivity.end() }
         else { liveActivity.sync(sessionId: c.sessionId, state: LiveActivityController.state(from: c)) }
+        // Keep the saved room's title fresh from the live header.
+        if !c.title.isEmpty, c.title != "omp session",
+           let link = connectedLink, let i = sessions.firstIndex(where: { $0.link == link }), sessions[i].title != c.title {
+            sessions[i].title = c.title; save()
+        }
         // Local notification the first time each host ask appears.
         if let ask = c.turns.last(where: { $0.type == .ask }), let rq = ask.reqId, rq != lastAskReqId {
             lastAskReqId = rq
@@ -89,8 +95,8 @@ final class AppModel: ObservableObject {
 struct RootView: View {
     @EnvironmentObject var theme: ThemeStore
     @EnvironmentObject var app: AppModel
-    @State private var tab = 0
-    @State private var showPair = false
+    @State private var tab = Int(ProcessInfo.processInfo.environment["ENCLAVE_TAB"] ?? "") ?? 0
+    @State private var showPair = ProcessInfo.processInfo.environment["ENCLAVE_SHOW_PAIR"] == "1"
     private var t: Theme { theme.t }
 
     var body: some View {

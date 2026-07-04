@@ -231,7 +231,10 @@ struct LogoMark: View {
         ZStack {
             Circle().stroke(color, lineWidth: size * 0.075)
             EnclaveSlit().stroke(color, style: StrokeStyle(lineWidth: size * 0.06, lineCap: .round, lineJoin: .round))
-                .frame(width: size, height: size)
-        }.frame(width: size, height: size)
+        }
+        // Inset the mark within its footprint so a circular Liquid Glass toolbar
+        // chip doesn't clip the ring at the top and bottom.
+        .frame(width: size * 0.82, height: size * 0.82)
+        .frame(width: size, height: size)
     }
 }
