@@ -19,6 +19,8 @@
  *   guest→host  hello / prompt / abort / enclave-cmd
  */
 
+import { QrCode, renderQrHalfBlocks } from "./qrcode";
+
 const COLLAB_PROTO = 3;
 const ROOM_ID_BYTES = 16;
 const WRITE_TOKEN_BYTES = 16;
@@ -101,6 +103,12 @@ async function startShare(ctx: any): Promise<string> {
   });
   let snapHeader: any;
 
+  // Show a scannable QR + the link as an editor widget, like /collab.
+  try {
+    const qr = renderQrHalfBlocks(QrCode.encodeText(link, "M")).map((row) => " " + row);
+    ctx.ui?.setWidget?.("enclave", ["", ...qr, "", `  Scan to join in Enclave · ${link}`, ""]);
+  } catch { /* headless / no ui */ }
+
   ws.onopen = () => log(ctx, `\n  enclave: sharing this session\n  ${link}\n`);
   ws.onmessage = async (ev: any) => {
     if (typeof ev.data === "string") {                    // relay control
@@ -149,6 +157,8 @@ async function startShare(ctx: any): Promise<string> {
   }
   ctx.on?.("agent_start", () => { void send({ t: "event", event: { type: "agent_start" } }); void send({ t: "state", state: stateFrame() }); });
   ctx.on?.("agent_end", () => { void send({ t: "event", event: { type: "agent_end" } }); void send({ t: "state", state: stateFrame() }); });
+
+  ws.onclose = () => { try { ctx.ui?.setWidget?.("enclave", undefined); } catch {} };
 
   return link;
 }
