@@ -52,16 +52,11 @@ struct TurnRow: View {
     }
 
     private var agentLine: some View {
-        HStack(alignment: .top, spacing: 9) {
-            LogoMark(t: t, size: 17, color: turn.streaming ? t.accent : t.txtMuted)
-            // Solid, high-contrast agent text (white in dark, ink in light) with
-            // inline markdown — bold and `code` render as they should. As the host
-            // streams (message_update grows the same turn), it just extends here;
-            // no typewriter, so nothing garbles or lags.
-            Text(inlineMarkdown(turn.text)).font(.serif(16)).foregroundStyle(t.txt)
-                .textSelection(.enabled)
-            Spacer(minLength: 0)
-        }
+        // Agent prose as clean serif, full width — no logo mark.
+        // Inline markdown (bold / `code`) renders; streaming just extends the text.
+        Text(inlineMarkdown(turn.text)).font(.serif(16)).foregroundStyle(t.txt)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var advisorNote: some View {
