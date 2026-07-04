@@ -196,8 +196,8 @@ struct ThinkingLine: View {
     @State private var dots = ""
     let timer = Timer.publish(every: 0.35, on: .main, in: .common).autoconnect()
     var body: some View {
-        HStack(spacing: 9) {
-            LogoMark(t: t, size: 17, color: t.accent)
+        HStack(spacing: 8) {
+            LiveDot(t: t)
             Text("thinking\(dots)").font(.term(15)).foregroundStyle(t.accent)
         }
         .onReceive(timer) { _ in dots = dots.count >= 3 ? "" : dots + "." }

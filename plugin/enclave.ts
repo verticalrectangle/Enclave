@@ -62,12 +62,17 @@ function formatLink(roomId: string, key: Uint8Array, token: Uint8Array): string 
 // ── the extension ─────────────────────────────────────────────────────────────
 
 export default function activate(ctx: any): void {
+  // The command handler's ctx (ExtensionCommandContext) is the rich one — it has
+  // sessionManager / models / navigateTree, which the activation api does not
+  // (no session exists yet at activate time).
   ctx.registerCommand?.("enclave", {
     description: "Share this session to the Enclave app (collab + control channel)",
-    handler: () => startShare(ctx),
+    handler: (_args: string, cmdCtx: any) => startShare(cmdCtx),
   });
-  // Headless testing seam: ENCLAVE_SHARE=1 starts the share on load.
-  if ((globalThis as any).process?.env?.ENCLAVE_SHARE === "1") startShare(ctx);
+  // Headless testing seam: share once a session exists.
+  if ((globalThis as any).process?.env?.ENCLAVE_SHARE === "1") {
+    ctx.on?.("session_start", (_e: any, hookCtx: any) => startShare(hookCtx ?? ctx));
+  }
 }
 
 async function startShare(ctx: any): Promise<string> {
