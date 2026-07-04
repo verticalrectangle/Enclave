@@ -231,17 +231,21 @@ function buildCaps(ctx: any) {
   const current = models?.current?.();
   const list = models?.list?.() ?? [];
   const seesImages = (m: any) => Array.isArray(m?.input) && m.input.includes("image");
-  // Offer image attach whenever this omp can handle an image at all: the current
-  // model sees images directly, OR any available model does — in which case omp's
-  // vision-role fallback (modelRoles.vision / describeAttachedImagesForTextModel)
-  // routes the image through that model and injects a description. So the paperclip
-  // stays available on a text model like DeepSeek, and images go to the vision model.
-  const vision = seesImages(current) || list.some(seesImages);
+  // An image is actually understandable if the current model sees pixels natively,
+  // OR the inspect_image tool is on (getAllTools only lists it when enabled) so omp
+  // can delegate to a vision model. visionModelAvailable = the fallback *could* be
+  // enabled (a vision model exists) → the app greys the paperclip with a how-to.
+  const nativeVision = seesImages(current);
+  const inspectImage = (api?.runtime?.getAllTools?.() ?? []).includes("inspect_image");
+  const visionModelAvailable = list.some(seesImages);
+  const vision = nativeVision || inspectImage;
   return {
     t: "enclave-caps",
     version: 1,
-    vision,                          // images are attachable (native or via fallback)
-    nativeVision: seesImages(current), // the current model sees images directly
+    vision,                            // images are actually understandable now
+    nativeVision,                      // current model sees images directly
+    inspectImage,                      // the inspect_image fallback tool is enabled
+    visionModelAvailable,              // a vision model exists (fallback could be turned on)
     thinking: ["minimal", "low", "medium", "high", "xhigh"],
     models: list.map((m: any) => ({ id: m.id, name: m.name ?? m.id })),
     commands: (getCommands?.() ?? []).map((c: any) => ({ name: c.name, summary: c.description ?? "" })),

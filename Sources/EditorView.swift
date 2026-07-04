@@ -25,6 +25,7 @@ struct EditorView: View {
     @State private var pickerItem: PhotosPickerItem?
     @State private var attachment: Attachment?
     @State private var showPalette = false
+    @State private var showVisionHelp = false
 
     init(client: GuestClient) {
         let seed = Session(id: "live", repo: client.title, branch: client.readOnly ? "watch" : "control",
@@ -162,6 +163,10 @@ struct EditorView: View {
                     PhotosPicker(selection: $pickerItem, matching: .images) {
                         Image(systemName: "paperclip").font(.system(size: 20)).foregroundStyle(t.txtMuted).frame(width: 34, height: 34)
                     }
+                } else if vm.imagePossible {
+                    Button { showVisionHelp = true } label: {
+                        Image(systemName: "paperclip").font(.system(size: 20)).foregroundStyle(t.txtGhost).frame(width: 34, height: 34).opacity(0.5)
+                    }
                 }
                 TextField("", text: $draft, prompt: Text(placeholder).foregroundStyle(t.txtMuted), axis: .vertical)
                     .font(.bodyF(14)).foregroundStyle(t.txt).tint(t.accent)
@@ -181,6 +186,11 @@ struct EditorView: View {
         .glass(t, 16)
         .onChange(of: pickerItem) { _, item in loadAttachment(item) }
         .onAppear { dictation.onText = { draft = $0 } }
+        .alert("Vision is off for this session", isPresented: $showVisionHelp) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("This model can't read images yet. On the box, enable it:\n\nomp config set inspect_image.enabled true\n\nthen reconnect — or switch to a vision-capable model.")
+        }
     }
 
     private var placeholder: String {

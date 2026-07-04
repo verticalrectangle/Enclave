@@ -22,6 +22,9 @@ final class SessionVM: ObservableObject {
     var enhanced: Bool { live.enhanced }
     var canSendImages: Bool { live.canSendImages }
     var viaVisionModel: Bool { live.canSendImages && !live.nativeVision }  // routed through the vision fallback
+    // Show the paperclip when an image path exists (real or enable-able); it's greyed
+    // when a vision model is present but the session can't yet use it (inspect_image off).
+    var imagePossible: Bool { live.canSendImages || live.visionModelAvailable }
     var commands: [EnclaveCommand] { live.commands }
 
     @Published var awaitingVision = false   // this turn is reading an image via the vision fallback

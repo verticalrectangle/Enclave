@@ -260,8 +260,9 @@ final class GuestClient: ObservableObject {
 
     // /enclave enhanced capabilities — all false/empty over plain /collab.
     @Published private(set) var enhanced = false        // an /enclave host is present
-    @Published private(set) var canSendImages = false   // images attachable (native or via fallback)
+    @Published private(set) var canSendImages = false   // image is actually understandable now
     @Published private(set) var nativeVision = false    // current model sees images directly
+    @Published private(set) var visionModelAvailable = false // a vision model exists (fallback could be enabled)
     @Published private(set) var commands: [EnclaveCommand] = []
     @Published private(set) var models: [ModelOption] = []
     @Published private(set) var thinkingLevels: [String] = []
@@ -403,7 +404,7 @@ final class GuestClient: ObservableObject {
             entries = []
             stream = nil; streamDone = false; activeTools = []; uiRequest = nil
             progressMap = [:]; progress = []
-            enhanced = false; canSendImages = false; nativeVision = false; commands = []
+            enhanced = false; canSendImages = false; nativeVision = false; visionModelAvailable = false; commands = []
             endedReason = nil
             if let header = f["header"] as? [String: Any] {
                 title = header["title"] as? String ?? header["id"] as? String ?? title
@@ -446,6 +447,7 @@ final class GuestClient: ObservableObject {
             enhanced = true
             canSendImages = f["vision"] as? Bool ?? false
             nativeVision = f["nativeVision"] as? Bool ?? true   // absent → assume native (no hint)
+            visionModelAvailable = f["visionModelAvailable"] as? Bool ?? false
             commands = (f["commands"] as? [[String: Any]] ?? []).map {
                 EnclaveCommand(name: $0["name"] as? String ?? "", summary: $0["summary"] as? String ?? $0["description"] as? String ?? "")
             }
