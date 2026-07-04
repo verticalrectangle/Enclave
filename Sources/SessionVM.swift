@@ -21,6 +21,7 @@ final class SessionVM: ObservableObject {
     // /enclave capabilities (all off over plain /collab).
     var enhanced: Bool { live.enhanced }
     var canSendImages: Bool { live.canSendImages }
+    var viaVisionModel: Bool { live.canSendImages && !live.nativeVision }  // routed through the vision fallback
     var commands: [EnclaveCommand] { live.commands }
 
     init(live client: GuestClient, seed s: Session) {

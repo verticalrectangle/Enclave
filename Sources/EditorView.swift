@@ -129,7 +129,15 @@ struct EditorView: View {
                 HStack(spacing: 9) {
                     Image(uiImage: a.image).resizable().scaledToFill()
                         .frame(width: 40, height: 40).clipShape(RoundedRectangle(cornerRadius: 16))
-                    Text("image attached · sent with your message").font(.term(13)).foregroundStyle(t.txtMuted)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("image attached · sent with your message").font(.term(13)).foregroundStyle(t.txtMuted)
+                        if vm.viaVisionModel {
+                            HStack(spacing: 4) {
+                                Image(systemName: "eye").font(.system(size: 9))
+                                Text("read via vision model").font(.labl(8.5)).tracking(0.8)
+                            }.foregroundStyle(t.accent.opacity(0.85))
+                        }
+                    }
                     Spacer()
                     Button { attachment = nil } label: { Image(systemName: "xmark").font(.system(size: 14)).foregroundStyle(t.txtMuted) }
                 }

@@ -173,7 +173,8 @@ function buildCaps(ctx: any) {
   return {
     t: "enclave-caps",
     version: 1,
-    vision,
+    vision,                          // images are attachable (native or via fallback)
+    nativeVision: seesImages(current), // the current model sees images directly
     thinking: ["minimal", "low", "medium", "high", "xhigh"],
     models: (ctx.models?.list?.() ?? []).map((m: any) => ({ id: m.id, name: m.name ?? m.id })),
     commands: (ctx.getCommands?.() ?? []).map((c: any) => ({ name: c.name, summary: c.description ?? "" })),
