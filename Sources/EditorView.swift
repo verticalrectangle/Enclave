@@ -190,12 +190,12 @@ struct EditorView: View {
         if vm.isRunning {
             Button { vm.stop() } label: {
                 Image(systemName: "stop.fill").font(.system(size: 15)).foregroundStyle(t.txt)
-                    .frame(width: 38, height: 38).background(t.glassFill2).overlay(RoundedRectangle(cornerRadius: 16).stroke(t.lineHover))
+                    .frame(width: 38, height: 38).glass(t, 16)
             }.press()
         } else {
             Button(action: doSend) {
                 Image(systemName: "arrow.right").font(.system(size: 17, weight: .semibold)).foregroundStyle(t.accent)
-                    .frame(width: 38, height: 38).background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 16).stroke(t.accentLine))
+                    .frame(width: 38, height: 38).glass(t, 16, active: true)
             }.press()
         }
     }

@@ -181,12 +181,12 @@ struct AskCard: View {
                 Button { sent = true; onSubmit(chosen) } label: {
                     HStack(spacing: 6) { Image(systemName: sent ? "checkmark" : "paperplane.fill"); Text(sent ? "SENT" : "SEND").font(.labl(10.5)) }
                         .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 10)
-                        .background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 16).stroke(t.accentLine))
+                        .glass(t, 16, active: true)
                 }.disabled(sent).press()
             }
         }
         .padding(11)
-        .background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 16).stroke(t.accentLine))
+        .glass(t, 16, active: true)
     }
 }
 

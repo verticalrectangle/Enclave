@@ -148,7 +148,7 @@ struct SubagentSheet: View {
                         }.press()
                         Button { client.sendAgentCmd("revive", agentId: agent.id) } label: {
                             Text("REVIVE").font(.labl(10.5)).foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 10)
-                                .background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 16).stroke(t.accentLine))
+                                .glass(t, 16, active: true)
                         }.press()
                     }
                 }.padding(.horizontal, 12).padding(.bottom, 6).background(t.bg)
@@ -215,7 +215,7 @@ struct PairView: View {
                     Button { error = nil; showScanner = true } label: {
                         HStack(spacing: 9) { Image(systemName: "qrcode.viewfinder").font(.system(size: 19)); Text("SCAN QR CODE").font(.labl(11)) }
                             .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 16)
-                            .background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 16).stroke(t.accentLine))
+                            .glass(t, 16, active: true)
                     }.press().padding(.bottom, 18)
 
                     HStack(spacing: 10) {
@@ -236,7 +236,7 @@ struct PairView: View {
                     Button(action: connect) {
                         HStack(spacing: 8) { Image(systemName: "bolt.fill"); Text("CONNECT").font(.labl(11)) }
                             .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 14)
-                            .background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 16).stroke(t.accentLine))
+                            .glass(t, 16, active: true)
                     }.press().disabled(link.trimmingCharacters(in: .whitespaces).isEmpty).padding(.bottom, error == nil ? 20 : 6)
                     if let err = error { Text(err).font(.term(12)).foregroundStyle(t.cAdvisor).padding(.bottom, 16) }
 
