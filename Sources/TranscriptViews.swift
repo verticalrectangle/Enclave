@@ -8,16 +8,11 @@ import SwiftUI
 struct TurnRow: View {
     let turn: UITurn
     let t: Theme
-    var dim = false
-    var isEditTarget = false
-    var canEdit = false
-    var onEdit: () -> Void = {}
     var onImage: (String) -> Void = { _ in }
     var onAnswer: ((UITurn, Int) -> Void)? = nil
 
     var body: some View {
         content
-            .opacity(dim ? 0.32 : 1)
             .padding(.bottom, 14)
             .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
@@ -30,7 +25,6 @@ struct TurnRow: View {
         case .advisor: advisorNote
         case .sys: SysChip(turn: turn, t: t)
         case .ask: AskCard(turn: turn, t: t, onSubmit: onAnswer.map { cb in { idx in cb(turn, idx) } })
-        case .permission: EmptyView()   // rendered as the pinned bar instead
         }
     }
 
@@ -45,13 +39,7 @@ struct TurnRow: View {
             }
             Text(turn.text).font(.bodyF(14)).foregroundStyle(t.txt)
                 .padding(.horizontal, 13).padding(.vertical, 10)
-                .glass(t, 4, active: isEditTarget)
-            if canEdit {
-                Button(action: onEdit) {
-                    HStack(spacing: 4) { Image(systemName: "pencil").font(.system(size: 11)); Text("EDIT").font(.labl(8.5)).tracking(1) }
-                        .foregroundStyle(t.txtMuted).opacity(0.6)
-                }
-            }
+                .glass(t, 4)
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
@@ -187,47 +175,7 @@ struct AskCard: View {
     }
 }
 
-struct PendingApproval: View {
-    let turn: UITurn; let t: Theme
-    var body: some View {
-        HStack(spacing: 9) {
-            LiveDot(t: t)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("AWAITING YOUR APPROVAL").font(.labl(8.5)).foregroundStyle(t.accent)
-                HStack(spacing: 5) {
-                    Text(turn.meta).font(.term(14)).foregroundStyle(t.txt)
-                    if let a = turn.add { Text("+\(a)").font(.term(14)).foregroundStyle(t.cOk) }
-                    if let d = turn.del { Text("−\(d)").font(.term(14)).foregroundStyle(t.cAdvisor) }
-                }.lineLimit(1)
-            }
-            Spacer(minLength: 0)
-            Button {} label: {
-                HStack(spacing: 6) { Image(systemName: "checkmark").font(.system(size: 15)); Text("APPROVE").font(.labl(10.5)) }
-                    .foregroundStyle(t.accent).padding(.horizontal, 12).padding(.vertical, 9)
-                    .background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 4).stroke(t.accentLine))
-            }.press()
-            Button {} label: {
-                Text("REJECT").font(.labl(10.5)).foregroundStyle(t.txt).padding(.horizontal, 11).padding(.vertical, 9)
-                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(t.lineStrong))
-            }.press()
-        }
-        .padding(.horizontal, 12).padding(.vertical, 8)
-        .glass(t, 4, active: true, panel: true)
-    }
-}
-
 // MARK: - misc
-
-struct RewindDivider: View {
-    let t: Theme
-    var body: some View {
-        HStack(spacing: 8) {
-            Rectangle().fill(t.accentLine).frame(height: 1)
-            Text("↺ REWOUND ON RESEND").font(.labl(8.5)).foregroundStyle(t.accent).fixedSize()
-            Rectangle().fill(t.accentLine).frame(height: 1)
-        }.padding(.bottom, 12)
-    }
-}
 
 struct ThinkingLine: View {
     let t: Theme

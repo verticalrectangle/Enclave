@@ -15,10 +15,12 @@ import SwiftUI
 
 @main
 struct EnclaveApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var theme = ThemeStore()
+    @StateObject private var app = AppModel()
     var body: some Scene {
         WindowGroup {
-            RootView().environmentObject(theme)
+            RootView().environmentObject(theme).environmentObject(app)
         }
     }
 }

@@ -61,3 +61,31 @@ cd packages/collab-web && bun scripts/mock-host.ts --port 7466
 
 A launch seam auto-joins from the `ENCLAVE_COLLAB_LINK` env var (deep-link / e2e
 testing): `SIMCTL_CHILD_ENCLAVE_COLLAB_LINK=<link> xcrun simctl launch … xyz.epsilver.enclave`.
+
+## Faithful to the guest protocol
+
+The app only exposes what an omp collab **guest** can actually do over the wire —
+nothing that would require going around `/collab`:
+
+- **Do:** prompt / steer, abort, answer host asks, kill/revive/chat subagents
+  (`agent-cmd`), read subagent transcripts (`fetch-transcript`).
+- **Observe:** transcript, streaming, tools, `state` (model / cwd / context /
+  participants), `agents`, subagent `task:subagent:*` progress, asks, notices.
+- **Sessions** is your on-device list of joined rooms (the protocol can't
+  enumerate a host's sessions). **Activity** is the live subagent fan-out for the
+  connected session, with transcript drill-in. **Trust** is a read-only mirror of
+  `SessionState`. View links are read-only; the composer becomes a watch bar.
+
+Removed as not guest-reachable: the mock session library, slash commands,
+edit→rewind (host-only), model-routing editor, paired-devices / fingerprint
+fiction.
+
+## Live Activity, Dynamic Island, notifications
+
+`EnclaveWidgets` (a WidgetKit app-extension) renders the session as a real
+**Live Activity** on the lock screen + **Dynamic Island**, driven locally from
+live frames (`LiveActivityController`). A **local notification** fires when a host
+ask is waiting (`Notifier`). Remote push — waking a suspended phone — needs a
+`relay→APNs` bridge that isn't built yet; `AppDelegate` registers for the device
+token and marks where that bridge plugs in (enabling it on device also needs the
+`aps-environment` entitlement + a push-capable App ID).

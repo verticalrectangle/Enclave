@@ -1,52 +1,39 @@
 //  SessionsView.swift
-//  Project library. Large title, sort chips, glass session cards with the live
-//  current-action line. NavigationStack pushes EditorView; the native tab bar and
-//  large-title behavior come from SwiftUI.
+//  The rooms you've joined. The collab protocol has no way to enumerate a host's
+//  sessions, so this is the guest's own on-device list (AppModel.sessions): each
+//  entry is a /collab link you've connected to. Tap to reconnect; Pair to add.
 
 import SwiftUI
+import UIKit
 
 struct SessionsView: View {
     @EnvironmentObject var theme: ThemeStore
+    @EnvironmentObject var app: AppModel
     @Binding var showPair: Bool
-    @Binding var showLock: Bool
-    @State private var sort: Sort = .recent
     private var t: Theme { theme.t }
-
-    enum Sort: String, CaseIterable { case recent = "Recent", name = "Name", fx = "Cost" }
-
-    private var sessions: [Session] {
-        switch sort {
-        case .recent: return Sample.sessions
-        case .name: return Sample.sessions.sorted { $0.repo < $1.repo }
-        case .fx: return Sample.sessions.sorted { $0.cost > $1.cost }
-        }
-    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Sessions").font(.disp(40)).foregroundStyle(t.txt).textCase(.uppercase)
-                        }
-                        Spacer()
-                        Text(Sample.host.name).font(.term(16)).foregroundStyle(t.accent)
+                    Text("Sessions").font(.disp(40)).foregroundStyle(t.txt).textCase(.uppercase)
+                        .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 14)
+
+                    if app.sessions.isEmpty {
+                        emptyState
+                    } else {
+                        LazyVStack(spacing: 11) {
+                            ForEach(app.sessions) { s in
+                                Button { app.connect(link: s.link, name: deviceName) } label: {
+                                    JoinedCard(session: s, t: t)
+                                }
+                                .press()
+                                .contextMenu {
+                                    Button(role: .destructive) { app.remove(s) } label: { Label("Remove", systemImage: "trash") }
+                                }
+                            }
+                        }.padding(.horizontal, 16)
                     }
-                    .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 12)
-
-                    HStack(spacing: 6) {
-                        ForEach(Sort.allCases, id: \.self) { s in
-                            Button { sort = s } label: { Chip(t: t, text: s.rawValue, on: sort == s) }
-                        }
-                        Spacer()
-                    }.padding(.horizontal, 16).padding(.bottom, 14)
-
-                    LazyVStack(spacing: 11) {
-                        ForEach(sessions) { s in
-                            NavigationLink { EditorView(s).environmentObject(theme) } label: { SessionCard(session: s, t: t) }
-                        }
-                    }.padding(.horizontal, 16)
 
                     Button { showPair = true } label: {
                         HStack(spacing: 8) {
@@ -64,8 +51,7 @@ struct SessionsView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     HStack(spacing: 9) { LogoMark(t: t, size: 22, color: t.txt); Text("ENCLAVE").font(.disp(16)).foregroundStyle(t.txt) }
                 }
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button { showLock = true } label: { Image(systemName: "lock").foregroundStyle(t.txtMuted) }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button { theme.toggle() } label: { Image(systemName: theme.mode == .dark ? "sun.max" : "moon").foregroundStyle(t.txtMuted) }
                 }
             }
@@ -73,28 +59,35 @@ struct SessionsView: View {
         }
         .tint(t.accent)
     }
+
+    private var deviceName: String { UIDevice.current.name }
+
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            LogoMark(t: t, size: 44, color: t.txtGhost)
+            Text("NO SESSIONS YET").font(.labl(10)).tracking(2).foregroundStyle(t.txtMuted)
+            (Text("Run ").foregroundStyle(t.txtMuted) + Text("omp /collab").font(.term(15)).foregroundStyle(t.accent) + Text(" on a box, then pair with the link.").foregroundStyle(t.txtMuted))
+                .font(.bodyF(13.5)).multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity).padding(.vertical, 48).padding(.horizontal, 24)
+    }
 }
 
-struct SessionCard: View {
-    let session: Session; let t: Theme
-    private var statusColor: Color { session.status == .running ? t.accent : session.status == .waiting ? t.cAdvisor : t.txtGhost }
+struct JoinedCard: View {
+    let session: JoinedSession; let t: Theme
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                if session.status == .running { LiveDot(t: t) }
-                else { Circle().fill(statusColor).frame(width: 7, height: 7) }
-                Text(session.repo).font(.disp(17)).foregroundStyle(t.txt).textCase(.uppercase)
+                Circle().fill(t.txtGhost).frame(width: 7, height: 7)
+                Text(session.title).font(.disp(17)).foregroundStyle(t.txt).textCase(.uppercase).lineLimit(1)
                 Spacer()
                 Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(t.txtGhost)
-            }.padding(.bottom, 9)
-            Text("\(session.status != .idle ? "▶ " : "")\(session.action)")
-                .font(.term(14)).foregroundStyle(session.status == .idle ? t.txtMuted : t.accent).lineLimit(1)
-                .padding(.bottom, 11)
+            }.padding(.bottom, 11)
             HStack(spacing: 6) {
-                MetaChip(t: t, text: session.branch)
-                MetaChip(t: t, text: session.model)
+                MetaChip(t: t, text: session.readOnly ? "watch" : "control")
+                MetaChip(t: t, text: session.relay)
                 Spacer()
-                Text(session.lastSeen).font(.term(12)).foregroundStyle(t.txtGhost)
+                Text("tap to join").font(.term(12)).foregroundStyle(t.txtGhost)
             }
         }
         .padding(13)

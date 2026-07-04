@@ -243,12 +243,25 @@ final class GuestClient: ObservableObject {
     @Published private(set) var endedReason: String?
     @Published private(set) var readOnly = false
 
+    // Trust / Activity surfaces.
+    @Published private(set) var sessionId = ""
+    @Published private(set) var relay = "—"
+    @Published private(set) var thinkingLevel = "—"
+    @Published private(set) var contextPercent: Double?
+    @Published private(set) var queued = 0
+    @Published private(set) var participants: [ParticipantInfo] = []
+    @Published private(set) var agents: [AgentInfo] = []
+    @Published private(set) var progress: [SubagentProgress] = []
+
     /// Fired after every applied frame (SessionVM bridges this to its own publish).
     var onChange: (() -> Void)?
 
     private let socket: CollabSocket
     private let name: String
     private let writeToken: Data?
+    private var reqSeq = 0
+    private var pendingTranscripts: [Int: CheckedContinuation<(text: String, newSize: Int)?, Never>] = [:]
+    private var progressMap: [String: SubagentProgress] = [:]
 
     // Replica state.
     private var entries: [[String: Any]] = []
@@ -265,6 +278,7 @@ final class GuestClient: ObservableObject {
             self.name = name
             self.writeToken = parsed.writeToken
             self.readOnly = parsed.writeToken == nil
+            self.relay = (parsed.wsURL.host ?? "—") + (parsed.wsURL.port.map { ":\($0)" } ?? "")
             self.socket = CollabSocket(wsURL: parsed.wsURL, key: parsed.key)
         }
         socket.onOpen = { [weak self] in Task { @MainActor in self?.handleOpen() } }
@@ -286,15 +300,41 @@ final class GuestClient: ObservableObject {
 
     // ── commands ─────────────────────────────────────────────────────────────
 
-    func sendPrompt(_ text: String) {
+    func sendPrompt(_ text: String, images: [(mime: String, base64: String)] = []) {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !clean.isEmpty else { return }
-        socket.send(["t": "prompt", "text": clean])
+        guard !clean.isEmpty || !images.isEmpty else { return }
+        var frame: [String: Any] = ["t": "prompt", "text": clean]
+        if !images.isEmpty {
+            frame["images"] = images.map { ["type": "image", "mimeType": $0.mime, "data": $0.base64] }
+        }
+        socket.send(frame)
     }
     func sendAbort() { socket.send(["t": "abort"]) }
     func answer(reqId: Int, value: String) {
         socket.send(["t": "ui-response", "reqId": reqId, "value": value])
         if (uiRequest?["reqId"] as? Int) == reqId { uiRequest = nil; rebuild() }
+    }
+
+    /// Chat with / kill / revive a subagent (agent-cmd guest frame).
+    func sendAgentCmd(_ cmd: String, agentId: String, text: String? = nil) {
+        var frame: [String: Any] = ["t": "agent-cmd", "cmd": cmd, "agentId": agentId]
+        if let text { frame["text"] = text }
+        socket.send(frame)
+    }
+
+    /// Incremental subagent-transcript read (fetch-transcript). Returns decoded
+    /// JSONL from `fromByte` + the next offset base, or nil on timeout/failure.
+    func fetchTranscript(agentId: String, fromByte: Int) async -> (text: String, newSize: Int)? {
+        reqSeq += 1
+        let reqId = reqSeq
+        return await withCheckedContinuation { cont in
+            pendingTranscripts[reqId] = cont
+            socket.send(["t": "fetch-transcript", "reqId": reqId, "agentId": agentId, "fromByte": fromByte])
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                if let c = self?.pendingTranscripts.removeValue(forKey: reqId) { c.resume(returning: nil) }
+            }
+        }
     }
 
     // ── frame handling (mirrors client.ts #applyFrame) ────────────────────────
@@ -313,9 +353,14 @@ final class GuestClient: ObservableObject {
             welcomed = true
             entries = []
             stream = nil; streamDone = false; activeTools = []; uiRequest = nil
+            progressMap = [:]; progress = []
             endedReason = nil
-            if let header = f["header"] as? [String: Any] { title = header["title"] as? String ?? header["id"] as? String ?? title }
+            if let header = f["header"] as? [String: Any] {
+                title = header["title"] as? String ?? header["id"] as? String ?? title
+                sessionId = header["id"] as? String ?? sessionId
+            }
             applyState(f["state"] as? [String: Any])
+            applyAgents(f["agents"] as? [[String: Any]])
             readOnly = f["readOnly"] as? Bool ?? readOnly
             phase = (f["entryCount"] as? Int ?? 0) == 0 ? "live" : "waiting"
         case "snapshot-chunk":
@@ -330,6 +375,15 @@ final class GuestClient: ObservableObject {
             applyEvent(f["event"] as? [String: Any])
         case "state":
             applyState(f["state"] as? [String: Any])
+        case "agents":
+            applyAgents(f["agents"] as? [[String: Any]])
+        case "bus":
+            applyBus(channel: f["channel"] as? String, data: f["data"] as? [String: Any])
+        case "transcript":
+            if let reqId = f["reqId"] as? Int, let cont = pendingTranscripts.removeValue(forKey: reqId) {
+                if f["error"] != nil { cont.resume(returning: nil) }
+                else { cont.resume(returning: (f["text"] as? String ?? "", f["newSize"] as? Int ?? fromByteFallback)) }
+            }
         case "ui-request":
             uiRequest = f["request"] as? [String: Any]
         case "ui-request-end":
@@ -339,9 +393,53 @@ final class GuestClient: ObservableObject {
         case "error":
             if !welcomed { end(f["message"] as? String ?? "host error"); return }
         default:
-            break   // agents / bus / transcript — not surfaced yet
+            break
         }
         rebuild()
+    }
+
+    private var fromByteFallback: Int { 0 }
+
+    private func applyAgents(_ list: [[String: Any]]?) {
+        guard let list else { return }
+        agents = list.map { a in
+            AgentInfo(id: a["id"] as? String ?? UUID().uuidString,
+                      displayName: a["displayName"] as? String ?? "agent",
+                      kind: a["kind"] as? String ?? "sub",
+                      status: a["status"] as? String ?? "idle",
+                      hasSessionFile: a["hasSessionFile"] as? Bool ?? false)
+        }
+    }
+
+    private func applyBus(channel: String?, data: [String: Any]?) {
+        guard let channel, let data else { return }
+        if channel == "task:subagent:progress", let p = data["progress"] as? [String: Any] {
+            let id = p["id"] as? String ?? "\(data["index"] as? Int ?? 0)"
+            progressMap[id] = SubagentProgress(
+                id: id,
+                index: data["index"] as? Int ?? p["index"] as? Int ?? 0,
+                task: data["task"] as? String ?? p["task"] as? String ?? "task",
+                description: p["description"] as? String ?? data["assignment"] as? String,
+                status: p["status"] as? String ?? "running",
+                currentTool: p["currentTool"] as? String,
+                lastIntent: p["lastIntent"] as? String,
+                toolCount: p["toolCount"] as? Int ?? 0,
+                tokens: p["tokens"] as? Int ?? 0,
+                cost: (p["cost"] as? NSNumber)?.doubleValue ?? 0)
+        } else if channel == "task:subagent:lifecycle", let id = data["id"] as? String {
+            if let existing = progressMap[id] {
+                progressMap[id] = SubagentProgress(id: existing.id, index: existing.index, task: existing.task,
+                    description: existing.description, status: data["status"] as? String ?? existing.status,
+                    currentTool: existing.currentTool, lastIntent: existing.lastIntent,
+                    toolCount: existing.toolCount, tokens: existing.tokens, cost: existing.cost)
+            } else {
+                progressMap[id] = SubagentProgress(id: id, index: data["index"] as? Int ?? 0,
+                    task: data["description"] as? String ?? "subagent", description: data["description"] as? String,
+                    status: data["status"] as? String ?? "started", currentTool: nil, lastIntent: nil,
+                    toolCount: 0, tokens: 0, cost: 0)
+            }
+        }
+        progress = progressMap.values.sorted { $0.index < $1.index }
     }
 
     private func applyEvent(_ e: [String: Any]?) {
@@ -367,11 +465,21 @@ final class GuestClient: ObservableObject {
     private func applyState(_ s: [String: Any]?) {
         guard let s else { return }
         working = s["isStreaming"] as? Bool ?? working
+        queued = s["queuedMessageCount"] as? Int ?? queued
         if let n = s["sessionName"] as? String, !n.isEmpty { title = n }
         if let c = s["cwd"] as? String { cwd = c }
+        if let level = s["thinkingLevel"] as? String { thinkingLevel = level }
         if let m = s["model"] as? [String: Any], let name = m["name"] as? String { modelName = name }
-        if let usage = s["contextUsage"] as? [String: Any], let tokens = usage["tokens"] as? Int {
-            tokensLabel = tokens >= 1000 ? "\(tokens / 1000)K" : "\(tokens)"
+        if let usage = s["contextUsage"] as? [String: Any] {
+            if let tokens = usage["tokens"] as? Int { tokensLabel = tokens >= 1000 ? "\(tokens / 1000)K" : "\(tokens)" }
+            contextPercent = (usage["percent"] as? NSNumber)?.doubleValue
+        }
+        if let list = s["participants"] as? [[String: Any]] {
+            participants = list.map { p in
+                ParticipantInfo(name: p["name"] as? String ?? "peer",
+                                role: p["role"] as? String ?? "guest",
+                                readOnly: p["readOnly"] as? Bool ?? false)
+            }
         }
     }
 
@@ -428,7 +536,7 @@ final class GuestClient: ObservableObject {
                 default: break
                 }
             case "compaction":
-                out.append(Sample.sys("compaction", (entry["shortSummary"] as? String ?? "COMPACTING CONTEXT").uppercased()))
+                out.append(UITurn.sys("compaction", (entry["shortSummary"] as? String ?? "COMPACTING CONTEXT").uppercased()))
             default: break
             }
         }
