@@ -101,7 +101,7 @@ final class AppModel: ObservableObject {
             save()
         }
         cancellable?.cancel(); cancellable = nil
-        lastAskReqId = nil
+        wasWorking = false; lastDoneTurnCount = -1
         liveActivity.end()
         active?.close()
         active = nil
