@@ -22,8 +22,9 @@ struct EditorView: View {
     @StateObject private var dictation = Dictation()
     @State private var draft = ""
     @State private var viewer: String? = nil
-    @State private var pickerItem: PhotosPickerItem?
-    @State private var attachment: Attachment?
+    @State private var pickerItems: [PhotosPickerItem] = []
+    @State private var attachments: [Attachment] = []
+    private let maxImages = 5
     @State private var showPalette = false
     @State private var showVisionHelp = false
     @FocusState private var composerFocused: Bool
@@ -118,16 +119,13 @@ struct EditorView: View {
                 .padding(.horizontal, 12).padding(.vertical, 7)
                 .glass(t, 16, flat: true)
             }
+            if showPalette {
+                SlashPalette(t: t, commands: vm.commands) { name in vm.runCommand(name); showPalette = false }
+            }
             if vm.readOnly { readOnlyBar } else { composer }
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 6)
-        .overlay(alignment: .bottom) {
-            if showPalette {
-                SlashPalette(t: t, commands: vm.commands) { name in vm.runCommand(name); showPalette = false }
-                    .padding(.horizontal, 12).offset(y: -70)
-            }
-        }
     }
 
     private var readOnlyBar: some View {
@@ -143,23 +141,31 @@ struct EditorView: View {
 
     private var composer: some View {
         VStack(spacing: 0) {
-            if let a = attachment {
-                HStack(spacing: 9) {
-                    Image(uiImage: a.image).resizable().scaledToFill()
-                        .frame(width: 40, height: 40).clipShape(RoundedRectangle(cornerRadius: 16))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("image attached · sent with your message").font(.term(13)).foregroundStyle(t.txtMuted)
-                        if vm.viaVisionModel {
-                            HStack(spacing: 4) {
-                                Image(systemName: "eye").font(.system(size: 9))
-                                Text("read via vision model").font(.labl(8.5)).tracking(0.8)
-                            }.foregroundStyle(t.accent.opacity(0.85))
-                        }
+            if !attachments.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(attachments) { a in
+                                ZStack(alignment: .topTrailing) {
+                                    Image(uiImage: a.image).resizable().scaledToFill()
+                                        .frame(width: 54, height: 54).clipShape(RoundedRectangle(cornerRadius: 12))
+                                    Button { attachments.removeAll { $0.id == a.id } } label: {
+                                        Image(systemName: "xmark.circle.fill").font(.system(size: 15))
+                                            .foregroundStyle(.white, .black.opacity(0.55))
+                                    }.offset(x: 6, y: -6)
+                                }
+                            }
+                        }.padding(.horizontal, 10).padding(.top, 9).padding(.trailing, 4)
                     }
-                    Spacer()
-                    Button { attachment = nil } label: { Image(systemName: "xmark").font(.system(size: 14)).foregroundStyle(t.txtMuted) }
+                    HStack(spacing: 5) {
+                        Text("\(attachments.count) image\(attachments.count == 1 ? "" : "s") · sent with your message")
+                            .font(.term(12)).foregroundStyle(t.txtMuted)
+                        if vm.viaVisionModel {
+                            Image(systemName: "eye").font(.system(size: 9)).foregroundStyle(t.accent.opacity(0.85))
+                            Text("read via vision model").font(.labl(8.5)).tracking(0.8).foregroundStyle(t.accent.opacity(0.85))
+                        }
+                    }.padding(.horizontal, 11).padding(.bottom, 5)
                 }
-                .padding(.horizontal, 10).padding(.vertical, 8)
                 .overlay(Rectangle().frame(height: 0.5).foregroundStyle(t.lineFaint), alignment: .bottom)
             }
             HStack(spacing: 4) {
@@ -169,7 +175,7 @@ struct EditorView: View {
                     }
                 }
                 if vm.canSendImages {
-                    PhotosPicker(selection: $pickerItem, matching: .images) {
+                    PhotosPicker(selection: $pickerItems, maxSelectionCount: maxImages, matching: .images) {
                         Image(systemName: "paperclip").font(.system(size: 20)).foregroundStyle(t.txtMuted).frame(width: 34, height: 34)
                     }
                 } else if vm.imagePossible {
@@ -194,7 +200,7 @@ struct EditorView: View {
             }
         }
         .glass(t, 16)
-        .onChange(of: pickerItem) { _, item in loadAttachment(item) }
+        .onChange(of: pickerItems) { _, items in loadAttachments(items) }
         .onAppear { dictation.onText = { draft = $0 } }
         .sheet(isPresented: $showVisionHelp) {
             VisionHelpSheet(t: t) { showVisionHelp = false }.environmentObject(theme)
@@ -221,29 +227,30 @@ struct EditorView: View {
 
     private func doSend() {
         let x = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        var images: [(mime: String, base64: String)] = []
-        if let a = attachment { images = [(a.mime, a.data.base64EncodedString())] }
+        let images = attachments.map { (mime: $0.mime, base64: $0.data.base64EncodedString()) }
         guard !x.isEmpty || !images.isEmpty else { return }
         if dictation.recording { dictation.stop() }
         vm.send(x, images: images)
-        draft = ""; attachment = nil
+        draft = ""; attachments = []; pickerItems = []
     }
 
-    /// Load, downscale (max 1568px, JPEG 0.75) and stage a picked photo.
-    private func loadAttachment(_ item: PhotosPickerItem?) {
-        guard let item else { return }
+    /// Load, downscale (max 1568px, JPEG 0.75) and stage up to `maxImages` picked photos.
+    private func loadAttachments(_ items: [PhotosPickerItem]) {
+        guard !items.isEmpty else { return }
         Task {
-            defer { Task { @MainActor in pickerItem = nil } }
-            guard let data = try? await item.loadTransferable(type: Data.self),
-                  let ui = UIImage(data: data) else { return }
-            // 1568px long edge is the vision-model sweet spot (enough to read text in
-            // a screenshot; larger just gets downscaled anyway). Only ever shrink.
-            let maxDim: CGFloat = 1568
-            let scale = min(1, maxDim / max(ui.size.width, ui.size.height))
-            let size = CGSize(width: ui.size.width * scale, height: ui.size.height * scale)
-            let resized = UIGraphicsImageRenderer(size: size).image { _ in ui.draw(in: CGRect(origin: .zero, size: size)) }
-            guard let jpeg = resized.jpegData(compressionQuality: 0.75), let thumb = UIImage(data: jpeg) else { return }
-            await MainActor.run { attachment = Attachment(image: thumb, data: jpeg, mime: "image/jpeg") }
+            var loaded: [Attachment] = []
+            for item in items.prefix(maxImages) {
+                guard let data = try? await item.loadTransferable(type: Data.self),
+                      let ui = UIImage(data: data) else { continue }
+                // 1568px long edge is the vision-model sweet spot; only ever shrink.
+                let maxDim: CGFloat = 1568
+                let scale = min(1, maxDim / max(ui.size.width, ui.size.height))
+                let size = CGSize(width: ui.size.width * scale, height: ui.size.height * scale)
+                let resized = UIGraphicsImageRenderer(size: size).image { _ in ui.draw(in: CGRect(origin: .zero, size: size)) }
+                guard let jpeg = resized.jpegData(compressionQuality: 0.75), let thumb = UIImage(data: jpeg) else { continue }
+                loaded.append(Attachment(image: thumb, data: jpeg, mime: "image/jpeg"))
+            }
+            await MainActor.run { attachments = loaded }
         }
     }
 }
