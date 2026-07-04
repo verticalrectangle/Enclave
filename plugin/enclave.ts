@@ -67,6 +67,22 @@ function formatLink(roomId: string, key: Uint8Array, token: Uint8Array): string 
 // share instead of opening a second relay socket + duplicate handlers (which crashed).
 let current: { link: string } | null = null;
 
+// The activation api carries the runtime-bound ACTIONS (sendUserMessage, abort,
+// setModel, on, …). The per-invocation ctx (command/hook) carries the session
+// data (sessionManager, models, navigateTree) but NOT the actions. So we route
+// actions through `api` and session data through `ctx`.
+let api: any;
+
+// Return a bound caller for `name`, preferring ctx then the activation api.
+// IMPORTANT: the returned closure invokes the method AS a member (obj.name(...))
+// so `this` stays bound — extracting the fn and calling it standalone crashes
+// omp with "undefined is not an object (evaluating 'this.extension')".
+function bound(ctx: any, name: string): ((...a: any[]) => any) | undefined {
+  if (typeof ctx?.[name] === "function") return (...a: any[]) => ctx[name](...a);
+  if (typeof api?.[name] === "function") return (...a: any[]) => api[name](...a);
+  return undefined;
+}
+
 /** Show the join QR + link as a full-height dismissable overlay (like /collab's,
  *  which the height-limited editor widget truncated). */
 function showQr(ctx: any, link: string): void {
@@ -87,6 +103,7 @@ function showQr(ctx: any, link: string): void {
 }
 
 export default function activate(ctx: any): void {
+  api = ctx;   // runtime-bound actions live here
   // The command handler's ctx (ExtensionCommandContext) is the rich one — it has
   // sessionManager / models / navigateTree, which the activation api does not
   // (no session exists yet at activate time).
@@ -154,12 +171,14 @@ async function startShare(ctx: any): Promise<string> {
         await send({ t: "state", state: stateFrame() }, peer);
         return;
       }
-      case "prompt":
-        // Guest drives a turn. Steer if a turn is in flight, else start one.
-        ctx.sendUserMessage?.(frame.text, ctx.isStreaming ? { deliverAs: "steer" } : undefined);
+      case "prompt": {
+        // Guest drives a turn — actions live on the activation api, not ctx.
+        const streaming = ctx.isStreaming ?? api?.isStreaming;
+        bound(ctx, "sendUserMessage")?.(frame.text, streaming ? { deliverAs: "steer" } : undefined);
         return;
+      }
       case "abort":
-        ctx.abort?.();
+        bound(ctx, "abort")?.();
         return;
       case "enclave-cmd": {
         const r = await handleControl(ctx, frame.method, frame.params);
@@ -171,12 +190,13 @@ async function startShare(ctx: any): Promise<string> {
 
   // Live stream to guests: new entries + agent events + state transitions.
   if (ctx.sessionManager) ctx.sessionManager.onEntryAppended = (entry: any) => { void send({ t: "entry", entry }); };
+  const on = bound(ctx, "on");
   const fwd = (type: string) => (e: any) => { void send({ t: "event", event: { type, ...e } }); };
   for (const ev of ["message_start", "message_update", "message_end", "tool_execution_start", "tool_execution_update", "tool_execution_end"]) {
-    ctx.on?.(ev, fwd(ev));
+    on?.(ev, fwd(ev));
   }
-  ctx.on?.("agent_start", () => { void send({ t: "event", event: { type: "agent_start" } }); void send({ t: "state", state: stateFrame() }); });
-  ctx.on?.("agent_end", () => { void send({ t: "event", event: { type: "agent_end" } }); void send({ t: "state", state: stateFrame() }); });
+  on?.("agent_start", () => { void send({ t: "event", event: { type: "agent_start" } }); void send({ t: "state", state: stateFrame() }); });
+  on?.("agent_end", () => { void send({ t: "event", event: { type: "agent_end" } }); void send({ t: "state", state: stateFrame() }); });
 
   ws.onclose = () => { current = null; };
 
@@ -191,8 +211,11 @@ function log(ctx: any, msg: string): void {
 // ── capability handshake ──────────────────────────────────────────────────────
 
 function buildCaps(ctx: any) {
-  const current = ctx.models?.current?.();
-  const list = ctx.models?.list?.() ?? [];
+  const models = ctx.models ?? api?.models;
+  const getCommands = bound(ctx, "getCommands");
+  const getThinking = bound(ctx, "getThinkingLevel");
+  const current = models?.current?.();
+  const list = models?.list?.() ?? [];
   const seesImages = (m: any) => Array.isArray(m?.input) && m.input.includes("image");
   // Offer image attach whenever this omp can handle an image at all: the current
   // model sees images directly, OR any available model does — in which case omp's
@@ -206,9 +229,9 @@ function buildCaps(ctx: any) {
     vision,                          // images are attachable (native or via fallback)
     nativeVision: seesImages(current), // the current model sees images directly
     thinking: ["minimal", "low", "medium", "high", "xhigh"],
-    models: (ctx.models?.list?.() ?? []).map((m: any) => ({ id: m.id, name: m.name ?? m.id })),
-    commands: (ctx.getCommands?.() ?? []).map((c: any) => ({ name: c.name, summary: c.description ?? "" })),
-    current: { model: current?.id, thinking: ctx.getThinkingLevel?.() },
+    models: list.map((m: any) => ({ id: m.id, name: m.name ?? m.id })),
+    commands: (getCommands?.() ?? []).map((c: any) => ({ name: c.name, summary: c.description ?? "" })),
+    current: { model: current?.id, thinking: getThinking?.() },
   };
 }
 
@@ -218,20 +241,21 @@ async function handleControl(ctx: any, method: string, params: any): Promise<{ o
   try {
     switch (method) {
       case "set-model": {
-        const model = ctx.models?.resolve?.(params.model);
+        const models = ctx.models ?? api?.models;
+        const model = models?.resolve?.(params.model);
         if (!model) return { ok: false, message: `unknown model ${params.model}` };
-        const ok = await ctx.setModel(model);
+        const ok = await bound(ctx, "setModel")?.(model);
         return { ok, message: ok ? `model → ${params.model}` : "no API key for that model" };
       }
       case "set-thinking":
-        await ctx.setThinkingLevel(params.level);
+        await bound(ctx, "setThinkingLevel")?.(params.level);
         return { ok: true, message: `thinking → ${params.level}` };
       case "rewind": {
-        const r = await ctx.navigateTree(params.toEntryId);
+        const r = await bound(ctx, "navigateTree")?.(params.toEntryId);
         return { ok: !r?.cancelled, message: r?.cancelled ? "rewind cancelled" : "rewound" };
       }
       case "slash": {
-        const cmd = (ctx.getCommands?.() ?? []).find((c: any) => c.name === params.name);
+        const cmd = (bound(ctx, "getCommands")?.() ?? []).find((c: any) => c.name === params.name);
         if (!cmd) return { ok: false, message: `no such command /${params.name}` };
         await cmd.handler?.(params.args ?? "");
         return { ok: true, message: `ran /${params.name}` };
