@@ -166,7 +166,9 @@ struct EditorView: View {
                 sendOrStop
             }
             .padding(.horizontal, 8).padding(.vertical, 5)
-            if draft.isEmpty && !dictation.recording { ComposerTips(t: t) }
+            if draft.isEmpty && !dictation.recording {
+                ComposerTips(t: t, hasCommands: vm.enhanced && !vm.commands.isEmpty) { showPalette = true }
+            }
         }
         .glass(t, 16)
         .onChange(of: pickerItem) { _, item in loadAttachment(item) }

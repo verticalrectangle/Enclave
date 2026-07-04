@@ -9,27 +9,37 @@ import SwiftUI
 /// the guest can take — no fictional slash commands.
 struct ComposerTips: View {
     let t: Theme
+    var hasCommands: Bool = false          // an /enclave plugin with slash commands
+    var onSlash: () -> Void = {}           // open the slash palette
     @State private var i = 0
-    private let tips: [(icon: String, text: String)] = [
-        ("mic", "dictate instead of typing"),
-        ("paperclip", "attach an image to your message"),
-        ("text.bubble", "type while it's running to steer the turn"),
-        ("questionmark.bubble", "answer the agent's asks right here"),
-        ("stop.fill", "tap stop to interrupt a running turn"),
-    ]
+    private var tips: [(icon: String, text: String, slash: Bool)] {
+        var out: [(String, String, Bool)] = []
+        if hasCommands { out.append(("slash.circle", "tap to run a slash command", true)) }
+        out += [
+            ("mic", "dictate instead of typing", false),
+            ("paperclip", "attach an image to your message", false),
+            ("text.bubble", "type while it's running to steer the turn", false),
+            ("questionmark.bubble", "answer the agent's asks right here", false),
+            ("stop.fill", "tap stop to interrupt a running turn", false),
+        ]
+        return out
+    }
     private let timer = Timer.publish(every: 3.2, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        let tip = tips[i]
+        let tip = tips[i % tips.count]
         HStack(spacing: 8) {
-            Image(systemName: tip.icon).font(.system(size: 12)).foregroundStyle(t.txtGhost).frame(width: 15)
-            Text(tip.text).font(.bodyF(12)).foregroundStyle(t.txtMuted).lineLimit(1)
+            Image(systemName: tip.icon).font(.system(size: 12)).foregroundStyle(tip.slash ? t.accent : t.txtGhost).frame(width: 15)
+            Text(tip.text).font(.bodyF(12)).foregroundStyle(tip.slash ? t.accent : t.txtMuted).lineLimit(1)
             Spacer(minLength: 0)
+            if tip.slash { Image(systemName: "chevron.up").font(.system(size: 9, weight: .semibold)).foregroundStyle(t.accent.opacity(0.7)) }
         }
         .id(i)
         .transition(.opacity)
         .padding(.horizontal, 10).padding(.top, 7).padding(.bottom, 8)
         .overlay(Rectangle().frame(height: 0.5).foregroundStyle(t.lineFaint), alignment: .top)
+        .contentShape(Rectangle())
+        .onTapGesture { if tip.slash { onSlash() } }
         .onReceive(timer) { _ in withAnimation(.easeInOut(duration: 0.35)) { i = (i + 1) % tips.count } }
     }
 }
