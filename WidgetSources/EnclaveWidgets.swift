@@ -29,26 +29,30 @@ struct EnclaveLiveActivity: Widget {
             let s = context.state
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Label { Text(s.title).font(.caption).bold().lineLimit(1) } icon: { RingMark().foregroundStyle(amber) }
-                        .foregroundStyle(.white)
+                    RingMark().foregroundStyle(statusColor(s)).frame(width: 30, height: 30).padding(.leading, 4)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text(s.tokens).font(.caption2).monospaced().foregroundStyle(.white.opacity(0.6))
+                    Text(s.tokens.isEmpty ? " " : s.tokens).font(.caption2).monospaced().foregroundStyle(.white.opacity(0.6))
+                        .padding(.trailing, 4)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    HStack(spacing: 6) {
-                        Circle().fill(statusColor(s)).frame(width: 7, height: 7)
-                        Text(s.action).font(.caption).bold().foregroundStyle(statusColor(s)).lineLimit(1)
-                        Spacer()
-                        Text(s.model).font(.caption2).foregroundStyle(.white.opacity(0.5)).lineLimit(1)
-                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(s.title.isEmpty ? "omp session" : s.title).font(.footnote).bold().foregroundStyle(.white).lineLimit(1)
+                        HStack(spacing: 6) {
+                            Circle().fill(statusColor(s)).frame(width: 6, height: 6)
+                            Text(s.action.isEmpty ? "live" : s.action).font(.caption).foregroundStyle(statusColor(s)).lineLimit(1)
+                            Spacer(minLength: 8)
+                            if !s.model.isEmpty { Text(s.model).font(.caption2).foregroundStyle(.white.opacity(0.45)).lineLimit(1) }
+                        }
+                    }.padding(.top, 2)
                 }
             } compactLeading: {
-                RingMark().foregroundStyle(statusColor(s)).frame(width: 16, height: 16)
+                RingMark().foregroundStyle(statusColor(s)).frame(width: 18, height: 18)
             } compactTrailing: {
-                Text(s.waiting ? "ask" : (s.working ? "•••" : "")).font(.caption2).bold().foregroundStyle(statusColor(s))
+                if s.waiting { Text("ask").font(.caption2).bold().foregroundStyle(love) }
+                else if s.working { Circle().fill(amber).frame(width: 7, height: 7) }
             } minimal: {
-                RingMark().foregroundStyle(statusColor(s)).frame(width: 16, height: 16)
+                RingMark().foregroundStyle(statusColor(s)).frame(width: 18, height: 18)
             }
             .keylineTint(amber)
         }
@@ -81,12 +85,13 @@ private struct LockScreenView: View {
 private struct RingMark: View {
     var body: some View {
         GeometryReader { g in
-            let s = min(g.size.width, g.size.height)
+            let s = min(g.size.width, g.size.height) * 0.9   // inset so the ring stroke isn't clipped
             ZStack {
-                Circle().stroke(lineWidth: s * 0.075)
-                EnclaveSlit().stroke(style: StrokeStyle(lineWidth: s * 0.06, lineCap: .round, lineJoin: .round))
-                    .frame(width: s, height: s)
-            }.frame(width: s, height: s)
+                Circle().stroke(lineWidth: s * 0.08)
+                EnclaveSlit().stroke(style: StrokeStyle(lineWidth: s * 0.065, lineCap: .round, lineJoin: .round))
+            }
+            .frame(width: s, height: s)
+            .frame(width: g.size.width, height: g.size.height)   // center within the frame
         }
     }
 }
