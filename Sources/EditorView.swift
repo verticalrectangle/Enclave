@@ -211,18 +211,20 @@ struct EditorView: View {
         draft = ""; attachment = nil
     }
 
-    /// Load, downscale (max 1024px, JPEG 0.6) and stage a picked photo.
+    /// Load, downscale (max 1568px, JPEG 0.75) and stage a picked photo.
     private func loadAttachment(_ item: PhotosPickerItem?) {
         guard let item else { return }
         Task {
             defer { Task { @MainActor in pickerItem = nil } }
             guard let data = try? await item.loadTransferable(type: Data.self),
                   let ui = UIImage(data: data) else { return }
-            let maxDim: CGFloat = 1024
+            // 1568px long edge is the vision-model sweet spot (enough to read text in
+            // a screenshot; larger just gets downscaled anyway). Only ever shrink.
+            let maxDim: CGFloat = 1568
             let scale = min(1, maxDim / max(ui.size.width, ui.size.height))
             let size = CGSize(width: ui.size.width * scale, height: ui.size.height * scale)
             let resized = UIGraphicsImageRenderer(size: size).image { _ in ui.draw(in: CGRect(origin: .zero, size: size)) }
-            guard let jpeg = resized.jpegData(compressionQuality: 0.6), let thumb = UIImage(data: jpeg) else { return }
+            guard let jpeg = resized.jpegData(compressionQuality: 0.75), let thumb = UIImage(data: jpeg) else { return }
             await MainActor.run { attachment = Attachment(image: thumb, data: jpeg, mime: "image/jpeg") }
         }
     }
