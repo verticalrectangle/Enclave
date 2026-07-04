@@ -86,20 +86,17 @@ function bound(ctx: any, name: string): ((...a: any[]) => any) | undefined {
 /** Print the join QR + link as a normal transcript entry (not a modal overlay,
  *  which mangled the surrounding TUI). Rendered by the "enclave-share" renderer
  *  registered in activate(). */
-function showQr(_ctx: any, link: string): void {
+function showQr(ctx: any, link: string): void {
   try {
     const qr = renderQrHalfBlocks(QrCode.encodeText(link, "M"));
-    const lines = ["", ...qr.map((r) => "  " + r), "", "  Scan in Enclave to join this session", "  " + link, ""];
-    if (typeof api?.appendEntry === "function") api.appendEntry("enclave-share", { lines });
+    // Written straight to the transcript (same path that already prints the link) —
+    // plain text, no modal, nothing to dismiss.
+    log(ctx, ["", "  enclave: sharing this session — scan to join", "", ...qr.map((r) => "  " + r), "", "  " + link, ""].join("\n"));
   } catch { /* headless / no TUI */ }
 }
 
 export default function activate(ctx: any): void {
   api = ctx;   // runtime-bound actions live here
-  // Renderer for the share QR entry — returns a component that prints the lines.
-  ctx.registerMessageRenderer?.("enclave-share", (msg: any) => ({
-    render: (_w: number) => (msg?.details?.lines ?? []) as string[],
-  }));
   // The command handler's ctx (ExtensionCommandContext) is the rich one — it has
   // sessionManager / models / navigateTree, which the activation api does not
   // (no session exists yet at activate time).
@@ -141,8 +138,7 @@ async function startShare(ctx: any): Promise<string> {
   let snapHeader: any;
 
   current = { link };
-  showQr(ctx, link);
-  ws.onopen = () => log(ctx, `\n  enclave: sharing this session\n  ${link}\n`);
+  showQr(ctx, link);   // prints the QR + link straight to the transcript
   ws.onmessage = async (ev: any) => {
     if (typeof ev.data === "string") {                    // relay control
       const c = JSON.parse(ev.data);
