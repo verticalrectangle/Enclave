@@ -174,7 +174,13 @@ async function startShare(ctx: any): Promise<string> {
       case "prompt": {
         // Guest drives a turn — actions live on the activation api, not ctx.
         const streaming = ctx.isStreaming ?? api?.isStreaming;
-        bound(ctx, "sendUserMessage")?.(frame.text, streaming ? { deliverAs: "steer" } : undefined);
+        // Pipe attached images in as ImageContent blocks so omp's vision path
+        // (native or the modelRoles.vision fallback) actually sees them.
+        const imgs = (Array.isArray(frame.images) ? frame.images : [])
+          .filter((im: any) => im?.type === "image" && im.data && im.mimeType)
+          .map((im: any) => ({ type: "image", data: im.data, mimeType: im.mimeType }));
+        const content = imgs.length ? [{ type: "text", text: frame.text ?? "" }, ...imgs] : frame.text;
+        bound(ctx, "sendUserMessage")?.(content, streaming ? { deliverAs: "steer" } : undefined);
         return;
       }
       case "abort":

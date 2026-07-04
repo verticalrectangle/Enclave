@@ -6,6 +6,7 @@
 
 import SwiftUI
 import PhotosUI
+import UIKit
 
 /// A picked, downscaled image ready to send with a prompt.
 struct Attachment: Identifiable {
@@ -77,7 +78,13 @@ struct EditorView: View {
             .onChange(of: scrollKey) { _, _ in
                 withAnimation(.easeOut(duration: 0.18)) { proxy.scrollTo("bottom", anchor: .bottom) }
             }
+            .scrollDismissesKeyboard(.interactively)
+            .simultaneousGesture(TapGesture().onEnded { hideKeyboard() })
         }
+    }
+
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
     /// Changes on a new turn AND as the streaming turn's text grows, so the view
