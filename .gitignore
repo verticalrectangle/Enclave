@@ -1,0 +1,17 @@
+# Xcode project is generated from project.yml by xcodegen
+*.xcodeproj/
+
+# Build output
+build/
+build-device/
+DerivedData/
+
+# macOS
+.DS_Store
+
+# Local tooling config
+.claude/
+
+# Vendored upstream reference — the oh-my-pi monorepo the app is a client for.
+# Not part of the Enclave app; keep it out of this repo.
+oh-my-pi-main/

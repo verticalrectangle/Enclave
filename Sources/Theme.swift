@@ -1,0 +1,158 @@
+//  Theme.swift
+//  Enclave design tokens — Vertical Rectangle brutalist-glass. Dark = VR mono +
+//  amber. Light = Rosé Pine Dawn (gold accent). Sharp-ish corners, hairline depth,
+//  restrained frost. Terminal voice = VT323 in the accent. Everything keys off Theme.
+
+import SwiftUI
+
+enum Appearance: String { case dark, light }
+
+@MainActor
+final class ThemeStore: ObservableObject {
+    @Published var mode: Appearance = {
+        Appearance(rawValue: UserDefaults.standard.string(forKey: "enclave.theme") ?? "dark") ?? .dark
+    }() {
+        didSet { UserDefaults.standard.set(mode.rawValue, forKey: "enclave.theme") }
+    }
+    func toggle() { withAnimation(.easeInOut(duration: 0.35)) { mode = mode == .dark ? .light : .dark } }
+    var t: Theme { Theme(mode) }
+}
+
+struct Theme {
+    let mode: Appearance
+    init(_ m: Appearance) { mode = m }
+    private var dark: Bool { mode == .dark }
+
+    // ground / figure
+    var bg:   Color { dark ? Color(hex: 0x000000) : Color(hex: 0xFAF4ED) }
+    var bg2:  Color { dark ? Color(hex: 0x060606) : Color(hex: 0xFFFAF3) }
+    var ink:  Color { dark ? .white : Color(hex: 0x575279) }
+
+    // alpha-white / Rosé Pine ramp
+    var txt:      Color { dark ? .white                       : Color(hex: 0x575279) }
+    var txtBody:  Color { dark ? .white.opacity(0.80)         : Color(hex: 0x6E6A8A) }
+    var txtMuted: Color { dark ? .white.opacity(0.58)         : Color(hex: 0x797593) }
+    var txtLabel: Color { dark ? .white.opacity(0.40)         : Color(hex: 0x9893A5) }
+    var txtGhost: Color { dark ? .white.opacity(0.25)         : Color(hex: 0xB6B1C0) }
+
+    var lineFaint:  Color { dark ? .white.opacity(0.06) : Color(hex: 0xF4EDE8) }
+    var line:       Color { dark ? .white.opacity(0.15) : Color(hex: 0xDFDAD9) }
+    var lineStrong: Color { dark ? .white.opacity(0.22) : Color(hex: 0xCECACD) }
+    var lineHover:  Color { dark ? .white.opacity(0.50) : Color(hex: 0x9893A5) }
+
+    // accent — amber (dark) / gold (light): the live/terminal voice
+    var accent:     Color { dark ? Color(hex: 0xFFB850) : Color(hex: 0xEA9D34) }
+    var accentDim:  Color { accent.opacity(dark ? 0.16 : 0.14) }
+    var accentLine: Color { accent.opacity(dark ? 0.45 : 0.50) }
+
+    // glass fill for popovers (near-opaque frost)
+    var panel: Color { dark ? Color(hex: 0x0C0C0E).opacity(0.92) : Color(hex: 0xFFFBF3).opacity(0.93) }
+    var glassFill:  Color { dark ? .white.opacity(0.05) : .white.opacity(0.42) }
+    var glassFill2: Color { dark ? .white.opacity(0.03) : .white.opacity(0.28) }
+    var glassBorder: Color { dark ? .white.opacity(0.16) : .white.opacity(0.75) }
+
+    // tool-kind semantics (Rosé Pine: pine/foam/iris/love)
+    var cEdit:    Color { accent }
+    var cBash:    Color { dark ? Color(hex: 0x7FD6C8) : Color(hex: 0x56949F) }  // foam
+    var cLsp:     Color { dark ? Color(hex: 0xB9A3E3) : Color(hex: 0x907AA9) }  // iris
+    var cTask:    Color { dark ? Color(hex: 0x7BB8D4) : Color(hex: 0x286983) }  // pine
+    var cAdvisor: Color { dark ? Color(hex: 0xE8919F) : Color(hex: 0xB4637A) }  // love
+    var cOk:      Color { dark ? Color(hex: 0x86E0B0) : Color(hex: 0x56949F) }
+
+    var lockFg: Color { dark ? .white : Color(hex: 0x575279) }
+
+    // radii — sharp-ish
+    let r: CGFloat = 4
+    let rLg: CGFloat = 6
+}
+
+extension Color {
+    init(hex: UInt32) {
+        self.init(.sRGB,
+                  red:   Double((hex >> 16) & 0xFF) / 255,
+                  green: Double((hex >> 8) & 0xFF) / 255,
+                  blue:  Double(hex & 0xFF) / 255)
+    }
+}
+
+// MARK: - Type ramp (Inter stand-in via system; VT323 for terminal voice)
+
+extension Font {
+    static func disp(_ s: CGFloat) -> Font { .system(size: s, weight: .black) }      // 900 uppercase display
+    static func labl(_ s: CGFloat) -> Font { .system(size: s, weight: .bold) }        // wide-tracked labels
+    static func term(_ s: CGFloat) -> Font { .custom("VT323-Regular", size: s) }      // amber terminal voice
+    static func bodyF(_ s: CGFloat) -> Font { .system(size: s, weight: .regular) }
+    static func num(_ s: CGFloat) -> Font { .system(size: s, weight: .semibold).monospacedDigit() }
+}
+
+// MARK: - Glass material — restrained frost, hairline, sharp-ish
+
+struct GlassBG: ViewModifier {
+    let t: Theme
+    var radius: CGFloat = 4
+    var flat = false
+    var active = false
+    var panel = false
+    func body(content: Content) -> some View {
+        content
+            .background(
+                ZStack {
+                    RoundedRectangle(cornerRadius: radius, style: .continuous)
+                        .fill(panel ? AnyShapeStyle(t.panel) : AnyShapeStyle(.ultraThinMaterial))
+                        .opacity(panel ? 1 : (flat ? 0.6 : 1))
+                    RoundedRectangle(cornerRadius: radius, style: .continuous)
+                        .fill(LinearGradient(colors: [.white.opacity(t.mode == .dark ? 0.12 : 0.6), .clear],
+                                             startPoint: .top, endPoint: .center))
+                        .allowsHitTesting(false)
+                }
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .strokeBorder(active ? t.accentLine : t.glassBorder, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+    }
+}
+
+extension View {
+    func glass(_ t: Theme, _ radius: CGFloat = 4, flat: Bool = false, active: Bool = false, panel: Bool = false) -> some View {
+        modifier(GlassBG(t: t, radius: radius, flat: flat, active: active, panel: panel))
+    }
+    func press() -> some View { buttonStyle(PressStyle()) }
+}
+
+struct PressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.975 : 1)
+            .brightness(configuration.isPressed ? 0.05 : 0)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+// pulsing live dot
+struct LiveDot: View {
+    let t: Theme
+    var size: CGFloat = 7
+    @State private var on = false
+    var body: some View {
+        Circle().fill(t.accent).frame(width: size, height: size)
+            .overlay(Circle().stroke(t.accentLine, lineWidth: 2).scaleEffect(on ? 2.2 : 1).opacity(on ? 0 : 1))
+            .animation(.easeOut(duration: 1.8).repeatForever(autoreverses: false), value: on)
+            .onAppear { on = true }
+    }
+}
+
+// hairline spec grid cell
+struct SpecCell: View {
+    let t: Theme; let k: String; let v: String
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(k.uppercased()).font(.labl(9)).tracking(1.6).foregroundStyle(t.txtLabel)
+            Text(v).font(.num(13)).foregroundStyle(t.txt)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(11)
+        .overlay(Rectangle().stroke(t.line, lineWidth: 0.5))
+    }
+}
