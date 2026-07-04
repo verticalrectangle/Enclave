@@ -2,6 +2,7 @@
 //  The pieces that render a transcript turn, matching the prototype 1:1.
 
 import SwiftUI
+import UIKit
 
 // MARK: - Turn row (dispatch by type)
 
@@ -11,11 +12,20 @@ struct TurnRow: View {
     var onImage: (String) -> Void = { _ in }
     var onAnswer: ((UITurn, Int) -> Void)? = nil
     var onRewind: (() -> Void)? = nil
+    var onEdit: (() -> Void)? = nil
 
     var body: some View {
         content
             .padding(.bottom, 14)
             .transition(.opacity.combined(with: .move(edge: .bottom)))
+    }
+
+    /// Long-press actions. Copy is always offered; Edit/Rewind only when the
+    /// /enclave plugin makes them available (callbacks non-nil).
+    @ViewBuilder private var messageMenu: some View {
+        Button { UIPasteboard.general.string = turn.text } label: { Label("Copy", systemImage: "doc.on.doc") }
+        if let onEdit { Button { onEdit() } label: { Label("Edit", systemImage: "pencil") } }
+        if let onRewind { Button(role: .destructive) { onRewind() } label: { Label("Rewind to here", systemImage: "arrow.uturn.backward") } }
     }
 
     @ViewBuilder private var content: some View {
@@ -42,12 +52,7 @@ struct TurnRow: View {
             Text(turn.text).font(.bodyF(14)).foregroundStyle(t.txt)
                 .padding(.horizontal, 13).padding(.vertical, 10)
                 .glass(t, 16)
-            if let onRewind {
-                Button(action: onRewind) {
-                    HStack(spacing: 4) { Image(systemName: "arrow.uturn.backward").font(.system(size: 11)); Text("REWIND TO HERE").font(.labl(8.5)).tracking(1) }
-                        .foregroundStyle(t.txtMuted).opacity(0.7)
-                }
-            }
+                .contextMenu { messageMenu }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
@@ -58,6 +63,9 @@ struct TurnRow: View {
         Text(inlineMarkdown(turn.text)).font(.serif(16)).foregroundStyle(t.txt)
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .contextMenu {
+                Button { UIPasteboard.general.string = turn.text } label: { Label("Copy", systemImage: "doc.on.doc") }
+            }
     }
 
     private var advisorNote: some View {

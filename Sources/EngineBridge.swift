@@ -358,6 +358,12 @@ final class GuestClient: ObservableObject {
     @discardableResult func runSlash(_ name: String, args: String = "") async -> String? { await sendControl("slash", ["name": name, "args": args]) }
     @discardableResult func rewind(to entryId: String) async -> String? { await sendControl("rewind", ["toEntryId": entryId]) }
 
+    /// The entry id just before `entryId` — the point to rewind to for an edit-replace.
+    func entryBefore(_ entryId: String) -> String? {
+        guard let i = entries.firstIndex(where: { $0["id"] as? String == entryId }), i > 0 else { return nil }
+        return entries[i - 1]["id"] as? String
+    }
+
     /// Chat with / kill / revive a subagent (agent-cmd guest frame).
     func sendAgentCmd(_ cmd: String, agentId: String, text: String? = nil) {
         var frame: [String: Any] = ["t": "agent-cmd", "cmd": cmd, "agentId": agentId]

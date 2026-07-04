@@ -68,4 +68,8 @@ final class SessionVM: ObservableObject {
     func setModel(_ id: String) { Task { _ = await live.setModel(id) } }
     func setThinking(_ level: String) { Task { _ = await live.setThinking(level) } }
     func rewind(to turn: UITurn) { Task { _ = await live.rewind(to: turn.id) } }
+    /// Edit-replace: rewind to just before the message so the edited text supersedes it.
+    func rewindBefore(to turn: UITurn) {
+        if let prev = live.entryBefore(turn.id) { Task { _ = await live.rewind(to: prev) } }
+    }
 }

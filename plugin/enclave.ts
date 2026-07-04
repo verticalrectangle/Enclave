@@ -189,6 +189,14 @@ async function startShare(ctx: any): Promise<string> {
       case "enclave-cmd": {
         const r = await handleControl(ctx, frame.method, frame.params);
         await send({ t: "enclave-result", reqId: frame.reqId, ...r }, peer);
+        // A rewind drops entries below the target; re-send the transcript so guests
+        // reflect the rewound state (welcome resets the app's entries, snapshot reloads).
+        if (frame.method === "rewind" && r.ok && ctx.sessionManager) {
+          const snap = ctx.sessionManager.snapshotForReplication();
+          snapHeader = snap.header;
+          await send({ t: "welcome", proto: COLLAB_PROTO, header: snap.header, state: stateFrame(), agents: [], entryCount: snap.entries.length });
+          await send({ t: "snapshot-chunk", entries: snap.entries, final: true });
+        }
         return;
       }
     }
