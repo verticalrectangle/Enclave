@@ -24,6 +24,10 @@ final class SessionVM: ObservableObject {
         live = client
         client.onChange = { [weak self] in self?.syncLive() }
         syncLive()
+        // Dev seam: auto-send a prompt shortly after connect (streaming test / demo).
+        if let p = ProcessInfo.processInfo.environment["ENCLAVE_COLLAB_PROMPT"], !p.isEmpty {
+            Task { try? await Task.sleep(nanoseconds: 1_500_000_000); client.sendPrompt(p) }
+        }
     }
 
     private func syncLive() {

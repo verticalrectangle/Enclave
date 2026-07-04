@@ -47,8 +47,12 @@ struct TurnRow: View {
     private var agentLine: some View {
         HStack(alignment: .top, spacing: 9) {
             LogoMark(t: t, size: 17, color: turn.streaming ? t.accent : t.txtMuted)
-            if turn.streaming { TypeText(text: turn.text, t: t) }
-            else { Text(turn.text).font(.bodyF(14)).foregroundStyle(t.txtBody) }
+            // Solid, high-contrast agent text (white in dark, ink in light) with
+            // inline markdown — bold and `code` render as they should. As the host
+            // streams (message_update grows the same turn), it just extends here;
+            // no typewriter, so nothing garbles or lags.
+            Text(inlineMarkdown(turn.text)).font(.bodyF(14)).foregroundStyle(t.txt)
+                .textSelection(.enabled)
             Spacer(minLength: 0)
         }
     }
@@ -58,12 +62,23 @@ struct TurnRow: View {
             Rectangle().fill(t.cAdvisor).frame(width: 2)
             VStack(alignment: .leading, spacing: 3) {
                 Text("ADVISOR").font(.labl(9)).tracking(1).foregroundStyle(t.cAdvisor)
-                Text(turn.text).font(.bodyF(13.5)).foregroundStyle(t.txtBody)
+                Text(inlineMarkdown(turn.text)).font(.bodyF(13.5)).foregroundStyle(t.txt)
             }.padding(.leading, 11).padding(.vertical, 2)
             Spacer(minLength: 0)
         }
         .background(t.glassFill2)
     }
+}
+
+/// Inline-only markdown so bold/code/italics render but line breaks are kept and
+/// partial (still-streaming) text never fails to show.
+func inlineMarkdown(_ s: String) -> AttributedString {
+    (try? AttributedString(
+        markdown: s,
+        options: AttributedString.MarkdownParsingOptions(
+            interpretedSyntax: .inlineOnlyPreservingWhitespace,
+            failurePolicy: .returnPartiallyParsedIfPossible)))
+    ?? AttributedString(s)
 }
 
 // MARK: - Tool card
@@ -77,9 +92,9 @@ struct ToolCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Rectangle().fill(c).frame(width: 2).cornerRadius(2)
-            VStack(alignment: .leading, spacing: turn.lines.isEmpty && turn.image == nil ? 0 : 8) {
+            VStack(alignment: .leading, spacing: turn.lines.isEmpty && turn.image == nil && turn.caption == nil ? 0 : 7) {
                 HStack(spacing: 8) {
-                    Image(systemName: toolGlyph(turn.kind)).font(.system(size: 14)).foregroundStyle(c)
+                    Image(systemName: toolGlyph(turn.kind)).font(.system(size: 13)).foregroundStyle(c)
                     Text(turn.head.uppercased()).font(.labl(10.5)).tracking(0.4).foregroundStyle(c)
                     Text(turn.meta).font(.term(13)).foregroundStyle(t.txtMuted).lineLimit(1)
                     Spacer(minLength: 0)
@@ -113,9 +128,6 @@ struct ToolCard: View {
                 }
             }
         }
-        .padding(11)
-        .overlay(RoundedRectangle(cornerRadius: 4).stroke(t.line))
-        .background(t.glassFill2)
     }
 }
 
@@ -187,22 +199,6 @@ struct ThinkingLine: View {
             Text("thinking\(dots)").font(.term(15)).foregroundStyle(t.accent)
         }
         .onReceive(timer) { _ in dots = dots.count >= 3 ? "" : dots + "." }
-    }
-}
-
-struct TypeText: View {
-    let text: String; let t: Theme
-    @State private var shown = ""
-    var body: some View {
-        (Text(shown).font(.bodyF(14)).foregroundStyle(t.txtBody)
-         + Text(shown.count < text.count ? "▍" : "").foregroundStyle(t.accent))
-            .task(id: text) {
-                shown = ""
-                for ch in text {
-                    shown.append(ch)
-                    try? await Task.sleep(nanoseconds: 16_000_000)
-                }
-            }
     }
 }
 

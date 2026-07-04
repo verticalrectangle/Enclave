@@ -60,10 +60,16 @@ struct EditorView: View {
                 }
                 .padding(16)
             }
-            .onChange(of: vm.turns.count) { _ in
-                withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
+            .onChange(of: scrollKey) { _, _ in
+                withAnimation(.easeOut(duration: 0.18)) { proxy.scrollTo("bottom", anchor: .bottom) }
             }
         }
+    }
+
+    /// Changes on a new turn AND as the streaming turn's text grows, so the view
+    /// follows the agent live instead of jumping only when the turn finishes.
+    private var scrollKey: String {
+        "\(vm.turns.count)|\(vm.turns.first(where: { $0.id == "stream" })?.text.count ?? 0)"
     }
 
     // MARK: composer
@@ -73,7 +79,7 @@ struct EditorView: View {
             if vm.isRunning {
                 HStack(spacing: 8) {
                     LiveDot(t: t)
-                    Text("▶ \(vm.session.action)").font(.term(14)).foregroundStyle(t.accent).lineLimit(1)
+                    Text(vm.session.action).font(.term(14)).foregroundStyle(t.accent).lineLimit(1)
                     Spacer()
                     Text("\(vm.session.tokens) · \(vm.session.model)").font(.term(13)).foregroundStyle(t.txtMuted).lineLimit(1)
                 }
