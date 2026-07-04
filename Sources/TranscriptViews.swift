@@ -13,6 +13,7 @@ struct TurnRow: View {
     var canEdit = false
     var onEdit: () -> Void = {}
     var onImage: (String) -> Void = { _ in }
+    var onAnswer: ((UITurn, Int) -> Void)? = nil
 
     var body: some View {
         content
@@ -28,7 +29,7 @@ struct TurnRow: View {
         case .tool: ToolCard(turn: turn, t: t, onImage: onImage)
         case .advisor: advisorNote
         case .sys: SysChip(turn: turn, t: t)
-        case .ask: AskCard(turn: turn, t: t)
+        case .ask: AskCard(turn: turn, t: t, onSubmit: onAnswer.map { cb in { idx in cb(turn, idx) } })
         case .permission: EmptyView()   // rendered as the pinned bar instead
         }
     }
@@ -150,7 +151,10 @@ struct SysChip: View {
 
 struct AskCard: View {
     let turn: UITurn; let t: Theme
+    /// Live host asks pass a submit callback; mock asks leave it nil (display only).
+    var onSubmit: ((Int) -> Void)? = nil
     @State private var chosen = 0
+    @State private var sent = false
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 7) {
@@ -169,6 +173,13 @@ struct AskCard: View {
                     .overlay(RoundedRectangle(cornerRadius: 4).stroke(chosen == i ? t.accentLine : t.line))
                     .background(chosen == i ? t.glassFill2 : .clear)
                 }
+            }
+            if let onSubmit, !turn.options.isEmpty {
+                Button { sent = true; onSubmit(chosen) } label: {
+                    HStack(spacing: 6) { Image(systemName: sent ? "checkmark" : "paperplane.fill"); Text(sent ? "SENT" : "SEND").font(.labl(10.5)) }
+                        .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 10)
+                        .background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 4).stroke(t.accentLine))
+                }.disabled(sent).press()
             }
         }
         .padding(11)

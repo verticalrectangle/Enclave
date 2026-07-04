@@ -28,6 +28,7 @@ struct UITurn: Identifiable, Equatable {
     var question: String = ""
     var options: [String] = []
     var pending = false
+    var reqId: Int? = nil          // live host ui-request id (answered via GuestClient)
 
     static func == (a: UITurn, b: UITurn) -> Bool {
         a.id == b.id && a.text == b.text && a.streaming == b.streaming && a.pending == b.pending

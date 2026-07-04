@@ -3,6 +3,7 @@
 //  fingerprint verify), LockScreenView (Live Activity, on-the-go approve).
 
 import SwiftUI
+import UIKit
 
 // MARK: - Activity
 
@@ -53,8 +54,24 @@ struct ActivityView: View {
 struct PairView: View {
     @EnvironmentObject var theme: ThemeStore
     let onClose: () -> Void
+    var onConnect: (LiveSession) -> Void = { _ in }
     @State private var access = "control"
+    @State private var link = ""
+    @State private var connectError: String?
     private var t: Theme { theme.t }
+
+    private func connect() {
+        let clean = link.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let reason = GuestClient.validate(clean) { connectError = reason; return }
+        guard let client = GuestClient(link: clean, name: UIDevice.current.name) else {
+            connectError = "That link didn't parse."; return
+        }
+        connectError = nil
+        let seed = Session(id: "live", repo: "connecting…", branch: "collab", dir: "~", model: "—",
+                           role: "default", status: .waiting, lastSeen: "live", action: "CONNECTING…",
+                           tokens: "—", cost: "—", turns: [])
+        onConnect(LiveSession(client: client, seed: seed))
+    }
 
     var body: some View {
         ZStack {
@@ -69,7 +86,26 @@ struct PairView: View {
 
                     Text("Scan to\nenclave.").font(.disp(34)).foregroundStyle(t.txt).textCase(.uppercase).padding(.bottom, 10)
                     (Text("Run ").foregroundStyle(t.txtBody) + Text("omp /collab").font(.term(15)).foregroundStyle(t.accent) + Text(" on the box. Frames are sealed on-device — the relay never sees your keys.").foregroundStyle(t.txtBody))
-                        .font(.bodyF(14)).padding(.bottom, 22)
+                        .font(.bodyF(14)).padding(.bottom, 18)
+
+                    // ── live connect: paste the /collab link ──────────────────
+                    Text("PASTE COLLAB LINK").font(.labl(9)).tracking(2).foregroundStyle(t.txtMuted).padding(.bottom, 8)
+                    HStack(spacing: 8) {
+                        Image(systemName: "link").font(.system(size: 15)).foregroundStyle(t.txtMuted)
+                        TextField("", text: $link, prompt: Text("my.omp.sh link or ws://…").foregroundStyle(t.txtMuted))
+                            .font(.term(14)).foregroundStyle(t.txt).tint(t.accent)
+                            .autocorrectionDisabled().textInputAutocapitalization(.never)
+                            .onSubmit(connect)
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 11).glass(t, 4, flat: true).padding(.bottom, 8)
+                    Button(action: connect) {
+                        HStack(spacing: 8) { Image(systemName: "bolt.fill"); Text("CONNECT LIVE").font(.labl(11)) }
+                            .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 13)
+                            .background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 4).stroke(t.accentLine))
+                    }.press().disabled(link.trimmingCharacters(in: .whitespaces).isEmpty).padding(.bottom, connectError == nil ? 22 : 6)
+                    if let err = connectError {
+                        Text(err).font(.term(12)).foregroundStyle(t.cAdvisor).padding(.bottom, 18)
+                    }
 
                     QRPlaceholder(t: t).frame(width: 200, height: 200).frame(maxWidth: .infinity).padding(18).glass(t, 4).padding(.bottom, 8)
                     Text("my.omp.sh/j/8F2K-A3F2").font(.term(15)).foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.bottom, 4)

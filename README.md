@@ -31,18 +31,33 @@ Builds and runs against the **mock data** as-is — every screen is live: open
 open `silvertune-web` (waiting) for the approval bar + ask picker; `epsilver-site`
 for image read/inspect/generate → tap to focus.
 
-## Wire the real engine
+## Live omp — the real engine (`EngineBridge.swift`)
 
-Link `EnclaveCore.xcframework` (from `../scaffold`), add `EngineBridge.swift`, then
-feed `EditorView` from `bridge.turns` instead of `SessionVM`. Both expose the same
-`UITurn`/`Turn` shape, so it's a data-source swap, not a rewrite:
+`EngineBridge.swift` is a full native **oh-my-pi collab guest client** — the Swift
+port of `@oh-my-pi/collab-web`. It parses a `/collab` link, opens the relay
+WebSocket (`?role=guest`), seals/opens **AES-256-GCM** frames (`COLLAB_PROTO 3`),
+applies host frames in arrival order, and projects the omp transcript onto the
+same `UITurn` shape the mock uses — so every existing view renders live data
+unchanged. `SessionVM` gains a live mode; the mock path is untouched.
 
 ```swift
-@StateObject var engine = EngineBridge()
-// onAppear:
-engine.connect(url: "ws://localhost:8787", token: "dev", joinCode: "8F2K-A3F2")
-engine.prompt("wire the validator to the sealed relay")
-// render engine.turns
+let client = GuestClient(link: "<my.omp.sh link or ws://…>", name: "iPhone")
+EditorView(live: client, seed: seed)   // client.turns streams into the UI
+client.sendPrompt("audit the reconnect backoff")   // steer the host agent
+client.sendAbort()                                 // stop the current turn
 ```
 
-Start the keyless host first: `cd ../scaffold/enclave-backend && bun run src/mock-host.ts`.
+**Connect from the app:** Sessions → **Pair a box** → paste the link from
+`omp /collab` → **Connect Live**. Full links (48-byte key) get control; view
+links (32-byte key) join read-only. Frames are sealed on-device — the relay
+never sees plaintext.
+
+**Test against the offline host** (from the oh-my-pi repo):
+
+```
+cd packages/collab-web && bun scripts/mock-host.ts --port 7466
+# paste the printed ws://localhost:7466/r/<id>.<key> link into Pair
+```
+
+A launch seam auto-joins from the `ENCLAVE_COLLAB_LINK` env var (deep-link / e2e
+testing): `SIMCTL_CHILD_ENCLAVE_COLLAB_LINK=<link> xcrun simctl launch … xyz.epsilver.enclave`.

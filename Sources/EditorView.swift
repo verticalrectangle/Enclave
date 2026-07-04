@@ -17,6 +17,7 @@ struct EditorView: View {
     @State private var viewer: String? = nil
 
     init(_ s: Session) { _vm = StateObject(wrappedValue: SessionVM(s)) }
+    init(live client: GuestClient, seed: Session) { _vm = StateObject(wrappedValue: SessionVM(live: client, seed: seed)) }
     private var t: Theme { theme.t }
     private var editing: Bool { vm.editingIndex != nil }
 
@@ -53,9 +54,10 @@ struct EditorView: View {
                         TurnRow(turn: turn, t: t,
                                 dim: editing && vm.editingIndex! < idx,
                                 isEditTarget: vm.editingIndex == idx,
-                                canEdit: !vm.isRunning && !editing && turn.type == .user,
+                                canEdit: !vm.isRunning && !editing && turn.type == .user && vm.live == nil,
                                 onEdit: { startEdit(idx, turn) },
-                                onImage: { viewer = $0 })
+                                onImage: { viewer = $0 },
+                                onAnswer: vm.live != nil ? { vm.answer($0, $1) } : nil)
                             .id(turn.id)
                         if vm.editingIndex == idx { RewindDivider(t: t) }
                     }
