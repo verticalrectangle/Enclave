@@ -44,7 +44,7 @@ struct TurnRow: View {
         VStack(alignment: .trailing, spacing: 5) {
             if let img = turn.image {
                 Button { onImage(img) } label: {
-                    AsyncImage(url: URL(string: img)) { $0.resizable().scaledToFill() } placeholder: { t.line }
+                    SrcImage(src: img) { $0.resizable().scaledToFill() } placeholder: { t.line }
                         .frame(width: 180, height: 120).clipped()
                         .clipShape(RoundedRectangle(cornerRadius: 16)).glass(t, 16)
                 }
@@ -185,7 +185,7 @@ struct ToolCard: View {
                 }
                 if let img = turn.image {
                     Button { onImage(img) } label: {
-                        AsyncImage(url: URL(string: img)) { $0.resizable().scaledToFill() } placeholder: { t.line }
+                        SrcImage(src: img) { $0.resizable().scaledToFill() } placeholder: { t.line }
                             .frame(maxWidth: .infinity).frame(height: 168).clipped()
                             .clipShape(RoundedRectangle(cornerRadius: 16))
                             .overlay(alignment: .bottomTrailing) {
@@ -319,13 +319,37 @@ struct ImageViewer: View {
         ZStack {
             Rectangle().fill(.ultraThinMaterial).ignoresSafeArea().onTapGesture(perform: onClose)
             VStack(spacing: 14) {
-                AsyncImage(url: URL(string: src)) { $0.resizable().scaledToFit() } placeholder: { t.line }
+                SrcImage(src: src) { $0.resizable().scaledToFit() } placeholder: { t.line }
                     .frame(maxHeight: 480).clipShape(RoundedRectangle(cornerRadius: 16))
                     .overlay(RoundedRectangle(cornerRadius: 16).stroke(t.lineStrong))
                 Text(label).font(.term(14)).foregroundStyle(t.lockFg)
                 Text("TAP ANYWHERE TO CLOSE").font(.labl(9)).foregroundStyle(t.lockFg.opacity(0.5))
             }.padding(22)
         }
+    }
+}
+
+/// Renders an image src that may be a `data:` URI (base64, what the guest sends and
+/// the host echoes back) OR an http(s) URL. AsyncImage alone can't load data: URIs.
+struct SrcImage<Content: View, Placeholder: View>: View {
+    let src: String
+    @ViewBuilder let content: (Image) -> Content
+    @ViewBuilder let placeholder: () -> Placeholder
+
+    var body: some View {
+        if src.hasPrefix("data:"), let ui = Self.decode(src) {
+            content(Image(uiImage: ui))
+        } else if let url = URL(string: src), url.scheme?.hasPrefix("http") == true {
+            AsyncImage(url: url) { content($0) } placeholder: { placeholder() }
+        } else {
+            placeholder()
+        }
+    }
+
+    static func decode(_ dataURI: String) -> UIImage? {
+        guard let comma = dataURI.firstIndex(of: ","),
+              let data = Data(base64Encoded: String(dataURI[dataURI.index(after: comma)...])) else { return nil }
+        return UIImage(data: data)
     }
 }
 

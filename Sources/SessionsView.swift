@@ -11,6 +11,7 @@ struct SessionsView: View {
     @EnvironmentObject var app: AppModel
     @Binding var showPair: Bool
     @State private var query = ""
+    @FocusState private var searchFocused: Bool
     private var t: Theme { theme.t }
 
     var body: some View {
@@ -53,8 +54,11 @@ struct SessionsView: View {
                     }.padding(16)
                 }
                 .padding(.bottom, 20)
+                .contentShape(Rectangle())
+                .onTapGesture { searchFocused = false }   // tap off the field to dismiss
             }
             .background(t.bg.ignoresSafeArea())
+            .scrollDismissesKeyboard(.immediately)        // …or drag the list
             .refreshable { app.refreshLiveness() }
             .tint(t.accent)
             .task { app.refreshLiveness() }
@@ -68,6 +72,9 @@ struct SessionsView: View {
             TextField("", text: $query, prompt: Text("Search sessions").foregroundStyle(t.txtMuted))
                 .font(.bodyF(15)).foregroundStyle(t.txt).tint(t.accent)
                 .autocorrectionDisabled().textInputAutocapitalization(.never)
+                .focused($searchFocused)
+                .submitLabel(.search)
+                .onSubmit { searchFocused = false }
             if !query.isEmpty {
                 Button { query = "" } label: {
                     Image(systemName: "xmark.circle.fill").font(.system(size: 15)).foregroundStyle(t.txtMuted)

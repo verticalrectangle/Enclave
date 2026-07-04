@@ -81,10 +81,10 @@ struct EditorView: View {
             .onChange(of: scrollKey) { _, _ in
                 withAnimation(.easeOut(duration: 0.18)) { proxy.scrollTo("bottom", anchor: .bottom) }
             }
-            // Focusing the composer raises the keyboard — ride it down to the last
-            // message so you're not left staring at the middle of the transcript.
-            .onChange(of: composerFocused) { _, focused in
-                guard focused else { return }
+            // Keep the last message pinned as the keyboard opens AND closes — raising
+            // it rides the content up; dismissing lets it settle back down instead of
+            // staying stuck in the keyboard-up position.
+            .onChange(of: composerFocused) { _, _ in
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
                     withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("bottom", anchor: .bottom) }
                 }
