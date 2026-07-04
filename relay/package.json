@@ -1,0 +1,9 @@
+{
+  "name": "enclave-relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-hosted sealed collab relay for Enclave (stand-in for my.omp.sh)",
+  "main": "relay.js",
+  "scripts": { "start": "node relay.js" },
+  "dependencies": { "ws": "^8.18.0" }
+}
