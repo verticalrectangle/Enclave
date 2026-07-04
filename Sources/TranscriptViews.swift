@@ -224,14 +224,14 @@ struct ImageViewer: View {
     }
 }
 
-// bespoke ring + vertical rectangle logomark
+// bespoke ring + sealed-slit logomark
 struct LogoMark: View {
     let t: Theme; var size: CGFloat = 24; var color: Color
     var body: some View {
         ZStack {
             Circle().stroke(color, lineWidth: size * 0.075)
-            RoundedRectangle(cornerRadius: 0.5).stroke(color, lineWidth: size * 0.07)
-                .frame(width: size * 0.28, height: size * 0.52)
+            EnclaveSlit().stroke(color, style: StrokeStyle(lineWidth: size * 0.06, lineCap: .round, lineJoin: .round))
+                .frame(width: size, height: size)
         }.frame(width: size, height: size)
     }
 }

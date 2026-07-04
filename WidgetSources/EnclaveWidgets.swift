@@ -77,15 +77,15 @@ private struct LockScreenView: View {
     }
 }
 
-// The Enclave ring + vertical-rectangle mark.
+// The Enclave ring + sealed-slit mark.
 private struct RingMark: View {
     var body: some View {
         GeometryReader { g in
             let s = min(g.size.width, g.size.height)
             ZStack {
                 Circle().stroke(lineWidth: s * 0.075)
-                RoundedRectangle(cornerRadius: 0.5).stroke(lineWidth: s * 0.07)
-                    .frame(width: s * 0.28, height: s * 0.52)
+                EnclaveSlit().stroke(style: StrokeStyle(lineWidth: s * 0.06, lineCap: .round, lineJoin: .round))
+                    .frame(width: s, height: s)
             }.frame(width: s, height: s)
         }
     }
