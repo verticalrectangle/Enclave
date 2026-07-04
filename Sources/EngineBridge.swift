@@ -80,6 +80,11 @@ struct CollabLink {
         guard let url = URLComponents(string: text), let scheme = url.scheme, let host = url.host else {
             return .err("That doesn't look like a collab link.")
         }
+        // A browser web link — what omp's QR encodes — carries the collab link in
+        // the URL fragment: `https://my.omp.sh/#<roomId>.<key>`. Unwrap and parse it.
+        if scheme == "http" || scheme == "https", let frag = url.fragment, !frag.isEmpty {
+            return parse(frag)
+        }
         let wsScheme: String
         switch scheme {
         case "wss", "https": wsScheme = "wss"

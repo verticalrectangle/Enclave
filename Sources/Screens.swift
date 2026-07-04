@@ -178,11 +178,20 @@ struct PairView: View {
     var onConnect: (String) -> Void = { _ in }
     @State private var link = ""
     @State private var error: String?
+    @State private var showScanner = false
     private var t: Theme { theme.t }
 
     private func connect() {
         let clean = link.trimmingCharacters(in: .whitespacesAndNewlines)
         if let reason = GuestClient.validate(clean) { error = reason; return }
+        error = nil
+        onConnect(clean)
+    }
+
+    private func scanned(_ text: String) {
+        showScanner = false
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let reason = GuestClient.validate(clean) { link = clean; error = "Scanned code isn't a collab link — \(reason)"; return }
         error = nil
         onConnect(clean)
     }
@@ -199,8 +208,20 @@ struct PairView: View {
                     }.padding(.bottom, 18)
 
                     Text("Join a\nsession.").font(.disp(34)).foregroundStyle(t.txt).textCase(.uppercase).padding(.bottom, 12)
-                    (Text("Run ").foregroundStyle(t.txtBody) + Text("omp /collab").font(.term(15)).foregroundStyle(t.accent) + Text(" on the box and paste its link. Frames are sealed on-device — the relay never sees your keys.").foregroundStyle(t.txtBody))
+                    (Text("Run ").foregroundStyle(t.txtBody) + Text("omp /collab").font(.term(15)).foregroundStyle(t.accent) + Text(" on the box, then scan its QR. Frames are sealed on-device — the relay never sees your keys.").foregroundStyle(t.txtBody))
                         .font(.bodyF(14)).padding(.bottom, 22)
+
+                    Button { error = nil; showScanner = true } label: {
+                        HStack(spacing: 9) { Image(systemName: "qrcode.viewfinder").font(.system(size: 19)); Text("SCAN QR CODE").font(.labl(11)) }
+                            .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 16)
+                            .background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 4).stroke(t.accentLine))
+                    }.press().padding(.bottom, 18)
+
+                    HStack(spacing: 10) {
+                        Rectangle().fill(t.lineFaint).frame(height: 1)
+                        Text("or paste the link").font(.labl(9)).tracking(1.4).foregroundStyle(t.txtGhost).fixedSize()
+                        Rectangle().fill(t.lineFaint).frame(height: 1)
+                    }.padding(.bottom, 16)
 
                     Text("COLLAB LINK").font(.labl(9)).tracking(2).foregroundStyle(t.txtMuted).padding(.bottom, 8)
                     HStack(spacing: 8) {
@@ -222,6 +243,9 @@ struct PairView: View {
                         .font(.bodyF(12.5)).foregroundStyle(t.txtMuted)
                 }.padding(22)
             }
+        }
+        .fullScreenCover(isPresented: $showScanner) {
+            ScannerScreen(onFound: scanned, onCancel: { showScanner = false }).environmentObject(theme)
         }
         .preferredColorScheme(theme.mode == .dark ? .dark : .light)
     }
