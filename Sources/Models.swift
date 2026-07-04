@@ -39,7 +39,7 @@ struct UITurn: Identifiable, Equatable {
     }
 }
 
-enum TurnType: String { case user, agent, tool, advisor, sys, ask }
+enum TurnType: String { case user, agent, tool, advisor, sys, ask, thinking }
 
 // tool-kind → sf symbol + color
 func toolGlyph(_ kind: String) -> String {

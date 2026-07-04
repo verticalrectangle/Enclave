@@ -26,6 +26,7 @@ struct TurnRow: View {
         case .advisor: advisorNote
         case .sys: SysChip(turn: turn, t: t)
         case .ask: AskCard(turn: turn, t: t, onSubmit: onAnswer.map { cb in { idx in cb(turn, idx) } })
+        case .thinking: ThinkingBlock(turn: turn, t: t)
         }
     }
 
@@ -201,6 +202,31 @@ struct ThinkingLine: View {
             .onAppear {
                 withAnimation(.easeInOut(duration: 1.15).repeatForever(autoreverses: true)) { open = 1.3 }
             }
+    }
+}
+
+/// The model's reasoning — collapsed by default, tap to expand or collapse.
+struct ThinkingBlock: View {
+    let turn: UITurn; let t: Theme
+    @State private var expanded = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button { withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() } } label: {
+                HStack(spacing: 6) {
+                    Text("THINKING").font(.labl(9)).tracking(1.6).foregroundStyle(t.txtMuted)
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(t.txtGhost)
+                    Spacer(minLength: 0)
+                }.contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if expanded {
+                Text(inlineMarkdown(turn.text)).font(.serif(13.5)).italic().foregroundStyle(t.txtMuted)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 8).padding(.leading, 2)
+            }
+        }
+        .padding(.vertical, 1)
     }
 }
 

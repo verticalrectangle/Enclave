@@ -511,8 +511,10 @@ final class GuestClient: ObservableObject {
             }
         case "tool_execution_end":
             if let id = e["toolCallId"] as? String { activeTools.removeAll { $0.id == id } }
-        case "agent_start": working = true
-        case "agent_end": working = false
+        case "agent_start": working = true; stream = nil; streamDone = false
+        // Turn done: drop the streaming ghost — the finalized entry now carries it
+        // (otherwise the ghost and the entry both render, duplicating the reply).
+        case "agent_end": working = false; stream = nil; streamDone = false
         default: break
         }
     }
@@ -575,7 +577,10 @@ final class GuestClient: ObservableObject {
                             out.append(toolTurn(id: id, name: block["name"] as? String ?? "tool",
                                                 args: block["arguments"], intent: block["intent"] as? String))
                             toolIndex[id] = out.count - 1
-                        default: break   // thinking / redactedThinking — skipped
+                        case "thinking", "redactedThinking":
+                            let think = block["thinking"] as? String ?? block["text"] as? String ?? ""
+                            if !think.isEmpty { out.append(thinkingTurn(id: "\(eid)#\(i)", text: think)) }
+                        default: break
                         }
                     }
                 case "toolResult":
@@ -637,6 +642,9 @@ final class GuestClient: ObservableObject {
         t.text = contentString(content)
         t.image = firstImage(content)
         return t
+    }
+    private func thinkingTurn(id: String, text: String) -> UITurn {
+        var t = UITurn(id: id, type: .thinking); t.text = text; return t
     }
     private func agentTurn(id: String, text: String) -> UITurn {
         var t = UITurn(id: id, type: .agent); t.text = text; return t
