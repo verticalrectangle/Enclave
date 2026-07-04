@@ -83,27 +83,23 @@ function bound(ctx: any, name: string): ((...a: any[]) => any) | undefined {
   return undefined;
 }
 
-/** Show the join QR + link as a full-height dismissable overlay (like /collab's,
- *  which the height-limited editor widget truncated). */
-function showQr(ctx: any, link: string): void {
+/** Print the join QR + link as a normal transcript entry (not a modal overlay,
+ *  which mangled the surrounding TUI). Rendered by the "enclave-share" renderer
+ *  registered in activate(). */
+function showQr(_ctx: any, link: string): void {
   try {
     const qr = renderQrHalfBlocks(QrCode.encodeText(link, "M"));
-    ctx.ui?.custom?.(
-      (_tui: any, _theme: any, _keys: any, done: any) => ({
-        render: (_w: number) => [
-          "", ...qr.map((r) => "  " + r), "",
-          "  Scan in Enclave to join this session", "  " + link, "",
-          "  — press any key to dismiss —", "",
-        ],
-        handleInput: (_d: string) => done(undefined),
-      }),
-      { overlay: true },
-    );
+    const lines = ["", ...qr.map((r) => "  " + r), "", "  Scan in Enclave to join this session", "  " + link, ""];
+    if (typeof api?.appendEntry === "function") api.appendEntry("enclave-share", { lines });
   } catch { /* headless / no TUI */ }
 }
 
 export default function activate(ctx: any): void {
   api = ctx;   // runtime-bound actions live here
+  // Renderer for the share QR entry — returns a component that prints the lines.
+  ctx.registerMessageRenderer?.("enclave-share", (msg: any) => ({
+    render: (_w: number) => (msg?.details?.lines ?? []) as string[],
+  }));
   // The command handler's ctx (ExtensionCommandContext) is the rich one — it has
   // sessionManager / models / navigateTree, which the activation api does not
   // (no session exists yet at activate time).
