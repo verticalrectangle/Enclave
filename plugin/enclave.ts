@@ -162,7 +162,14 @@ function log(ctx: any, msg: string): void {
 
 function buildCaps(ctx: any) {
   const current = ctx.models?.current?.();
-  const vision = !!current && Array.isArray(current.input) && current.input.includes("image");
+  const list = ctx.models?.list?.() ?? [];
+  const seesImages = (m: any) => Array.isArray(m?.input) && m.input.includes("image");
+  // Offer image attach whenever this omp can handle an image at all: the current
+  // model sees images directly, OR any available model does — in which case omp's
+  // vision-role fallback (modelRoles.vision / describeAttachedImagesForTextModel)
+  // routes the image through that model and injects a description. So the paperclip
+  // stays available on a text model like DeepSeek, and images go to the vision model.
+  const vision = seesImages(current) || list.some(seesImages);
   return {
     t: "enclave-caps",
     version: 1,
