@@ -26,6 +26,7 @@ struct EditorView: View {
     @State private var attachment: Attachment?
     @State private var showPalette = false
     @State private var showVisionHelp = false
+    @FocusState private var composerFocused: Bool
 
     init(client: GuestClient) {
         let seed = Session(id: "live", repo: client.title, branch: client.readOnly ? "watch" : "control",
@@ -79,6 +80,14 @@ struct EditorView: View {
             }
             .onChange(of: scrollKey) { _, _ in
                 withAnimation(.easeOut(duration: 0.18)) { proxy.scrollTo("bottom", anchor: .bottom) }
+            }
+            // Focusing the composer raises the keyboard — ride it down to the last
+            // message so you're not left staring at the middle of the transcript.
+            .onChange(of: composerFocused) { _, focused in
+                guard focused else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                    withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("bottom", anchor: .bottom) }
+                }
             }
             .scrollDismissesKeyboard(.interactively)
             .simultaneousGesture(TapGesture().onEnded { hideKeyboard() })
@@ -171,6 +180,7 @@ struct EditorView: View {
                 TextField("", text: $draft, prompt: Text(placeholder).foregroundStyle(t.txtMuted), axis: .vertical)
                     .font(.bodyF(14)).foregroundStyle(t.txt).tint(t.accent)
                     .lineLimit(1...5)
+                    .focused($composerFocused)
                     .onSubmit(doSend)
                 Button { dictation.toggle() } label: {
                     Image(systemName: dictation.recording ? "mic.fill" : "mic").font(.system(size: 20))
