@@ -63,6 +63,29 @@ function formatLink(roomId: string, key: Uint8Array, token: Uint8Array): string 
 
 // ── the extension ─────────────────────────────────────────────────────────────
 
+// One share per omp process. Re-running /enclave re-shows the QR for the existing
+// share instead of opening a second relay socket + duplicate handlers (which crashed).
+let current: { link: string } | null = null;
+
+/** Show the join QR + link as a full-height dismissable overlay (like /collab's,
+ *  which the height-limited editor widget truncated). */
+function showQr(ctx: any, link: string): void {
+  try {
+    const qr = renderQrHalfBlocks(QrCode.encodeText(link, "M"));
+    ctx.ui?.custom?.(
+      (_tui: any, _theme: any, _keys: any, done: any) => ({
+        render: (_w: number) => [
+          "", ...qr.map((r) => "  " + r), "",
+          "  Scan in Enclave to join this session", "  " + link, "",
+          "  — press any key to dismiss —", "",
+        ],
+        handleInput: (_d: string) => done(undefined),
+      }),
+      { overlay: true },
+    );
+  } catch { /* headless / no TUI */ }
+}
+
 export default function activate(ctx: any): void {
   // The command handler's ctx (ExtensionCommandContext) is the rich one — it has
   // sessionManager / models / navigateTree, which the activation api does not
@@ -78,6 +101,7 @@ export default function activate(ctx: any): void {
 }
 
 async function startShare(ctx: any): Promise<string> {
+  if (current) { showQr(ctx, current.link); return current.link; }  // already sharing → re-show
   const roomId = b64url(rand(ROOM_ID_BYTES));
   const rawKey = rand(32);
   const writeToken = rand(WRITE_TOKEN_BYTES);
@@ -103,12 +127,8 @@ async function startShare(ctx: any): Promise<string> {
   });
   let snapHeader: any;
 
-  // Show a scannable QR + the link as an editor widget, like /collab.
-  try {
-    const qr = renderQrHalfBlocks(QrCode.encodeText(link, "M")).map((row) => " " + row);
-    ctx.ui?.setWidget?.("enclave", ["", ...qr, "", `  Scan to join in Enclave · ${link}`, ""]);
-  } catch { /* headless / no ui */ }
-
+  current = { link };
+  showQr(ctx, link);
   ws.onopen = () => log(ctx, `\n  enclave: sharing this session\n  ${link}\n`);
   ws.onmessage = async (ev: any) => {
     if (typeof ev.data === "string") {                    // relay control
@@ -158,7 +178,7 @@ async function startShare(ctx: any): Promise<string> {
   ctx.on?.("agent_start", () => { void send({ t: "event", event: { type: "agent_start" } }); void send({ t: "state", state: stateFrame() }); });
   ctx.on?.("agent_end", () => { void send({ t: "event", event: { type: "agent_end" } }); void send({ t: "state", state: stateFrame() }); });
 
-  ws.onclose = () => { try { ctx.ui?.setWidget?.("enclave", undefined); } catch {} };
+  ws.onclose = () => { current = null; };
 
   return link;
 }
