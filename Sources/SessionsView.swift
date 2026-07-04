@@ -46,7 +46,7 @@ struct SessionsView: View {
                     Button { showPair = true } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "plus").font(.system(size: 15, weight: .semibold))
-                            Text("PAIR A BOX").font(.labl(11)).tracking(1)
+                            Text("PAIR A SESSION").font(.labl(11)).tracking(1)
                         }
                         .foregroundStyle(t.txt).frame(maxWidth: .infinity).padding(.vertical, 14)
                         .overlay(RoundedRectangle(cornerRadius: 16).stroke(t.lineStrong))

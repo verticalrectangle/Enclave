@@ -89,7 +89,7 @@ function bound(ctx: any, name: string): ((...a: any[]) => any) | undefined {
 function showQr(ctx: any, link: string): void {
   try {
     const qr = renderQrHalfBlocks(QrCode.encodeText(link, "M"));
-    const text = ["", "enclave: sharing this session — scan to join", "", ...qr, "", link, ""].join("\n");
+    const text = ["", "enclave: sharing this session — scan to pair", "", ...qr, "", link, ""].join("\n");
     // A real transcript entry that reflows with the log (display:true is the render
     // path); falls back to a raw write only if sendMessage is unavailable.
     if (typeof api?.sendMessage === "function") {
