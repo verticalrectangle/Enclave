@@ -97,6 +97,7 @@ function showQr(ctx: any, link: string): void {
     } else {
       log(ctx, text);
     }
+    try { (globalThis as any).process?.stderr?.write?.(`enclave: sharing ${link}\n`); } catch {}
   } catch { /* headless / no TUI */ }
 }
 
@@ -169,15 +170,14 @@ async function startShare(ctx: any): Promise<string> {
         return;
       }
       case "prompt": {
-        // Guest drives a turn — actions live on the activation api, not ctx.
-        const streaming = ctx.isStreaming ?? api?.isStreaming;
-        // Pipe attached images in as ImageContent blocks so omp's vision path
-        // (native or the modelRoles.vision fallback) actually sees them.
+        // A guest prompt always starts a fresh turn (the app's send button is Stop
+        // mid-turn, so it never means "steer"). Steering on a stale isStreaming was
+        // swallowing every message after the first — so never pass deliverAs.
         const imgs = (Array.isArray(frame.images) ? frame.images : [])
           .filter((im: any) => im?.type === "image" && im.data && im.mimeType)
           .map((im: any) => ({ type: "image", data: im.data, mimeType: im.mimeType }));
         const content = imgs.length ? [{ type: "text", text: frame.text ?? "" }, ...imgs] : frame.text;
-        bound(ctx, "sendUserMessage")?.(content, streaming ? { deliverAs: "steer" } : undefined);
+        bound(ctx, "sendUserMessage")?.(content);
         return;
       }
       case "abort":

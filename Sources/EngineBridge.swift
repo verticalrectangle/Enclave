@@ -650,7 +650,15 @@ final class GuestClient: ObservableObject {
 
         // Streaming assistant ghost, until its entry lands.
         if let s = stream {
-            let text = ((s["content"] as? [[String: Any]] ?? []).compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }).joined(separator: "\n")
+            let blocks = s["content"] as? [[String: Any]] ?? []
+            // Reasoning appears live as a collapsed THINKING block (still timing) — so
+            // you can watch it think, not just see it after the fact.
+            let thinking = blocks.compactMap { b -> String? in
+                let ty = b["type"] as? String
+                return (ty == "thinking" || ty == "redactedThinking") ? b["thinking"] as? String : nil
+            }.joined(separator: "\n")
+            if !thinking.isEmpty { out.append(thinkingTurn(id: "stream-think", text: thinking, seconds: nil)) }
+            let text = blocks.compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }.joined(separator: "\n")
             if !text.isEmpty {
                 var turn = agentTurn(id: "stream", text: text)
                 turn.streaming = !streamDone
