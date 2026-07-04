@@ -32,8 +32,9 @@ final class AppModel: ObservableObject {
     }
 
     @discardableResult
-    func connect(link: String, name: String) -> Bool {
+    func connect(link: String, name: String, paired: Bool = false) -> Bool {
         guard let client = GuestClient(link: link, name: name) else { return false }
+        client.justPaired = paired   // fresh QR pair → transcript shows a paired notice
         active = client
         client.connect()
         // Showcase/screenshot mode connects in the background so the tabs stay visible.
@@ -222,7 +223,7 @@ struct RootView: View {
             }
             .navigationDestination(isPresented: $showPair) {
                 PairView(onClose: { showPair = false },
-                         onConnect: { link in showPair = false; app.connect(link: link, name: UIDevice.current.name) })
+                         onConnect: { link in showPair = false; app.connect(link: link, name: UIDevice.current.name, paired: true) })
                     .environmentObject(theme)
                     .toolbar(.hidden, for: .navigationBar)
             }

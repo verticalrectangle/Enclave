@@ -290,6 +290,7 @@ final class GuestClient: ObservableObject {
     private var thoughtSeconds: Int?
     private var thoughtForEntry: [String: Int] = [:]
     @Published private(set) var welcomed = false   // a host actually answered (got a welcome)
+    var justPaired = false                          // joined via a fresh QR pair → show a paired notice
 
     init?(link: String, name: String) {
         switch CollabLink.parse(link) {
@@ -594,6 +595,9 @@ final class GuestClient: ObservableObject {
     private func rebuild() {
         var out: [UITurn] = []
         var toolIndex: [String: Int] = [:]   // toolCallId → index in `out`
+
+        // Confirm a fresh QR pair at the top of the scroll, once the host welcomes us.
+        if welcomed && justPaired { out.append(UITurn.sys("paired", "SUCCESSFULLY PAIRED THIS SESSION")) }
 
         for entry in entries {
             guard let type = entry["type"] as? String else { continue }
