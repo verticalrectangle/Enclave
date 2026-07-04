@@ -14,7 +14,7 @@ struct ComposerTips: View {
     @State private var i = 0
     private var tips: [(icon: String, text: String, slash: Bool)] {
         var out: [(String, String, Bool)] = []
-        if hasCommands { out.append(("slash.circle", "tap to run a slash command", true)) }
+        if hasCommands { out.append(("slash.circle", "tap the slash button to run a command", true)) }
         out += [
             ("mic", "dictate instead of typing", false),
             ("paperclip", "attach an image to your message", false),
@@ -32,14 +32,11 @@ struct ComposerTips: View {
             Image(systemName: tip.icon).font(.system(size: 12)).foregroundStyle(tip.slash ? t.accent : t.txtGhost).frame(width: 15)
             Text(tip.text).font(.bodyF(12)).foregroundStyle(tip.slash ? t.accent : t.txtMuted).lineLimit(1)
             Spacer(minLength: 0)
-            if tip.slash { Image(systemName: "chevron.up").font(.system(size: 9, weight: .semibold)).foregroundStyle(t.accent.opacity(0.7)) }
         }
         .id(i)
         .transition(.opacity)
         .padding(.horizontal, 10).padding(.top, 7).padding(.bottom, 8)
         .overlay(Rectangle().frame(height: 0.5).foregroundStyle(t.lineFaint), alignment: .top)
-        .contentShape(Rectangle())
-        .onTapGesture { if tip.slash { onSlash() } }
         .onReceive(timer) { _ in withAnimation(.easeInOut(duration: 0.35)) { i = (i + 1) % tips.count } }
     }
 }

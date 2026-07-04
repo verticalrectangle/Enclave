@@ -31,6 +31,10 @@ const RELAY: string = (globalThis as any).process?.env?.ENCLAVE_RELAY || "wss://
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
+
+// Slash commands not surfaced to the app: /enclave (already paired) plus anything
+// that takes over the terminal UI, which the phone can't render.
+const MOBILE_HIDE = new Set(["enclave", "collab", "vim", "theme", "keybindings", "quit", "exit", "help"]);
 function rand(n: number): Uint8Array { const a = new Uint8Array(n); crypto.getRandomValues(a); return a; }
 function b64url(bytes: Uint8Array): string {
   let s = ""; for (const b of bytes) s += String.fromCharCode(b);
@@ -245,7 +249,11 @@ function buildCaps(ctx: any) {
     visionModelAvailable,              // a vision model exists (fallback could be turned on)
     thinking: ["minimal", "low", "medium", "high", "xhigh"],
     models: list.map((m: any) => ({ id: m.id, name: m.name ?? m.id })),
-    commands: (getCommands?.() ?? []).map((c: any) => ({ name: c.name, summary: c.description ?? "" })),
+    // Slash commands the guest can run — drop /enclave (you're already paired) and
+    // anything that only makes sense in the terminal (a TUI takeover the app can't show).
+    commands: (getCommands?.() ?? [])
+      .filter((c: any) => c.name && !MOBILE_HIDE.has(c.name))
+      .map((c: any) => ({ name: c.name, summary: c.description ?? "" })),
     current: { model: current?.id, thinking: getThinking?.() },
   };
 }
@@ -270,9 +278,12 @@ async function handleControl(ctx: any, method: string, params: any): Promise<{ o
         return { ok: !r?.cancelled, message: r?.cancelled ? "rewind cancelled" : "rewound" };
       }
       case "slash": {
+        if (MOBILE_HIDE.has(params.name)) return { ok: false, message: `/${params.name} isn't available from the app` };
         const cmd = (bound(ctx, "getCommands")?.() ?? []).find((c: any) => c.name === params.name);
         if (!cmd) return { ok: false, message: `no such command /${params.name}` };
-        await cmd.handler?.(params.args ?? "");
+        // Command handlers are (args, ctx) — omp built-in handlers crash without the
+        // context, so pass the live command context through.
+        await cmd.handler?.(params.args ?? "", ctx);
         return { ok: true, message: `ran /${params.name}` };
       }
       case "register-push":
