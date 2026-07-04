@@ -49,14 +49,7 @@ struct SessionsView: View {
                 .padding(.bottom, 20)
             }
             .background(t.bg.ignoresSafeArea())
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    LogoMark(t: t, size: 22, color: t.txt)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { theme.toggle() } label: { Image(systemName: theme.mode == .dark ? "sun.max" : "moon").foregroundStyle(t.txtMuted) }
-                }
-            }
+            .enclaveTopBar()
             .toolbarBackground(t.bg, for: .navigationBar)
         }
         .tint(t.accent)

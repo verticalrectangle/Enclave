@@ -32,6 +32,7 @@ struct TrustView: View {
                 }.padding(.bottom, 20)
             }
             .background(t.bg.ignoresSafeArea())
+            .enclaveTopBar()
             .toolbarBackground(t.bg, for: .navigationBar)
         }
         .tint(t.accent)

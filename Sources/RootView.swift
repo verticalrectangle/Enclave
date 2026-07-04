@@ -13,6 +13,7 @@ final class AppModel: ObservableObject {
     @Published var sessions: [JoinedSession]
     @Published var active: GuestClient?
     @Published var showEditor = false
+    @Published var tab = 0          // selected main tab; the logo button jumps here to 0
 
     private let key = "enclave.sessions"
     private let liveActivity = LiveActivityController()
@@ -24,6 +25,7 @@ final class AppModel: ObservableObject {
            let list = try? JSONDecoder().decode([JoinedSession].self, from: data) {
             sessions = list
         } else { sessions = [] }
+        tab = Int(ProcessInfo.processInfo.environment["ENCLAVE_TAB"] ?? "") ?? 0
     }
 
     @discardableResult
@@ -92,15 +94,37 @@ final class AppModel: ObservableObject {
     }
 }
 
+/// The persistent top bar shared by all three tabs: the Enclave mark on the left
+/// (taps back to the first tab) and the appearance toggle on the right.
+struct EnclaveTopBar: ViewModifier {
+    @EnvironmentObject var theme: ThemeStore
+    @EnvironmentObject var app: AppModel
+    func body(content: Content) -> some View {
+        let t = theme.t
+        return content.toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button { app.tab = 0 } label: { LogoMark(t: t, size: 22, color: t.txt) }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { theme.toggle() } label: {
+                    Image(systemName: theme.mode == .dark ? "sun.max" : "moon").foregroundStyle(t.txtMuted)
+                }
+            }
+        }
+    }
+}
+extension View {
+    func enclaveTopBar() -> some View { modifier(EnclaveTopBar()) }
+}
+
 struct RootView: View {
     @EnvironmentObject var theme: ThemeStore
     @EnvironmentObject var app: AppModel
-    @State private var tab = Int(ProcessInfo.processInfo.environment["ENCLAVE_TAB"] ?? "") ?? 0
     @State private var showPair = ProcessInfo.processInfo.environment["ENCLAVE_SHOW_PAIR"] == "1"
     private var t: Theme { theme.t }
 
     var body: some View {
-        TabView(selection: $tab) {
+        TabView(selection: $app.tab) {
             SessionsView(showPair: $showPair)
                 .tabItem { Label("Sessions", systemImage: "square.stack.3d.up") }.tag(0)
             ActivityView()

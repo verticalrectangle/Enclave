@@ -36,6 +36,7 @@ struct ActivityView: View {
                 }.padding(16)
             }
             .background(t.bg.ignoresSafeArea())
+            .enclaveTopBar()
             .toolbarBackground(t.bg, for: .navigationBar)
         }.tint(t.accent)
     }
