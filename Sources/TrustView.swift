@@ -12,7 +12,6 @@ struct TrustView: View {
     private var t: Theme { theme.t }
 
     var body: some View {
-        NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     Text("ZERO-TRUST · SEALED RELAY").font(.labl(9)).tracking(1.6).foregroundStyle(t.txtLabel)
@@ -32,10 +31,7 @@ struct TrustView: View {
                 }.padding(.bottom, 20)
             }
             .background(t.bg.ignoresSafeArea())
-            .enclaveTopBar()
-            .toolbarBackground(t.bg, for: .navigationBar)
-        }
-        .tint(t.accent)
+            .tint(t.accent)
     }
 }
 

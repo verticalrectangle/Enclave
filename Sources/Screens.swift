@@ -16,7 +16,6 @@ struct ActivityView: View {
     private var t: Theme { theme.t }
 
     var body: some View {
-        NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 11) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -36,9 +35,7 @@ struct ActivityView: View {
                 }.padding(16)
             }
             .background(t.bg.ignoresSafeArea())
-            .enclaveTopBar()
-            .toolbarBackground(t.bg, for: .navigationBar)
-        }.tint(t.accent)
+            .tint(t.accent)
     }
 }
 

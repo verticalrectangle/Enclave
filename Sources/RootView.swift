@@ -69,6 +69,7 @@ final class AppModel: ObservableObject {
     }
 
     func leave() {
+        guard active != nil else { return }   // idempotent: Leave button + onDisappear both call this
         if let c = active, c.welcomed, let link = connectedLink, let i = sessions.firstIndex(where: { $0.link == link }) {
             sessions[i].title = c.title
             sessions[i].readOnly = c.readOnly
@@ -163,26 +164,27 @@ struct RootView: View {
     private var t: Theme { theme.t }
 
     var body: some View {
-        TabView(selection: $app.tab) {
-            SessionsView(showPair: $showPair)
-                .tabItem { Label("Sessions", systemImage: "square.stack.3d.up") }.tag(0)
-            ActivityView()
-                .tabItem { Label("Activity", systemImage: "waveform.path.ecg") }.tag(1)
-            TrustView()
-                .tabItem { Label("Trust", systemImage: "checkmark.shield") }.tag(2)
-        }
-        .tint(t.accent)
-        .preferredColorScheme(theme.mode == .dark ? .dark : .light)
-        .fullScreenCover(isPresented: $showPair) {
-            PairView(onClose: { showPair = false },
-                     onConnect: { link in showPair = false; app.connect(link: link, name: UIDevice.current.name) })
-                .environmentObject(theme)
-        }
-        .fullScreenCover(isPresented: $app.showEditor) {
-            if let client = app.active {
-                NavigationStack {
+        NavigationStack {
+            VStack(spacing: 0) {
+                topBar
+                TabView(selection: $app.tab) {
+                    SessionsView(showPair: $showPair)
+                        .tabItem { Label("Sessions", systemImage: "square.stack.3d.up") }.tag(0)
+                    ActivityView()
+                        .tabItem { Label("Activity", systemImage: "waveform.path.ecg") }.tag(1)
+                    TrustView()
+                        .tabItem { Label("Trust", systemImage: "checkmark.shield") }.tag(2)
+                }
+            }
+            .background(t.bg.ignoresSafeArea())
+            .toolbar(.hidden, for: .navigationBar)   // we draw our own pinned top bar
+            // Native push: tapping a session (→ showEditor) slides the editor in from
+            // the right; Leave / back-swipe pops it left.
+            .navigationDestination(isPresented: $app.showEditor) {
+                if let client = app.active {
                     EditorView(client: client)
                         .environmentObject(theme)
+                        .navigationBarBackButtonHidden(true)
                         .toolbar {
                             ToolbarItem(placement: .topBarLeading) {
                                 Button { app.leave() } label: {
@@ -190,11 +192,18 @@ struct RootView: View {
                                 }
                             }
                         }
+                        .onDisappear { app.leave() }   // covers the native back-swipe
                 }
-                .tint(t.accent)
-                .preferredColorScheme(theme.mode == .dark ? .dark : .light)
+            }
+            .navigationDestination(isPresented: $showPair) {
+                PairView(onClose: { showPair = false },
+                         onConnect: { link in showPair = false; app.connect(link: link, name: UIDevice.current.name) })
+                    .environmentObject(theme)
+                    .toolbar(.hidden, for: .navigationBar)
             }
         }
+        .tint(t.accent)
+        .preferredColorScheme(theme.mode == .dark ? .dark : .light)
         .task {
             // Launch seam / deep-link: auto-join a collab session from an env var.
             guard app.active == nil,
@@ -202,5 +211,19 @@ struct RootView: View {
             else { return }
             app.connect(link: link, name: UIDevice.current.name)
         }
+    }
+
+    /// Pinned above the tabs (outside the TabView) so it stays put as you swipe tabs,
+    /// just like the bottom tab bar. The mark taps back to the first tab.
+    private var topBar: some View {
+        HStack {
+            Button { app.tab = 0 } label: { LogoMark(t: t, size: 22, color: t.txt) }
+            Spacer()
+            Button { theme.toggle() } label: {
+                Image(systemName: theme.mode == .dark ? "sun.max" : "moon").font(.system(size: 17)).foregroundStyle(t.txtMuted)
+            }
+        }
+        .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 8)
+        .background(t.bg)
     }
 }

@@ -10,20 +10,25 @@ struct SessionsView: View {
     @EnvironmentObject var theme: ThemeStore
     @EnvironmentObject var app: AppModel
     @Binding var showPair: Bool
+    @State private var query = ""
     private var t: Theme { theme.t }
 
     var body: some View {
-        NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     Text("ENCLAVE").font(.labl(10)).tracking(2.5).foregroundStyle(t.txtLabel)
                         .padding(.horizontal, 16).padding(.top, 6).padding(.bottom, 2)
                     Text("Sessions").font(.disp(40)).foregroundStyle(t.txt).textCase(.uppercase)
-                        .padding(.horizontal, 16).padding(.bottom, 14)
+                        .padding(.horizontal, 16).padding(.bottom, 12)
 
                     if app.sessions.isEmpty {
                         emptyState
                     } else {
+                        searchBar
+                        if ordered.isEmpty {
+                            Text("No sessions match “\(query)”.").font(.bodyF(14)).foregroundStyle(t.txtMuted)
+                                .frame(maxWidth: .infinity).padding(.vertical, 40).padding(.horizontal, 24)
+                        }
                         LazyVStack(spacing: 11) {
                             ForEach(ordered) { s in
                                 if s.id == firstOfflineId {
@@ -50,21 +55,38 @@ struct SessionsView: View {
                 .padding(.bottom, 20)
             }
             .background(t.bg.ignoresSafeArea())
-            .enclaveTopBar()
-            .toolbarBackground(t.bg, for: .navigationBar)
             .refreshable { app.refreshLiveness() }
-        }
-        .tint(t.accent)
-        .task { app.refreshLiveness() }
+            .tint(t.accent)
+            .task { app.refreshLiveness() }
     }
 
     private var deviceName: String { UIDevice.current.name }
 
+    private var searchBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").font(.system(size: 15)).foregroundStyle(t.txtMuted)
+            TextField("", text: $query, prompt: Text("Search sessions").foregroundStyle(t.txtMuted))
+                .font(.bodyF(15)).foregroundStyle(t.txt).tint(t.accent)
+                .autocorrectionDisabled().textInputAutocapitalization(.never)
+            if !query.isEmpty {
+                Button { query = "" } label: {
+                    Image(systemName: "xmark.circle.fill").font(.system(size: 15)).foregroundStyle(t.txtMuted)
+                }
+            }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 9)
+        .glass(t, 14, flat: true)
+        .padding(.horizontal, 16).padding(.bottom, 12)
+    }
+
+    private func matches(_ s: JoinedSession) -> Bool {
+        query.isEmpty || s.title.localizedCaseInsensitiveContains(query)
+    }
     private var liveSessions: [JoinedSession] {
-        app.sessions.filter { app.live[$0.id] == true }.sorted { $0.savedAt > $1.savedAt }
+        app.sessions.filter { app.live[$0.id] == true && matches($0) }.sorted { $0.savedAt > $1.savedAt }
     }
     private var offlineSessions: [JoinedSession] {
-        app.sessions.filter { app.live[$0.id] != true }.sorted { $0.savedAt > $1.savedAt }
+        app.sessions.filter { app.live[$0.id] != true && matches($0) }.sorted { $0.savedAt > $1.savedAt }
     }
     // One ordered list (live first) so a session moving between groups keeps a
     // stable identity and its `live` value re-derives instead of going stale.
