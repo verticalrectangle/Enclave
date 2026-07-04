@@ -115,6 +115,11 @@ struct ParticipantInfo: Identifiable {
     let readOnly: Bool
 }
 
+// MARK: - /enclave plugin capabilities (absent over plain /collab)
+
+struct EnclaveCommand: Identifiable { var id: String { name }; let name: String; let summary: String }
+struct ModelOption: Identifiable { var id: String { modelId }; let modelId: String; let name: String }
+
 // MARK: - Joined sessions (persisted locally — the guest's own room list)
 
 struct JoinedSession: Identifiable, Codable, Equatable {

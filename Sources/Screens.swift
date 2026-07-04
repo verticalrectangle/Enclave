@@ -87,7 +87,7 @@ struct AgentRow: View {
                     if agent.hasSessionFile { Text("transcript ›").font(.labl(9)).foregroundStyle(t.accent) }
                 }
             }
-        }.padding(13).glass(t, 4)
+        }.padding(13).glass(t, 16)
     }
 }
 
@@ -102,7 +102,7 @@ struct ProgressRow: View {
                 Text(p.status).font(.labl(9)).foregroundStyle(p.status == "failed" || p.status == "aborted" ? t.cAdvisor : p.status == "completed" ? t.cOk : t.txtMuted)
             }
             if let d = p.description { Text(d).font(.term(13)).foregroundStyle(t.txtMuted).lineLimit(2) }
-        }.padding(13).glass(t, 4, flat: true)
+        }.padding(13).glass(t, 16, flat: true)
     }
 }
 
@@ -140,15 +140,15 @@ struct SubagentSheet: View {
                             .font(.bodyF(14)).foregroundStyle(t.txt).tint(t.accent)
                             .onSubmit(sendChat)
                         Button(action: sendChat) { Image(systemName: "arrow.right").font(.system(size: 16, weight: .semibold)).foregroundStyle(t.accent) }
-                    }.padding(.horizontal, 10).padding(.vertical, 7).glass(t, 4)
+                    }.padding(.horizontal, 10).padding(.vertical, 7).glass(t, 16)
                     HStack(spacing: 8) {
                         Button { client.sendAgentCmd("kill", agentId: agent.id); dismiss() } label: {
                             Text("KILL").font(.labl(10.5)).foregroundStyle(t.cAdvisor).frame(maxWidth: .infinity).padding(.vertical, 10)
-                                .overlay(RoundedRectangle(cornerRadius: 4).stroke(t.cAdvisor.opacity(0.5)))
+                                .overlay(RoundedRectangle(cornerRadius: 16).stroke(t.cAdvisor.opacity(0.5)))
                         }.press()
                         Button { client.sendAgentCmd("revive", agentId: agent.id) } label: {
                             Text("REVIVE").font(.labl(10.5)).foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 10)
-                                .background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 4).stroke(t.accentLine))
+                                .background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 16).stroke(t.accentLine))
                         }.press()
                     }
                 }.padding(.horizontal, 12).padding(.bottom, 6).background(t.bg)
@@ -215,7 +215,7 @@ struct PairView: View {
                     Button { error = nil; showScanner = true } label: {
                         HStack(spacing: 9) { Image(systemName: "qrcode.viewfinder").font(.system(size: 19)); Text("SCAN QR CODE").font(.labl(11)) }
                             .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 16)
-                            .background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 4).stroke(t.accentLine))
+                            .background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 16).stroke(t.accentLine))
                     }.press().padding(.bottom, 18)
 
                     HStack(spacing: 10) {
@@ -231,12 +231,12 @@ struct PairView: View {
                             .font(.term(14)).foregroundStyle(t.txt).tint(t.accent)
                             .autocorrectionDisabled().textInputAutocapitalization(.never).lineLimit(1...4)
                     }
-                    .padding(.horizontal, 12).padding(.vertical, 11).glass(t, 4, flat: true).padding(.bottom, 8)
+                    .padding(.horizontal, 12).padding(.vertical, 11).glass(t, 16, flat: true).padding(.bottom, 8)
 
                     Button(action: connect) {
                         HStack(spacing: 8) { Image(systemName: "bolt.fill"); Text("CONNECT").font(.labl(11)) }
                             .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 14)
-                            .background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 4).stroke(t.accentLine))
+                            .background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 16).stroke(t.accentLine))
                     }.press().disabled(link.trimmingCharacters(in: .whitespaces).isEmpty).padding(.bottom, error == nil ? 20 : 6)
                     if let err = error { Text(err).font(.term(12)).foregroundStyle(t.cAdvisor).padding(.bottom, 16) }
 

@@ -46,6 +46,39 @@ struct Chip: View {
     }
 }
 
+/// Slash-command palette — populated from the /enclave plugin's real command
+/// list. Tapping runs the command host-side; interactive ones come back as asks.
+struct SlashPalette: View {
+    let t: Theme
+    let commands: [EnclaveCommand]
+    var onPick: (String) -> Void
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("SLASH COMMANDS").font(.labl(9)).tracking(2).foregroundStyle(t.txtMuted)
+                Spacer()
+            }
+            .padding(.horizontal, 13).padding(.vertical, 11)
+            .overlay(Rectangle().frame(height: 0.5).foregroundStyle(t.lineFaint), alignment: .bottom)
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(commands) { cmd in
+                        Button { onPick(cmd.name) } label: {
+                            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                Text("/" + cmd.name).font(.term(15)).foregroundStyle(t.accent).frame(width: 96, alignment: .leading)
+                                Text(cmd.summary).font(.bodyF(13)).foregroundStyle(t.txtBody).lineLimit(1)
+                                Spacer()
+                            }.padding(.horizontal, 12).padding(.vertical, 9)
+                        }
+                    }
+                }.padding(6)
+            }
+            .frame(maxHeight: 300)
+        }
+        .glass(t, 16, panel: true)
+    }
+}
+
 struct MetaChip: View {
     let t: Theme; let text: String
     var body: some View {

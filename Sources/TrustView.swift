@@ -61,15 +61,36 @@ struct TrustLive: View {
                     SpecCell(t: t, k: "Proto", v: "collab v3")
                     SpecCell(t: t, k: "Phase", v: client.phase)
                 }
-            }.padding(14).glass(t, 4).padding(.horizontal, 16).padding(.bottom, 20)
+            }.padding(14).glass(t, 16).padding(.horizontal, 16).padding(.bottom, 20)
 
             // model / context
             Text("MODEL").font(.labl(9)).tracking(2).foregroundStyle(t.txtMuted).padding(.horizontal, 20).padding(.bottom, 10)
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 10) {
-                    Text(client.modelName).font(.term(15)).foregroundStyle(t.txt).lineLimit(1)
+                    if client.enhanced && !client.models.isEmpty {
+                        Menu {
+                            ForEach(client.models) { m in
+                                Button(m.name) { Task { _ = await client.setModel(m.modelId) } }
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(client.modelName).font(.term(15)).foregroundStyle(t.txt).lineLimit(1)
+                                Image(systemName: "chevron.up.chevron.down").font(.system(size: 11)).foregroundStyle(t.txtMuted)
+                            }
+                        }
+                    } else {
+                        Text(client.modelName).font(.term(15)).foregroundStyle(t.txt).lineLimit(1)
+                    }
                     Spacer()
-                    Chip(t: t, text: client.thinkingLevel, on: true)
+                    if client.enhanced && !client.thinkingLevels.isEmpty {
+                        Menu {
+                            ForEach(client.thinkingLevels, id: \.self) { lvl in
+                                Button(lvl) { Task { _ = await client.setThinking(lvl) } }
+                            }
+                        } label: { Chip(t: t, text: client.thinkingLevel, on: true) }
+                    } else {
+                        Chip(t: t, text: client.thinkingLevel, on: true)
+                    }
                 }
                 if let pct = client.contextPercent {
                     VStack(alignment: .leading, spacing: 5) {
@@ -86,13 +107,13 @@ struct TrustLive: View {
                         }.frame(height: 3)
                     }
                 }
-            }.padding(13).glass(t, 4).padding(.horizontal, 16).padding(.bottom, 20)
+            }.padding(13).glass(t, 16).padding(.horizontal, 16).padding(.bottom, 20)
 
             // participants
             Text("PARTICIPANTS").font(.labl(9)).tracking(2).foregroundStyle(t.txtMuted).padding(.horizontal, 20).padding(.bottom, 10)
             VStack(spacing: 8) {
                 if client.participants.isEmpty {
-                    Text("—").font(.term(14)).foregroundStyle(t.txtMuted).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 13).padding(.vertical, 11).glass(t, 4, flat: true)
+                    Text("—").font(.term(14)).foregroundStyle(t.txtMuted).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 13).padding(.vertical, 11).glass(t, 16, flat: true)
                 }
                 ForEach(client.participants) { p in
                     HStack(spacing: 10) {
@@ -101,7 +122,7 @@ struct TrustLive: View {
                         Spacer()
                         Text(p.role == "host" ? "host" : (p.readOnly ? "watch" : "control")).font(.term(12)).foregroundStyle(t.txtMuted)
                     }
-                    .padding(.horizontal, 13).padding(.vertical, 11).glass(t, 4, flat: true)
+                    .padding(.horizontal, 13).padding(.vertical, 11).glass(t, 16, flat: true)
                 }
             }.padding(.horizontal, 16).padding(.bottom, 20)
         }

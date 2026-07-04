@@ -10,6 +10,7 @@ struct TurnRow: View {
     let t: Theme
     var onImage: (String) -> Void = { _ in }
     var onAnswer: ((UITurn, Int) -> Void)? = nil
+    var onRewind: (() -> Void)? = nil
 
     var body: some View {
         content
@@ -34,12 +35,18 @@ struct TurnRow: View {
                 Button { onImage(img) } label: {
                     AsyncImage(url: URL(string: img)) { $0.resizable().scaledToFill() } placeholder: { t.line }
                         .frame(width: 180, height: 120).clipped()
-                        .clipShape(RoundedRectangle(cornerRadius: 4)).glass(t, 4)
+                        .clipShape(RoundedRectangle(cornerRadius: 16)).glass(t, 16)
                 }
             }
             Text(turn.text).font(.bodyF(14)).foregroundStyle(t.txt)
                 .padding(.horizontal, 13).padding(.vertical, 10)
-                .glass(t, 4)
+                .glass(t, 16)
+            if let onRewind {
+                Button(action: onRewind) {
+                    HStack(spacing: 4) { Image(systemName: "arrow.uturn.backward").font(.system(size: 11)); Text("REWIND TO HERE").font(.labl(8.5)).tracking(1) }
+                        .foregroundStyle(t.txtMuted).opacity(0.7)
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
@@ -51,7 +58,7 @@ struct TurnRow: View {
             // inline markdown — bold and `code` render as they should. As the host
             // streams (message_update grows the same turn), it just extends here;
             // no typewriter, so nothing garbles or lags.
-            Text(inlineMarkdown(turn.text)).font(.bodyF(14)).foregroundStyle(t.txt)
+            Text(inlineMarkdown(turn.text)).font(.serif(16)).foregroundStyle(t.txt)
                 .textSelection(.enabled)
             Spacer(minLength: 0)
         }
@@ -107,11 +114,11 @@ struct ToolCard: View {
                     Button { onImage(img) } label: {
                         AsyncImage(url: URL(string: img)) { $0.resizable().scaledToFill() } placeholder: { t.line }
                             .frame(maxWidth: .infinity).frame(height: 168).clipped()
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
                             .overlay(alignment: .bottomTrailing) {
                                 HStack(spacing: 4) { Image(systemName: "eye").font(.system(size: 11)); Text("TAP TO FOCUS").font(.labl(8)) }
                                     .foregroundStyle(.white).padding(.horizontal, 7).padding(.vertical, 3)
-                                    .background(.black.opacity(0.5)).clipShape(RoundedRectangle(cornerRadius: 4)).padding(6)
+                                    .background(.black.opacity(0.5)).clipShape(RoundedRectangle(cornerRadius: 16)).padding(6)
                             }
                     }
                 }
@@ -124,7 +131,7 @@ struct ToolCard: View {
                         }
                     }
                     .padding(.horizontal, 10).padding(.vertical, 8)
-                    .background(t.bg2).clipShape(RoundedRectangle(cornerRadius: 4))
+                    .background(t.bg2).clipShape(RoundedRectangle(cornerRadius: 16))
                 }
             }
         }
@@ -170,7 +177,7 @@ struct AskCard: View {
                         if chosen == i { Image(systemName: "checkmark").font(.system(size: 13)).foregroundStyle(t.accent) }
                     }
                     .padding(.horizontal, 11).padding(.vertical, 9)
-                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(chosen == i ? t.accentLine : t.line))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(chosen == i ? t.accentLine : t.line))
                     .background(chosen == i ? t.glassFill2 : .clear)
                 }
             }
@@ -178,12 +185,12 @@ struct AskCard: View {
                 Button { sent = true; onSubmit(chosen) } label: {
                     HStack(spacing: 6) { Image(systemName: sent ? "checkmark" : "paperplane.fill"); Text(sent ? "SENT" : "SEND").font(.labl(10.5)) }
                         .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 10)
-                        .background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 4).stroke(t.accentLine))
+                        .background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 16).stroke(t.accentLine))
                 }.disabled(sent).press()
             }
         }
         .padding(11)
-        .background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 4).stroke(t.accentLine))
+        .background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 16).stroke(t.accentLine))
     }
 }
 
@@ -211,8 +218,8 @@ struct ImageViewer: View {
             Rectangle().fill(.ultraThinMaterial).ignoresSafeArea().onTapGesture(perform: onClose)
             VStack(spacing: 14) {
                 AsyncImage(url: URL(string: src)) { $0.resizable().scaledToFit() } placeholder: { t.line }
-                    .frame(maxHeight: 480).clipShape(RoundedRectangle(cornerRadius: 4))
-                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(t.lineStrong))
+                    .frame(maxHeight: 480).clipShape(RoundedRectangle(cornerRadius: 16))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(t.lineStrong))
                 Text(label).font(.term(14)).foregroundStyle(t.lockFg)
                 Text("TAP ANYWHERE TO CLOSE").font(.labl(9)).foregroundStyle(t.lockFg.opacity(0.5))
             }.padding(22)

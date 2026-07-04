@@ -18,6 +18,11 @@ final class SessionVM: ObservableObject {
     var isRunning: Bool { live.working }
     var readOnly: Bool { live.readOnly }
 
+    // /enclave capabilities (all off over plain /collab).
+    var enhanced: Bool { live.enhanced }
+    var canSendImages: Bool { live.canSendImages }
+    var commands: [EnclaveCommand] { live.commands }
+
     init(live client: GuestClient, seed s: Session) {
         session = s
         seed = s
@@ -56,4 +61,10 @@ final class SessionVM: ObservableObject {
         guard !readOnly, let reqId = turn.reqId, idx < turn.options.count else { return }
         live.answer(reqId: reqId, value: turn.options[idx])
     }
+
+    // /enclave control actions (no-ops without the plugin).
+    func runCommand(_ name: String) { Task { _ = await live.runSlash(name) } }
+    func setModel(_ id: String) { Task { _ = await live.setModel(id) } }
+    func setThinking(_ level: String) { Task { _ = await live.setThinking(level) } }
+    func rewind(to turn: UITurn) { Task { _ = await live.rewind(to: turn.id) } }
 }

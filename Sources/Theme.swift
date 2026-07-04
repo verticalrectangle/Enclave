@@ -62,8 +62,8 @@ struct Theme {
     var lockFg: Color { dark ? .white : Color(hex: 0x575279) }
 
     // radii — sharp-ish
-    let r: CGFloat = 4
-    let rLg: CGFloat = 6
+    let r: CGFloat = 16
+    let rLg: CGFloat = 22
 }
 
 extension Color {
@@ -82,6 +82,7 @@ extension Font {
     static func labl(_ s: CGFloat) -> Font { .system(size: s, weight: .bold) }        // wide-tracked labels
     static func term(_ s: CGFloat) -> Font { .custom("VT323-Regular", size: s) }      // amber terminal voice
     static func bodyF(_ s: CGFloat) -> Font { .system(size: s, weight: .regular) }
+    static func serif(_ s: CGFloat) -> Font { .system(size: s, design: .serif) }      // New York — agent prose
     static func num(_ s: CGFloat) -> Font { .system(size: s, weight: .semibold).monospacedDigit() }
 }
 
@@ -89,7 +90,7 @@ extension Font {
 
 struct GlassBG: ViewModifier {
     let t: Theme
-    var radius: CGFloat = 4
+    var radius: CGFloat = 16
     var flat = false
     var active = false
     var panel = false
@@ -115,7 +116,7 @@ struct GlassBG: ViewModifier {
 }
 
 extension View {
-    func glass(_ t: Theme, _ radius: CGFloat = 4, flat: Bool = false, active: Bool = false, panel: Bool = false) -> some View {
+    func glass(_ t: Theme, _ radius: CGFloat = 16, flat: Bool = false, active: Bool = false, panel: Bool = false) -> some View {
         modifier(GlassBG(t: t, radius: radius, flat: flat, active: active, panel: panel))
     }
     func press() -> some View { buttonStyle(PressStyle()) }

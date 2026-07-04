@@ -43,7 +43,7 @@ struct SessionsView: View {
                             Text("PAIR A BOX").font(.labl(11)).tracking(1)
                         }
                         .foregroundStyle(t.txt).frame(maxWidth: .infinity).padding(.vertical, 14)
-                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(t.lineStrong))
+                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(t.lineStrong))
                     }.padding(16)
                 }
                 .padding(.bottom, 20)
@@ -86,6 +86,6 @@ struct JoinedCard: View {
             }
         }
         .padding(13)
-        .glass(t, 4)
+        .glass(t, 16)
     }
 }

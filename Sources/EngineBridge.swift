@@ -258,6 +258,13 @@ final class GuestClient: ObservableObject {
     @Published private(set) var agents: [AgentInfo] = []
     @Published private(set) var progress: [SubagentProgress] = []
 
+    // /enclave enhanced capabilities — all false/empty over plain /collab.
+    @Published private(set) var enhanced = false        // an /enclave host is present
+    @Published private(set) var canSendImages = false   // current model is vision-capable
+    @Published private(set) var commands: [EnclaveCommand] = []
+    @Published private(set) var models: [ModelOption] = []
+    @Published private(set) var thinkingLevels: [String] = []
+
     /// Fired after every applied frame (SessionVM bridges this to its own publish).
     var onChange: (() -> Void)?
 
@@ -266,6 +273,7 @@ final class GuestClient: ObservableObject {
     private let writeToken: Data?
     private var reqSeq = 0
     private var pendingTranscripts: [Int: CheckedContinuation<(text: String, newSize: Int)?, Never>] = [:]
+    private var pendingControl: [Int: CheckedContinuation<String?, Never>] = [:]
     private var progressMap: [String: SubagentProgress] = [:]
 
     // Replica state.
@@ -320,6 +328,30 @@ final class GuestClient: ObservableObject {
         if (uiRequest?["reqId"] as? Int) == reqId { uiRequest = nil; rebuild() }
     }
 
+    // ── /enclave control channel (no-ops unless the plugin is present) ────────
+
+    /// Send a control command and await its result. Returns nil on success, or an
+    /// error message. (Frames are simply ignored by a plain /collab host.)
+    @discardableResult
+    func sendControl(_ method: String, _ params: [String: Any] = [:]) async -> String? {
+        guard enhanced else { return "this session isn't running /enclave" }
+        reqSeq += 1
+        let reqId = reqSeq
+        return await withCheckedContinuation { cont in
+            pendingControl[reqId] = cont
+            socket.send(["t": "enclave-cmd", "reqId": reqId, "method": method, "params": params])
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 8_000_000_000)
+                if let c = self?.pendingControl.removeValue(forKey: reqId) { c.resume(returning: "timed out") }
+            }
+        }
+    }
+
+    @discardableResult func setModel(_ id: String) async -> String? { await sendControl("set-model", ["model": id]) }
+    @discardableResult func setThinking(_ level: String) async -> String? { await sendControl("set-thinking", ["level": level]) }
+    @discardableResult func runSlash(_ name: String, args: String = "") async -> String? { await sendControl("slash", ["name": name, "args": args]) }
+    @discardableResult func rewind(to entryId: String) async -> String? { await sendControl("rewind", ["toEntryId": entryId]) }
+
     /// Chat with / kill / revive a subagent (agent-cmd guest frame).
     func sendAgentCmd(_ cmd: String, agentId: String, text: String? = nil) {
         var frame: [String: Any] = ["t": "agent-cmd", "cmd": cmd, "agentId": agentId]
@@ -359,6 +391,7 @@ final class GuestClient: ObservableObject {
             entries = []
             stream = nil; streamDone = false; activeTools = []; uiRequest = nil
             progressMap = [:]; progress = []
+            enhanced = false; canSendImages = false; commands = []
             endedReason = nil
             if let header = f["header"] as? [String: Any] {
                 title = header["title"] as? String ?? header["id"] as? String ?? title
@@ -388,6 +421,21 @@ final class GuestClient: ObservableObject {
             if let reqId = f["reqId"] as? Int, let cont = pendingTranscripts.removeValue(forKey: reqId) {
                 if f["error"] != nil { cont.resume(returning: nil) }
                 else { cont.resume(returning: (f["text"] as? String ?? "", f["newSize"] as? Int ?? fromByteFallback)) }
+            }
+        case "enclave-caps":            // the /enclave host announcing its powers
+            enhanced = true
+            canSendImages = f["vision"] as? Bool ?? false
+            commands = (f["commands"] as? [[String: Any]] ?? []).map {
+                EnclaveCommand(name: $0["name"] as? String ?? "", summary: $0["summary"] as? String ?? $0["description"] as? String ?? "")
+            }
+            models = (f["models"] as? [[String: Any]] ?? []).map {
+                ModelOption(modelId: $0["id"] as? String ?? "", name: $0["name"] as? String ?? ($0["id"] as? String ?? ""))
+            }
+            if let levels = f["thinking"] as? [String] { thinkingLevels = levels }
+            if let cur = f["current"] as? [String: Any], let th = cur["thinking"] as? String { thinkingLevel = th }
+        case "enclave-result":          // reply to a control command
+            if let reqId = f["reqId"] as? Int, let cont = pendingControl.removeValue(forKey: reqId) {
+                cont.resume(returning: (f["ok"] as? Bool ?? true) ? nil : (f["message"] as? String ?? "failed"))
             }
         case "ui-request":
             uiRequest = f["request"] as? [String: Any]

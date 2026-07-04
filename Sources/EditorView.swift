@@ -23,6 +23,7 @@ struct EditorView: View {
     @State private var viewer: String? = nil
     @State private var pickerItem: PhotosPickerItem?
     @State private var attachment: Attachment?
+    @State private var showPalette = false
 
     init(client: GuestClient) {
         let seed = Session(id: "live", repo: client.title, branch: client.readOnly ? "watch" : "control",
@@ -64,7 +65,8 @@ struct EditorView: View {
                     ForEach(Array(vm.turns.enumerated()), id: \.element.id) { _, turn in
                         TurnRow(turn: turn, t: t,
                                 onImage: { viewer = $0 },
-                                onAnswer: vm.readOnly ? nil : { vm.answer($0, $1) })
+                                onAnswer: vm.readOnly ? nil : { vm.answer($0, $1) },
+                                onRewind: (vm.enhanced && !vm.isRunning && turn.type == .user) ? { vm.rewind(to: turn) } : nil)
                             .id(turn.id)
                     }
                     if vm.isRunning { ThinkingLine(t: t).id("think") }
@@ -96,12 +98,18 @@ struct EditorView: View {
                     Text("\(vm.session.tokens) · \(vm.session.model)").font(.term(13)).foregroundStyle(t.txtMuted).lineLimit(1)
                 }
                 .padding(.horizontal, 12).padding(.vertical, 7)
-                .glass(t, 4, flat: true)
+                .glass(t, 16, flat: true)
             }
             if vm.readOnly { readOnlyBar } else { composer }
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 6)
+        .overlay(alignment: .bottom) {
+            if showPalette {
+                SlashPalette(t: t, commands: vm.commands) { name in vm.runCommand(name); showPalette = false }
+                    .padding(.horizontal, 12).offset(y: -70)
+            }
+        }
     }
 
     private var readOnlyBar: some View {
@@ -112,7 +120,7 @@ struct EditorView: View {
             Text("view link").font(.term(13)).foregroundStyle(t.txtGhost)
         }
         .padding(.horizontal, 12).padding(.vertical, 12)
-        .glass(t, 4, flat: true)
+        .glass(t, 16, flat: true)
     }
 
     private var composer: some View {
@@ -120,7 +128,7 @@ struct EditorView: View {
             if let a = attachment {
                 HStack(spacing: 9) {
                     Image(uiImage: a.image).resizable().scaledToFill()
-                        .frame(width: 40, height: 40).clipShape(RoundedRectangle(cornerRadius: 4))
+                        .frame(width: 40, height: 40).clipShape(RoundedRectangle(cornerRadius: 16))
                     Text("image attached · sent with your message").font(.term(13)).foregroundStyle(t.txtMuted)
                     Spacer()
                     Button { attachment = nil } label: { Image(systemName: "xmark").font(.system(size: 14)).foregroundStyle(t.txtMuted) }
@@ -129,8 +137,15 @@ struct EditorView: View {
                 .overlay(Rectangle().frame(height: 0.5).foregroundStyle(t.lineFaint), alignment: .bottom)
             }
             HStack(spacing: 4) {
-                PhotosPicker(selection: $pickerItem, matching: .images) {
-                    Image(systemName: "paperclip").font(.system(size: 20)).foregroundStyle(t.txtMuted).frame(width: 34, height: 34)
+                if vm.enhanced && !vm.commands.isEmpty {
+                    Button { showPalette.toggle() } label: {
+                        Image(systemName: "slash.circle").font(.system(size: 20)).foregroundStyle(showPalette ? t.accent : t.txtMuted).frame(width: 34, height: 34)
+                    }
+                }
+                if vm.canSendImages {
+                    PhotosPicker(selection: $pickerItem, matching: .images) {
+                        Image(systemName: "paperclip").font(.system(size: 20)).foregroundStyle(t.txtMuted).frame(width: 34, height: 34)
+                    }
                 }
                 TextField("", text: $draft, prompt: Text(placeholder).foregroundStyle(t.txtMuted), axis: .vertical)
                     .font(.bodyF(14)).foregroundStyle(t.txt).tint(t.accent)
@@ -145,7 +160,7 @@ struct EditorView: View {
             .padding(.horizontal, 8).padding(.vertical, 5)
             if draft.isEmpty && !dictation.recording { ComposerTips(t: t) }
         }
-        .glass(t, 4)
+        .glass(t, 16)
         .onChange(of: pickerItem) { _, item in loadAttachment(item) }
         .onAppear { dictation.onText = { draft = $0 } }
     }
@@ -158,12 +173,12 @@ struct EditorView: View {
         if vm.isRunning {
             Button { vm.stop() } label: {
                 Image(systemName: "stop.fill").font(.system(size: 15)).foregroundStyle(t.txt)
-                    .frame(width: 38, height: 38).background(t.glassFill2).overlay(RoundedRectangle(cornerRadius: 4).stroke(t.lineHover))
+                    .frame(width: 38, height: 38).background(t.glassFill2).overlay(RoundedRectangle(cornerRadius: 16).stroke(t.lineHover))
             }.press()
         } else {
             Button(action: doSend) {
                 Image(systemName: "arrow.right").font(.system(size: 17, weight: .semibold)).foregroundStyle(t.accent)
-                    .frame(width: 38, height: 38).background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 4).stroke(t.accentLine))
+                    .frame(width: 38, height: 38).background(t.accentDim).overlay(RoundedRectangle(cornerRadius: 16).stroke(t.accentLine))
             }.press()
         }
     }
