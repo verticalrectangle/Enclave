@@ -101,10 +101,10 @@ struct EditorView: View {
 
     private var transcript: some View {
         ScrollViewReader { proxy in
-            ScrollView {
-                // Eager VStack (not Lazy): the whole transcript is laid out up front, so
-                // tapping a session doesn't render rows in as you hit them.
-                VStack(alignment: .leading, spacing: 0) {
+            ScrollView(.vertical) {
+                // LazyVStack: only rows on/near screen are rendered, which keeps
+                // scrolling smooth and per-frame streaming updates cheap in long sessions.
+                LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(vm.turns.enumerated()), id: \.element.id) { _, turn in
                         TurnRow(turn: turn, t: t,
                                 onImage: { viewer = $0 },

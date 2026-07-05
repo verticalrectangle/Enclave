@@ -301,6 +301,14 @@ final class GuestClient: ObservableObject {
     private var planKey = ""                              // UserDefaults key for this room's cached plan
     var justPaired = false                          // joined via a fresh QR pair → show a paired notice
 
+    // Incremental rebuild caches: avoid reprocessing the entire `entries` array on every
+    // streaming frame. `cachedStaticTurns` is derived from `entries`; `cachedTail` is the
+    // dynamic suffix (pending send, active tools, stream, ui-request, notices). When only the
+    // tail changes, we rebuild just that suffix instead of walking all history.
+    private var cachedStaticTurns: [UITurn] = []
+    private var cachedTail: [UITurn] = []
+    private var cachedEntryCount: Int = 0
+
     init?(link: String, name: String) {
         switch CollabLink.parse(link) {
         case .err: return nil
@@ -661,10 +669,57 @@ final class GuestClient: ObservableObject {
 
     // ── projection: omp transcript → [UITurn] ─────────────────────────────────
 
+    private struct StaticRebuild {
+        let turns: [UITurn]
+        let plan: [PlanPhase]
+    }
+
     private func rebuild() {
+        // If no new entries arrived and we already have a cached static projection,
+        // only the dynamic tail (stream, pending send, active tools, ui-request, notices)
+        // may have changed. Rebuild just that tail instead of reprocessing all history.
+        let entriesUnchanged = entries.count == cachedEntryCount && !cachedStaticTurns.isEmpty
+
+        let staticTurns: [UITurn]
+        let latestPlan: [PlanPhase]?
+        if entriesUnchanged {
+            staticTurns = cachedStaticTurns
+            latestPlan = nil
+        } else {
+            let result = buildStaticTurns()
+            staticTurns = result.turns
+            latestPlan = result.plan
+            cachedStaticTurns = staticTurns
+            cachedEntryCount = entries.count
+        }
+
+        let newTail = buildTail(staticTurns: staticTurns)
+
+        // Model chips only earn their space when the session actually used >1 model.
+        var combined = staticTurns + newTail
+        if Set(combined.compactMap { $0.model.isEmpty ? nil : $0.model }).count <= 1 {
+            for i in combined.indices { combined[i].model = "" }
+        }
+
+        let tailCount = newTail.count
+        cachedStaticTurns = Array(combined.prefix(combined.count - tailCount))
+        cachedTail = Array(combined.suffix(tailCount))
+        turns = combined
+
+        // Only adopt a live plan once one actually arrives, so the cached plan shown on
+        // reconnect isn't wiped to empty while the snapshot is still streaming in.
+        if let plan = latestPlan, !plan.isEmpty, self.plan != plan {
+            self.plan = plan
+            Self.savePlan(plan, planKey)
+        }
+
+        onChange?()
+    }
+
+    private func buildStaticTurns() -> StaticRebuild {
         var out: [UITurn] = []
-        var toolIndex: [String: Int] = [:]   // toolCallId → index in `out`
-        var latestPlan: [PlanPhase] = []     // last todo toolResult wins
+        var toolIndex: [String: Int] = [:]
+        var latestPlan: [PlanPhase] = []
 
         // Confirm a fresh QR pair at the top of the scroll, once the host welcomes us.
         if welcomed && justPaired { out.append(UITurn.sys("paired", "SUCCESSFULLY PAIRED THIS SESSION")) }
@@ -689,7 +744,7 @@ final class GuestClient: ObservableObject {
                             if !text.isEmpty { out.append(agentTurn(id: "\(eid)#\(i)", text: text, model: msgModel)) }
                         case "toolCall":
                             let name = block["name"] as? String ?? "tool"
-                            if name == "todo" { break }   // the plan lives in the pinned panel, not a card
+                            if name == "todo" { break }
                             let id = block["id"] as? String ?? "\(eid)#\(i)"
                             out.append(toolTurn(id: id, name: name, args: block["arguments"], intent: block["intent"] as? String))
                             toolIndex[id] = out.count - 1
@@ -699,7 +754,6 @@ final class GuestClient: ObservableObject {
                         default: break
                         }
                     }
-                    // Surface a failed turn instead of an empty bubble / stalled spinner.
                     if let err = msg["errorMessage"] as? String, !err.isEmpty {
                         out.append(UITurn.sys("error", "ERROR · " + err))
                     } else if (msg["stopReason"] as? String) == "error" {
@@ -707,7 +761,6 @@ final class GuestClient: ObservableObject {
                     }
                 case "toolResult":
                     let id = msg["toolCallId"] as? String ?? eid
-                    // Todo tool → the live plan panel, not a transcript card.
                     if (msg["toolName"] as? String) == "todo" {
                         if let phases = parsePlan(msg["details"]) { latestPlan = phases }
                         break
@@ -738,17 +791,24 @@ final class GuestClient: ObservableObject {
             case "custom_message":
                 let ct = entry["customType"] as? String ?? ""
                 if ct == "advisor", entry["display"] as? Bool == true {
-                    // The advisor (a second model reviewing the turn) → its own labeled row.
                     let text = contentString(entry["content"])
                     if !text.isEmpty { var t = UITurn(id: eid, type: .advisor); t.text = text; out.append(t) }
                 } else if entry["display"] as? Bool == true, ct != "collab-prompt", !ct.hasPrefix("enclave-") {
-                    // Other non-collab-prompt display messages (rewind reports, injected notes).
-                    // Skip our own /enclave control messages (e.g. the ANSI enclave-share QR).
                     let text = contentString(entry["content"])
                     if !text.isEmpty { out.append(UITurn.sys("note", text)) }
                 }
             default: break
             }
+        }
+
+        return StaticRebuild(turns: out, plan: latestPlan)
+    }
+
+    private func buildTail(staticTurns: [UITurn]) -> [UITurn] {
+        var out: [UITurn] = []
+        var toolIndex: [String: Int] = [:]
+        for (i, turn) in staticTurns.enumerated() where turn.type == .tool {
+            toolIndex[turn.id] = i
         }
 
         // Optimistic sent message — shown until the host echoes its collab-prompt entry.
@@ -771,8 +831,6 @@ final class GuestClient: ObservableObject {
         // Streaming assistant ghost, until its entry lands.
         if let s = stream {
             let blocks = s["content"] as? [[String: Any]] ?? []
-            // Reasoning appears live as a collapsed THINKING block (still timing) — so
-            // you can watch it think, not just see it after the fact.
             let thinking = blocks.compactMap { b -> String? in
                 let ty = b["type"] as? String
                 return (ty == "thinking" || ty == "redactedThinking") ? b["thinking"] as? String : nil
@@ -802,20 +860,10 @@ final class GuestClient: ObservableObject {
         // Host notices (rate limits, tool failures) — surfaced at the bottom of the scroll.
         for n in notices { out.append(UITurn.sys(n.level == "error" ? "error" : "notice", n.message)) }
 
-        // Model chips only earn their space when the session actually used >1 model.
-        if Set(out.compactMap { $0.model.isEmpty ? nil : $0.model }).count <= 1 {
-            for i in out.indices { out[i].model = "" }
-        }
-
-        turns = out
-        // Only adopt a live plan once one actually arrives, so the cached plan shown on
-        // reconnect isn't wiped to empty while the snapshot is still streaming in.
-        if !latestPlan.isEmpty, plan != latestPlan {
-            plan = latestPlan
-            Self.savePlan(latestPlan, planKey)
-        }
-        onChange?()
+        return out
     }
+
+    // ── turn builders ─────────────────────────────────────────────────────────
 
     private static func loadPlan(_ key: String) -> [PlanPhase] {
         guard !key.isEmpty, let data = UserDefaults.standard.data(forKey: key),
@@ -838,7 +886,6 @@ final class GuestClient: ObservableObject {
         }
     }
 
-    // ── turn builders ─────────────────────────────────────────────────────────
 
     private func userTurn(id: String, content: Any?) -> UITurn {
         var t = UITurn(id: id, type: .user)

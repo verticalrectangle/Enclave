@@ -146,6 +146,7 @@ struct CodeBlock: View {
                 Text(code).font(.system(size: 12.5, design: .monospaced)).foregroundStyle(t.txtBody)
                     .textSelection(.enabled).padding(12)
             }
+            .frame(maxWidth: .infinity)
         }
         .background(t.bg2)
         .clipShape(RoundedRectangle(cornerRadius: 16))
