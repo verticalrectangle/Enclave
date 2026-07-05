@@ -331,6 +331,17 @@ final class GuestClient: ObservableObject {
 
     // ── commands ─────────────────────────────────────────────────────────────
 
+    // Optimistic echo: show your own message the instant you send it, until the host
+    // echoes it back (its collab-prompt entry). A big image round-trips slowly, so
+    // without this the transcript looks empty until the reply lands.
+    private var pendingSendText: String?
+    private var pendingSendImage: String?
+    private var pendingSendBaseline = 0
+
+    private func collabPromptCount() -> Int {
+        entries.reduce(0) { $0 + (($1["customType"] as? String) == "collab-prompt" ? 1 : 0) }
+    }
+
     func sendPrompt(_ text: String, images: [(mime: String, base64: String)] = []) {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty || !images.isEmpty else { return }
@@ -339,6 +350,10 @@ final class GuestClient: ObservableObject {
             frame["images"] = images.map { ["type": "image", "mimeType": $0.mime, "data": $0.base64] }
         }
         socket.send(frame)
+        pendingSendBaseline = collabPromptCount()
+        pendingSendText = clean
+        pendingSendImage = images.first.map { "data:\($0.mime);base64,\($0.base64)" }
+        rebuild()
     }
     func sendAbort() { socket.send(["t": "abort"]) }
     func answer(reqId: Int, value: String) {
@@ -727,6 +742,16 @@ final class GuestClient: ObservableObject {
                 }
             default: break
             }
+        }
+
+        // Optimistic sent message — shown until the host echoes its collab-prompt entry.
+        if pendingSendText != nil, collabPromptCount() > pendingSendBaseline {
+            pendingSendText = nil; pendingSendImage = nil
+        }
+        if let pt = pendingSendText {
+            var t = UITurn(id: "pending-send", type: .user)
+            t.text = pt; t.image = pendingSendImage; t.pending = true
+            out.append(t)
         }
 
         // Executing tools with no result entry yet.

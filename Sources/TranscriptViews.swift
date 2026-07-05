@@ -49,12 +49,15 @@ struct TurnRow: View {
                         .clipShape(RoundedRectangle(cornerRadius: 16)).glass(t, 16)
                 }
             }
-            Text(turn.text).font(.bodyF(14)).foregroundStyle(t.txt)
-                .padding(.horizontal, 13).padding(.vertical, 10)
-                .glass(t, 16)
-                .contextMenu { messageMenu }
+            if !turn.text.isEmpty {
+                Text(turn.text).font(.bodyF(14)).foregroundStyle(t.txt)
+                    .padding(.horizontal, 13).padding(.vertical, 10)
+                    .glass(t, 16)
+                    .contextMenu { messageMenu }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
+        .opacity(turn.pending ? 0.5 : 1)   // optimistic 'sending…' until the host echoes it
     }
 
     private var agentLine: some View {
