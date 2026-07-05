@@ -27,6 +27,7 @@ struct EditorView: View {
     private let maxImages = 5
     @State private var showPalette = false
     @State private var showVisionHelp = false
+    @State private var planExpanded = false
     @FocusState private var composerFocused: Bool
 
     init(client: GuestClient) {
@@ -41,9 +42,6 @@ struct EditorView: View {
         ZStack {
             t.bg.ignoresSafeArea()
             VStack(spacing: 0) {
-                if !vm.plan.isEmpty {
-                    PlanPanel(phases: vm.plan, t: t).padding(.horizontal, 12).padding(.top, 8)
-                }
                 transcript
                 composerStack
             }
@@ -88,7 +86,8 @@ struct EditorView: View {
             // and the agent streams, content grows against the bottom edge instead of
             // triggering an animated jump per chunk (the source of the jitter).
             .defaultScrollAnchor(.bottom)
-            .onChange(of: composerFocused) { _, _ in
+            .onChange(of: composerFocused) { _, focused in
+                if focused { withAnimation(.easeInOut(duration: 0.2)) { planExpanded = false } }   // collapse the plan while typing
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
                     withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("bottom", anchor: .bottom) }
                 }
@@ -107,6 +106,9 @@ struct EditorView: View {
 
     private var composerStack: some View {
         VStack(spacing: 8) {
+            if !vm.plan.isEmpty {
+                PlanStrip(phases: vm.plan, t: t, expanded: $planExpanded)
+            }
             if vm.isRunning {
                 HStack(spacing: 8) {
                     if vm.awaitingVision { Image(systemName: "eye").font(.system(size: 13)).foregroundStyle(t.accent) } else { LiveDot(t: t) }
@@ -255,30 +257,43 @@ struct EditorView: View {
 
 struct IdStr: Identifiable { let v: String; var id: String { v }; init(_ v: String) { self.v = v } }
 
-/// The live plan (omp's `todo` tool): phases → tasks with status. Pinned above the
-/// transcript, collapsible, updating in place as the agent works.
-struct PlanPanel: View {
+/// The live plan (omp's `todo` tool): phases → tasks with status. A collapsed pill
+/// above the composer showing progress + the current task; tap to slide up the full
+/// tree. Expansion is bound so the composer can collapse it while you type.
+struct PlanStrip: View {
     let phases: [PlanPhase]
     let t: Theme
-    @State private var expanded = true
+    @Binding var expanded: Bool
 
     private var phasesDone: Int { phases.filter { !$0.tasks.isEmpty && $0.doneCount == $0.tasks.count }.count }
+    private var currentTask: String? {
+        let all = phases.flatMap { $0.tasks }
+        return all.first { $0.status == "in_progress" }?.content ?? all.first { $0.status == "pending" }?.content
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button { withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() } } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "checklist").font(.system(size: 12)).foregroundStyle(t.accent)
-                    Text("PLAN").font(.labl(10)).tracking(1.8).foregroundStyle(t.txt)
-                    Text("\(phasesDone)/\(phases.count)").font(.term(12)).foregroundStyle(t.txtMuted)
-                    Spacer()
-                    Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(t.txtMuted)
-                }
-                .padding(.horizontal, 13).padding(.vertical, 11)
-            }
+        VStack(spacing: 0) {
             if expanded {
-                ScrollView { planBody.padding(.horizontal, 13).padding(.bottom, 12) }
-                    .frame(maxHeight: 240)
+                ScrollView { planBody.padding(.horizontal, 13).padding(.top, 12).padding(.bottom, 8) }
+                    .frame(maxHeight: 260)
+                Rectangle().frame(height: 0.5).foregroundStyle(t.lineFaint)
+            }
+            Button { withAnimation(.easeInOut(duration: 0.22)) { expanded.toggle() } } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "checklist").font(.system(size: 12)).foregroundStyle(t.accent)
+                    Text("PLAN").font(.labl(10)).tracking(1.6).foregroundStyle(t.txt)
+                    Text("\(phasesDone)/\(phases.count)").font(.term(12)).foregroundStyle(t.txtMuted)
+                    if let cur = currentTask {
+                        Image(systemName: "circle.lefthalf.filled").font(.system(size: 9)).foregroundStyle(t.accent)
+                        Text(cur).font(.term(12)).foregroundStyle(t.txtBody).lineLimit(1)
+                    } else {
+                        Image(systemName: "checkmark.circle.fill").font(.system(size: 9)).foregroundStyle(t.cOk)
+                        Text("complete").font(.term(12)).foregroundStyle(t.cOk)
+                    }
+                    Spacer(minLength: 4)
+                    Image(systemName: expanded ? "chevron.down" : "chevron.up").font(.system(size: 10, weight: .semibold)).foregroundStyle(t.txtMuted)
+                }
+                .padding(.horizontal, 13).padding(.vertical, 10)
             }
         }
         .glass(t, 16, panel: true)
