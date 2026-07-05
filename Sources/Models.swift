@@ -120,12 +120,12 @@ struct ParticipantInfo: Identifiable {
 
 // MARK: - Plan / todos (omp's `todo` tool — the latest todo toolResult's phases)
 
-struct PlanTask: Identifiable, Equatable {
+struct PlanTask: Identifiable, Equatable, Codable {
     var id: String { content }
     let content: String
     let status: String            // pending / in_progress / completed / abandoned
 }
-struct PlanPhase: Identifiable, Equatable {
+struct PlanPhase: Identifiable, Equatable, Codable {
     var id: String { name }
     let name: String
     let tasks: [PlanTask]

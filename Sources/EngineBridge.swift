@@ -291,6 +291,7 @@ final class GuestClient: ObservableObject {
     private var thoughtForEntry: [String: Int] = [:]
     @Published private(set) var welcomed = false   // a host actually answered (got a welcome)
     @Published private(set) var plan: [PlanPhase] = []   // latest `todo` tool plan (phases → tasks)
+    private var planKey = ""                              // UserDefaults key for this room's cached plan
     var justPaired = false                          // joined via a fresh QR pair → show a paired notice
 
     init?(link: String, name: String) {
@@ -302,7 +303,10 @@ final class GuestClient: ObservableObject {
             self.readOnly = parsed.writeToken == nil
             self.relay = (parsed.wsURL.host ?? "—") + (parsed.wsURL.port.map { ":\($0)" } ?? "")
             self.socket = CollabSocket(wsURL: parsed.wsURL, key: parsed.key)
+            self.planKey = "enclave.plan." + parsed.wsURL.absoluteString
         }
+        // Show the last known plan immediately, before the snapshot reconnects/loads.
+        plan = Self.loadPlan(planKey)
         socket.onOpen = { [weak self] in Task { @MainActor in self?.handleOpen() } }
         socket.onFrame = { [weak self] f in Task { @MainActor in self?.applyFrame(f) } }
         socket.onControl = { [weak self] c in Task { @MainActor in
@@ -692,8 +696,23 @@ final class GuestClient: ObservableObject {
         }
 
         turns = out
-        if plan != latestPlan { plan = latestPlan }
+        // Only adopt a live plan once one actually arrives, so the cached plan shown on
+        // reconnect isn't wiped to empty while the snapshot is still streaming in.
+        if !latestPlan.isEmpty, plan != latestPlan {
+            plan = latestPlan
+            Self.savePlan(latestPlan, planKey)
+        }
         onChange?()
+    }
+
+    private static func loadPlan(_ key: String) -> [PlanPhase] {
+        guard !key.isEmpty, let data = UserDefaults.standard.data(forKey: key),
+              let plan = try? JSONDecoder().decode([PlanPhase].self, from: data) else { return [] }
+        return plan
+    }
+    private static func savePlan(_ plan: [PlanPhase], _ key: String) {
+        guard !key.isEmpty, let data = try? JSONEncoder().encode(plan) else { return }
+        UserDefaults.standard.set(data, forKey: key)
     }
 
     /// Parse a `todo` toolResult's details → phases/tasks for the plan panel.
