@@ -202,12 +202,18 @@ struct RootView: View {
             VStack(spacing: 0) {
                 topBar
                 TabView(selection: $app.tab) {
-                    SessionsView(showPair: $showPair)
-                        .tabItem { Label("Sessions", systemImage: "square.stack.3d.up") }.tag(0)
-                    ActivityView()
-                        .tabItem { Label("Activity", systemImage: "waveform.path.ecg") }.tag(1)
-                    TrustView()
-                        .tabItem { Label("Trust", systemImage: "checkmark.shield") }.tag(2)
+                    Tab("Sessions", systemImage: "square.stack.3d.up", value: 0) {
+                        SessionsView(showPair: $showPair)
+                    }
+                    Tab("Activity", systemImage: "waveform.path.ecg", value: 1) {
+                        ActivityView()
+                    }
+                    Tab("Trust", systemImage: "checkmark.shield", value: 2) {
+                        TrustView()
+                    }
+                    Tab("Search", systemImage: "magnifyingglass", value: 3, role: .search) {
+                        SearchView()
+                    }
                 }
             }
             .background(t.bg.ignoresSafeArea())
