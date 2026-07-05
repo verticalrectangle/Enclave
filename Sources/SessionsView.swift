@@ -117,6 +117,7 @@ struct SearchView: View {
     @EnvironmentObject var theme: ThemeStore
     @EnvironmentObject var app: AppModel
     @State private var query = ""
+    @FocusState private var focused: Bool
     private var t: Theme { theme.t }
 
     private var results: [JoinedSession] {
@@ -126,30 +127,43 @@ struct SearchView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 11) {
-                if results.isEmpty {
-                    Text(query.isEmpty ? "Your sessions appear here." : "No sessions match “\(query)”.")
-                        .font(.bodyF(14)).foregroundStyle(t.txtMuted)
-                        .frame(maxWidth: .infinity).padding(.vertical, 44)
-                }
-                ForEach(results) { s in
-                    Button { app.connect(link: s.link, name: UIDevice.current.name) } label: {
-                        JoinedCard(session: s, t: t, live: app.live[s.id] == true)
-                            .opacity(app.live[s.id] == true ? 1 : 0.6)
-                    }
-                    .press()
-                    .contextMenu {
-                        Button(role: .destructive) { app.remove(s) } label: { Label("Remove", systemImage: "trash") }
-                    }
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").font(.system(size: 15)).foregroundStyle(t.txtMuted)
+                TextField("", text: $query, prompt: Text("Search sessions").foregroundStyle(t.txtMuted))
+                    .font(.bodyF(15)).foregroundStyle(t.txt).tint(t.accent)
+                    .autocorrectionDisabled().textInputAutocapitalization(.never)
+                    .focused($focused).submitLabel(.search).onSubmit { focused = false }
+                if !query.isEmpty {
+                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill").font(.system(size: 15)).foregroundStyle(t.txtMuted) }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
+            .padding(.horizontal, 12).padding(.vertical, 10).glass(t, 14, flat: true)
+            .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 10)
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 11) {
+                    if results.isEmpty {
+                        Text(query.isEmpty ? "Your sessions appear here." : "No sessions match “\(query)”.")
+                            .font(.bodyF(14)).foregroundStyle(t.txtMuted).frame(maxWidth: .infinity).padding(.vertical, 44)
+                    }
+                    ForEach(results) { s in
+                        Button { app.connect(link: s.link, name: UIDevice.current.name) } label: {
+                            JoinedCard(session: s, t: t, live: app.live[s.id] == true)
+                                .opacity(app.live[s.id] == true ? 1 : 0.6)
+                        }
+                        .press()
+                        .contextMenu {
+                            Button(role: .destructive) { app.remove(s) } label: { Label("Remove", systemImage: "trash") }
+                        }
+                    }
+                }.padding(.horizontal, 16).padding(.bottom, 20)
+            }
+            .scrollDismissesKeyboard(.immediately)
         }
         .background(t.bg.ignoresSafeArea())
-        .searchable(text: $query, prompt: "Search sessions")
         .tint(t.accent)
+        .onAppear { focused = true }
     }
 }
 
