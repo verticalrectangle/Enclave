@@ -132,6 +132,21 @@ struct PlanPhase: Identifiable, Equatable, Codable {
     var doneCount: Int { tasks.filter { $0.status == "completed" }.count }
 }
 
+// MARK: - Host notices (rate limits, tool failures) + goal mode
+
+struct NoticeItem: Identifiable, Equatable {
+    let id: String
+    let level: String     // info / warning / error
+    let message: String
+}
+
+struct GoalInfo: Equatable {
+    let objective: String
+    let status: String
+    let tokensUsed: Int
+    let tokenBudget: Int?
+}
+
 // MARK: - /enclave plugin capabilities (absent over plain /collab)
 
 struct EnclaveCommand: Identifiable { var id: String { name }; let name: String; let summary: String }

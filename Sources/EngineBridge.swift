@@ -291,6 +291,9 @@ final class GuestClient: ObservableObject {
     private var thoughtForEntry: [String: Int] = [:]
     @Published private(set) var welcomed = false   // a host actually answered (got a welcome)
     @Published private(set) var plan: [PlanPhase] = []   // latest `todo` tool plan (phases → tasks)
+    @Published private(set) var goal: GoalInfo?          // goal mode's active objective
+    @Published private(set) var activity: String?        // transient host activity (retrying / compacting / fallback)
+    @Published private(set) var notices: [NoticeItem] = [] // host toasts (rate limits, tool failures)
     private var planKey = ""                              // UserDefaults key for this room's cached plan
     var justPaired = false                          // joined via a fresh QR pair → show a paired notice
 
@@ -538,10 +541,43 @@ final class GuestClient: ObservableObject {
             }
         case "tool_execution_end":
             if let id = e["toolCallId"] as? String { activeTools.removeAll { $0.id == id } }
-        case "agent_start": working = true; stream = nil; streamDone = false; thinkStart = nil; thoughtSeconds = nil
+        case "agent_start": working = true; stream = nil; streamDone = false; thinkStart = nil; thoughtSeconds = nil; activity = nil
         // Turn done: drop the streaming ghost — the finalized entry now carries it
         // (otherwise the ghost and the entry both render, duplicating the reply).
-        case "agent_end": working = false; stream = nil; streamDone = false
+        case "agent_end": working = false; stream = nil; streamDone = false; activity = nil
+
+        // ── previously-dropped events now surfaced ──────────────────────────────
+        // Retries / model fallback: show *why* the turn is hanging.
+        case "auto_retry_start":
+            let a = e["attempt"] as? Int ?? 1, m = e["maxAttempts"] as? Int ?? 1
+            activity = "RETRYING \(a)/\(m)…"
+        case "auto_retry_end":
+            activity = (e["success"] as? Bool ?? true) ? nil : "RETRY FAILED"
+        case "retry_fallback_applied":
+            activity = "FALLING BACK → \(e["to"] as? String ?? "backup model")"
+        case "retry_fallback_succeeded":
+            activity = nil
+        case "auto_compaction_start":
+            activity = "COMPACTING CONTEXT…"
+        case "auto_compaction_end":
+            activity = nil
+        case "thinking_level_changed":
+            if let l = e["thinkingLevel"] as? String { thinkingLevel = l }
+        // Host toasts: rate limits, tool failures, info.
+        case "notice":
+            let level = e["level"] as? String ?? "info"
+            let msg = e["message"] as? String ?? ""
+            if !msg.isEmpty {
+                notices.append(NoticeItem(id: "\(notices.count)-\(msg.hashValue)", level: level, message: msg))
+                if notices.count > 20 { notices.removeFirst(notices.count - 20) }
+                rebuild()
+            }
+        // Goal mode: the persistent objective the host is pursuing.
+        case "goal_updated":
+            if let g = e["goal"] as? [String: Any], let obj = g["objective"] as? String {
+                goal = GoalInfo(objective: obj, status: g["status"] as? String ?? "active",
+                                tokensUsed: g["tokensUsed"] as? Int ?? 0, tokenBudget: g["tokenBudget"] as? Int)
+            } else { goal = nil }
         default: break
         }
     }
@@ -659,6 +695,23 @@ final class GuestClient: ObservableObject {
                 }
             case "compaction":
                 out.append(UITurn.sys("compaction", (entry["shortSummary"] as? String ?? "COMPACTING CONTEXT").uppercased()))
+            case "mode_change":
+                let mode = entry["mode"] as? String ?? "none"
+                out.append(UITurn.sys("mode", mode == "none" ? "EXITED MODE" : "ENTERED \(mode.uppercased()) MODE"))
+            case "branch_summary":
+                out.append(UITurn.sys("rewind", "REWOUND · " + (entry["summary"] as? String ?? "earlier work")))
+            case "model_change":
+                out.append(UITurn.sys("model", "MODEL → " + (entry["model"] as? String ?? "?")))
+            case "thinking_level_change":
+                if let l = entry["thinkingLevel"] as? String { out.append(UITurn.sys("model", "THINKING → " + l.uppercased())) }
+            case "service_tier_change":
+                out.append(UITurn.sys("model", "SERVICE TIER CHANGED"))
+            case "custom_message":
+                // Non-collab-prompt display messages (rewind reports, injected notes).
+                if entry["display"] as? Bool == true {
+                    let text = contentString(entry["content"])
+                    if !text.isEmpty { out.append(UITurn.sys("note", text)) }
+                }
             default: break
             }
         }
@@ -700,6 +753,9 @@ final class GuestClient: ObservableObject {
             }
             out.append(turn)
         }
+
+        // Host notices (rate limits, tool failures) — surfaced at the bottom of the scroll.
+        for n in notices { out.append(UITurn.sys(n.level == "error" ? "error" : "notice", n.message)) }
 
         turns = out
         // Only adopt a live plan once one actually arrives, so the cached plan shown on

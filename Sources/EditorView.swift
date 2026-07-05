@@ -106,6 +106,7 @@ struct EditorView: View {
 
     private var composerStack: some View {
         VStack(spacing: 8) {
+            if let g = vm.goal { goalBanner(g) }
             if !vm.plan.isEmpty {
                 PlanStrip(phases: vm.plan, t: t, expanded: $planExpanded)
             }
@@ -126,6 +127,20 @@ struct EditorView: View {
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 6)
+    }
+
+    private func goalBanner(_ g: GoalInfo) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "target").font(.system(size: 12)).foregroundStyle(t.accent)
+            Text("GOAL").font(.labl(10)).tracking(1.6).foregroundStyle(t.txt)
+            Text(g.objective).font(.term(12)).foregroundStyle(t.txtBody).lineLimit(1)
+            Spacer(minLength: 4)
+            if let b = g.tokenBudget, b > 0 {
+                Text("\(min(100, g.tokensUsed * 100 / b))%").font(.term(11)).foregroundStyle(t.txtMuted)
+            }
+        }
+        .padding(.horizontal, 13).padding(.vertical, 9)
+        .glass(t, 16, panel: true)
     }
 
     private var readOnlyBar: some View {

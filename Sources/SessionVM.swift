@@ -27,6 +27,7 @@ final class SessionVM: ObservableObject {
     var imagePossible: Bool { live.canSendImages || live.visionModelAvailable }
     var commands: [EnclaveCommand] { live.commands }
     var plan: [PlanPhase] { live.plan }
+    var goal: GoalInfo? { live.goal }
 
     @Published var awaitingVision = false   // this turn is reading an image via the vision fallback
     private var sawWorking = false
@@ -51,8 +52,9 @@ final class SessionVM: ObservableObject {
         case "connecting", "waiting", "reconnecting": action = live.phase.uppercased() + "…"
         case "ended": action = "ENDED · \(live.endedReason ?? "session closed")"
         default:
-            action = awaitingVision && live.working ? "READING YOUR IMAGE VIA VISION…"
-                : (live.working ? "STREAMING" : (turns.contains { $0.type == .ask } ? "WAITING · ANSWER" : "LIVE"))
+            action = live.activity                                        // retrying / compacting / falling back
+                ?? (awaitingVision && live.working ? "READING YOUR IMAGE VIA VISION…"
+                : (live.working ? "STREAMING" : (turns.contains { $0.type == .ask } ? "WAITING · ANSWER" : "LIVE")))
         }
         session = Session(id: seed.id, repo: live.title, branch: live.readOnly ? "watch" : "control",
                           dir: live.cwd, model: live.modelName,
