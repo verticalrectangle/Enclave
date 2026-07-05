@@ -634,6 +634,12 @@ final class GuestClient: ObservableObject {
                         default: break
                         }
                     }
+                    // Surface a failed turn instead of an empty bubble / stalled spinner.
+                    if let err = msg["errorMessage"] as? String, !err.isEmpty {
+                        out.append(UITurn.sys("error", "ERROR · " + err))
+                    } else if (msg["stopReason"] as? String) == "error" {
+                        out.append(UITurn.sys("error", "TURN FAILED — SEE THE HOST"))
+                    }
                 case "toolResult":
                     let id = msg["toolCallId"] as? String ?? eid
                     // Todo tool → the live plan panel, not a transcript card.

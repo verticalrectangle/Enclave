@@ -219,11 +219,11 @@ struct ToolCard: View {
 
 struct SysChip: View {
     let turn: UITurn; let t: Theme
-    private var c: Color { turn.kind == "paired" ? t.cOk : turn.kind == "rewind" ? t.accent : (turn.kind == "stop" || turn.kind == "ttsr") ? t.cAdvisor : t.txtMuted }
+    private var c: Color { turn.kind == "paired" ? t.cOk : turn.kind == "rewind" ? t.accent : (turn.kind == "stop" || turn.kind == "ttsr" || turn.kind == "error") ? t.cAdvisor : t.txtMuted }
     private var glyph: String {
         switch turn.kind { case "compaction": "square.3.layers.3d"; case "retry": "arrow.triangle.2.circlepath"
         case "ttsr": "text.badge.checkmark"; case "stop": "stop.fill"; case "rewind": "arrow.uturn.backward"
-        case "paired": "checkmark.seal.fill"; default: "circle.grid.cross" }
+        case "paired": "checkmark.seal.fill"; case "error": "exclamationmark.triangle.fill"; default: "circle.grid.cross" }
     }
     var body: some View {
         HStack(spacing: 6) {
