@@ -290,6 +290,7 @@ final class GuestClient: ObservableObject {
     private var thoughtSeconds: Int?
     private var thoughtForEntry: [String: Int] = [:]
     @Published private(set) var welcomed = false   // a host actually answered (got a welcome)
+    @Published private(set) var plan: [PlanPhase] = []   // latest `todo` tool plan (phases → tasks)
     var justPaired = false                          // joined via a fresh QR pair → show a paired notice
 
     init?(link: String, name: String) {
@@ -595,6 +596,7 @@ final class GuestClient: ObservableObject {
     private func rebuild() {
         var out: [UITurn] = []
         var toolIndex: [String: Int] = [:]   // toolCallId → index in `out`
+        var latestPlan: [PlanPhase] = []     // last todo toolResult wins
 
         // Confirm a fresh QR pair at the top of the scroll, once the host welcomes us.
         if welcomed && justPaired { out.append(UITurn.sys("paired", "SUCCESSFULLY PAIRED THIS SESSION")) }
@@ -617,9 +619,10 @@ final class GuestClient: ObservableObject {
                             let text = block["text"] as? String ?? ""
                             if !text.isEmpty { out.append(agentTurn(id: "\(eid)#\(i)", text: text)) }
                         case "toolCall":
+                            let name = block["name"] as? String ?? "tool"
+                            if name == "todo" { break }   // the plan lives in the pinned panel, not a card
                             let id = block["id"] as? String ?? "\(eid)#\(i)"
-                            out.append(toolTurn(id: id, name: block["name"] as? String ?? "tool",
-                                                args: block["arguments"], intent: block["intent"] as? String))
+                            out.append(toolTurn(id: id, name: name, args: block["arguments"], intent: block["intent"] as? String))
                             toolIndex[id] = out.count - 1
                         case "thinking", "redactedThinking":
                             let think = block["thinking"] as? String ?? block["text"] as? String ?? ""
@@ -629,6 +632,11 @@ final class GuestClient: ObservableObject {
                     }
                 case "toolResult":
                     let id = msg["toolCallId"] as? String ?? eid
+                    // Todo tool → the live plan panel, not a transcript card.
+                    if (msg["toolName"] as? String) == "todo" {
+                        if let phases = parsePlan(msg["details"]) { latestPlan = phases }
+                        break
+                    }
                     let isError = msg["isError"] as? Bool ?? false
                     if let idx = toolIndex[id] {
                         fillResult(&out[idx], content: msg["content"], isError: isError)
@@ -684,7 +692,19 @@ final class GuestClient: ObservableObject {
         }
 
         turns = out
+        if plan != latestPlan { plan = latestPlan }
         onChange?()
+    }
+
+    /// Parse a `todo` toolResult's details → phases/tasks for the plan panel.
+    private func parsePlan(_ details: Any?) -> [PlanPhase]? {
+        guard let d = details as? [String: Any], let phases = d["phases"] as? [[String: Any]] else { return nil }
+        return phases.map { ph in
+            let tasks = (ph["tasks"] as? [[String: Any]] ?? []).map {
+                PlanTask(content: $0["content"] as? String ?? "", status: $0["status"] as? String ?? "pending")
+            }
+            return PlanPhase(name: ph["name"] as? String ?? "", tasks: tasks)
+        }
     }
 
     // ── turn builders ─────────────────────────────────────────────────────────

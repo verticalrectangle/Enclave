@@ -41,6 +41,9 @@ struct EditorView: View {
         ZStack {
             t.bg.ignoresSafeArea()
             VStack(spacing: 0) {
+                if !vm.plan.isEmpty {
+                    PlanPanel(phases: vm.plan, t: t).padding(.horizontal, 12).padding(.top, 8)
+                }
                 transcript
                 composerStack
             }
@@ -251,6 +254,74 @@ struct EditorView: View {
 }
 
 struct IdStr: Identifiable { let v: String; var id: String { v }; init(_ v: String) { self.v = v } }
+
+/// The live plan (omp's `todo` tool): phases → tasks with status. Pinned above the
+/// transcript, collapsible, updating in place as the agent works.
+struct PlanPanel: View {
+    let phases: [PlanPhase]
+    let t: Theme
+    @State private var expanded = true
+
+    private var phasesDone: Int { phases.filter { !$0.tasks.isEmpty && $0.doneCount == $0.tasks.count }.count }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button { withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() } } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "checklist").font(.system(size: 12)).foregroundStyle(t.accent)
+                    Text("PLAN").font(.labl(10)).tracking(1.8).foregroundStyle(t.txt)
+                    Text("\(phasesDone)/\(phases.count)").font(.term(12)).foregroundStyle(t.txtMuted)
+                    Spacer()
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(t.txtMuted)
+                }
+                .padding(.horizontal, 13).padding(.vertical, 11)
+            }
+            if expanded {
+                ScrollView { planBody.padding(.horizontal, 13).padding(.bottom, 12) }
+                    .frame(maxHeight: 240)
+            }
+        }
+        .glass(t, 16, panel: true)
+    }
+
+    private var planBody: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            ForEach(phases) { phase in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Text(phase.name).font(.labl(9.5)).tracking(1).foregroundStyle(t.txtBody).textCase(.uppercase)
+                        Text("\(phase.doneCount)/\(phase.tasks.count)").font(.term(11)).foregroundStyle(t.txtMuted)
+                    }
+                    ForEach(phase.tasks) { task in
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: glyph(task.status)).font(.system(size: 12)).foregroundStyle(color(task.status)).frame(width: 15)
+                            Text(task.content).font(.bodyF(13))
+                                .foregroundStyle(task.status == "completed" ? t.txtMuted : t.txtBody)
+                                .strikethrough(task.status == "abandoned", color: t.txtGhost)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func glyph(_ s: String) -> String {
+        switch s {
+        case "completed": "checkmark.circle.fill"
+        case "in_progress": "circle.lefthalf.filled"
+        case "abandoned": "xmark.circle"
+        default: "circle"
+        }
+    }
+    private func color(_ s: String) -> Color {
+        switch s {
+        case "completed": t.cOk
+        case "in_progress": t.accent
+        case "abandoned": t.txtGhost
+        default: t.txtMuted
+        }
+    }
+}
 
 /// "Vision is off" help — the enable command lives in a one-line monospace box
 /// (horizontal-scroll if it overflows) so it never wraps into two lines that read

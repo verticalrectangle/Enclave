@@ -183,16 +183,20 @@ struct ToolCard: View {
                         if let d = turn.del { Text("−\(d)").font(.term(13)).foregroundStyle(t.cAdvisor) }
                     }
                 }
+                // Compact chip, not an inline image: a browser-heavy session dumps many
+                // screenshots, and decoding them all up front is what stalls the view.
+                // The full image decodes only when you tap to focus it.
                 if let img = turn.image {
                     Button { onImage(img) } label: {
-                        SrcImage(src: img) { $0.resizable().scaledToFill() } placeholder: { t.line }
-                            .frame(maxWidth: .infinity).frame(height: 168).clipped()
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .overlay(alignment: .bottomTrailing) {
-                                HStack(spacing: 4) { Image(systemName: "eye").font(.system(size: 11)); Text("TAP TO FOCUS").font(.labl(8)) }
-                                    .foregroundStyle(.white).padding(.horizontal, 7).padding(.vertical, 3)
-                                    .background(.black.opacity(0.5)).clipShape(RoundedRectangle(cornerRadius: 16)).padding(6)
-                            }
+                        HStack(spacing: 6) {
+                            Image(systemName: "photo").font(.system(size: 12)).foregroundStyle(c)
+                            Text("image result").font(.term(13)).foregroundStyle(t.txtBody)
+                            Text("tap to view").font(.labl(8.5)).tracking(0.6).foregroundStyle(t.txtMuted)
+                            Spacer(minLength: 0)
+                            Image(systemName: "eye").font(.system(size: 11)).foregroundStyle(t.txtMuted)
+                        }
+                        .padding(.horizontal, 10).padding(.vertical, 8)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(t.lineFaint))
                     }
                 }
                 if let cap = turn.caption { Text(cap).font(.bodyF(13)).foregroundStyle(t.txtBody) }
@@ -348,11 +352,17 @@ struct SrcImage<Content: View, Placeholder: View>: View {
     }
 
     static func decode(_ dataURI: String) -> UIImage? {
+        let key = dataURI as NSString
+        if let cached = srcImageCache.object(forKey: key) { return cached }
         guard let comma = dataURI.firstIndex(of: ","),
-              let data = Data(base64Encoded: String(dataURI[dataURI.index(after: comma)...])) else { return nil }
-        return UIImage(data: data)
+              let data = Data(base64Encoded: String(dataURI[dataURI.index(after: comma)...])),
+              let ui = UIImage(data: data) else { return nil }
+        srcImageCache.setObject(ui, forKey: key)
+        return ui
     }
 }
+
+private let srcImageCache = NSCache<NSString, UIImage>()
 
 // bespoke ring + sealed-slit logomark
 struct LogoMark: View {

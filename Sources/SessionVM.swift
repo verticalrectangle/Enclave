@@ -26,6 +26,7 @@ final class SessionVM: ObservableObject {
     // when a vision model is present but the session can't yet use it (inspect_image off).
     var imagePossible: Bool { live.canSendImages || live.visionModelAvailable }
     var commands: [EnclaveCommand] { live.commands }
+    var plan: [PlanPhase] { live.plan }
 
     @Published var awaitingVision = false   // this turn is reading an image via the vision fallback
     private var sawWorking = false
