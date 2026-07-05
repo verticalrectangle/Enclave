@@ -28,6 +28,11 @@ final class SessionVM: ObservableObject {
     var commands: [EnclaveCommand] { live.commands }
     var plan: [PlanPhase] { live.plan }
     var goal: GoalInfo? { live.goal }
+    var models: [ModelOption] { live.models }
+    var thinkingLevels: [String] { live.thinkingLevels }
+    var thinkingLevel: String { live.thinkingLevel }
+    var modelName: String { live.modelName }
+    var joinLink: String { live.joinLink }
 
     @Published var awaitingVision = false   // this turn is reading an image via the vision fallback
     private var sawWorking = false

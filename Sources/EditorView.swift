@@ -55,9 +55,41 @@ struct EditorView: View {
                     Text("\(vm.session.dir) · \(vm.session.branch)").font(.term(12)).foregroundStyle(t.txtMuted).lineLimit(1)
                 }
             }
+            ToolbarItem(placement: .topBarTrailing) { sessionMenu }
         }
         .fullScreenCover(item: Binding(get: { viewer.map { IdStr($0) } }, set: { viewer = $0?.v })) { img in
             ImageViewer(src: img.v, label: "focused image") { viewer = nil }.environmentObject(theme)
+        }
+    }
+
+    // MARK: session menu (top-right …)
+
+    @ViewBuilder private var sessionMenu: some View {
+        Menu {
+            if vm.enhanced && !vm.models.isEmpty {
+                Menu {
+                    ForEach(vm.models) { m in
+                        Button { vm.setModel(m.modelId) } label: {
+                            if m.name == vm.modelName { Label(m.name, systemImage: "checkmark") } else { Text(m.name) }
+                        }
+                    }
+                } label: { Label("Change model", systemImage: "arrow.left.arrow.right") }
+            }
+            if vm.enhanced && !vm.thinkingLevels.isEmpty {
+                Menu {
+                    ForEach(vm.thinkingLevels, id: \.self) { lvl in
+                        Button { vm.setThinking(lvl) } label: {
+                            if lvl == vm.thinkingLevel { Label(lvl, systemImage: "checkmark") } else { Text(lvl) }
+                        }
+                    }
+                } label: { Label("Thinking level", systemImage: "brain") }
+            }
+            if !vm.joinLink.isEmpty {
+                ShareLink(item: vm.joinLink) { Label("Share invite link", systemImage: "square.and.arrow.up") }
+                Button { UIPasteboard.general.string = vm.joinLink } label: { Label("Copy link", systemImage: "doc.on.doc") }
+            }
+        } label: {
+            Image(systemName: "ellipsis").font(.system(size: 16, weight: .semibold)).foregroundStyle(t.accent)
         }
     }
 

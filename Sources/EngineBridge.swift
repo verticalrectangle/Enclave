@@ -266,6 +266,7 @@ final class GuestClient: ObservableObject {
     @Published private(set) var commands: [EnclaveCommand] = []
     @Published private(set) var models: [ModelOption] = []
     @Published private(set) var thinkingLevels: [String] = []
+    private(set) var joinLink = ""                        // the link this guest joined with (to invite others)
 
     /// Fired after every applied frame (SessionVM bridges this to its own publish).
     var onChange: (() -> Void)?
@@ -307,6 +308,7 @@ final class GuestClient: ObservableObject {
             self.relay = (parsed.wsURL.host ?? "—") + (parsed.wsURL.port.map { ":\($0)" } ?? "")
             self.socket = CollabSocket(wsURL: parsed.wsURL, key: parsed.key)
             self.planKey = "enclave.plan." + parsed.wsURL.absoluteString
+            self.joinLink = link
         }
         // Show the last known plan immediately, before the snapshot reconnects/loads.
         plan = Self.loadPlan(planKey)
@@ -716,7 +718,10 @@ final class GuestClient: ObservableObject {
                 out.append(UITurn.sys("model", "SERVICE TIER CHANGED"))
             case "custom_message":
                 // Non-collab-prompt display messages (rewind reports, injected notes).
-                if entry["display"] as? Bool == true {
+                // Skip our own /enclave control messages (e.g. the enclave-share QR, which
+                // is ANSI meant for the host terminal, not the app).
+                let ct = entry["customType"] as? String ?? ""
+                if entry["display"] as? Bool == true, ct != "collab-prompt", !ct.hasPrefix("enclave-") {
                     let text = contentString(entry["content"])
                     if !text.isEmpty { out.append(UITurn.sys("note", text)) }
                 }
