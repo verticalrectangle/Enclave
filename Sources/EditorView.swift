@@ -70,7 +70,11 @@ struct EditorView: View {
                 Menu {
                     ForEach(vm.models) { m in
                         Button { vm.setModel(m.modelId) } label: {
-                            if m.name == vm.modelName { Label(m.name, systemImage: "checkmark") } else { Text(m.name) }
+                            // Eye marks vision-capable models — pick one for fast image handling
+                            // (a non-vision model routes images through the slower inspect_image fallback).
+                            if m.name == vm.modelName { Label(m.name, systemImage: "checkmark") }
+                            else if m.vision { Label("\(m.name)  · sees images", systemImage: "eye") }
+                            else { Text(m.name) }
                         }
                     }
                 } label: { Label("Change model", systemImage: "arrow.left.arrow.right") }

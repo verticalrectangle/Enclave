@@ -248,7 +248,7 @@ function buildCaps(ctx: any) {
     inspectImage,                      // the inspect_image fallback tool is enabled
     visionModelAvailable,              // a vision model exists (fallback could be turned on)
     thinking: ["minimal", "low", "medium", "high", "xhigh"],
-    models: list.map((m: any) => ({ id: m.id, name: m.name ?? m.id })),
+    models: list.map((m: any) => ({ id: m.id, name: m.name ?? m.id, vision: seesImages(m) })),
     // Slash commands the guest can run — drop /enclave (you're already paired) and
     // anything that only makes sense in the terminal (a TUI takeover the app can't show).
     commands: (getCommands?.() ?? [])

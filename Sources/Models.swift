@@ -156,7 +156,7 @@ struct GoalInfo: Equatable {
 // MARK: - /enclave plugin capabilities (absent over plain /collab)
 
 struct EnclaveCommand: Identifiable { var id: String { name }; let name: String; let summary: String }
-struct ModelOption: Identifiable { var id: String { modelId }; let modelId: String; let name: String }
+struct ModelOption: Identifiable { var id: String { modelId }; let modelId: String; let name: String; var vision = false }
 
 // MARK: - Joined sessions (persisted locally — the guest's own room list)
 

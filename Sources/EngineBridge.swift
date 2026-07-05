@@ -478,7 +478,7 @@ final class GuestClient: ObservableObject {
                 EnclaveCommand(name: $0["name"] as? String ?? "", summary: $0["summary"] as? String ?? $0["description"] as? String ?? "")
             }
             models = (f["models"] as? [[String: Any]] ?? []).map {
-                ModelOption(modelId: $0["id"] as? String ?? "", name: $0["name"] as? String ?? ($0["id"] as? String ?? ""))
+                ModelOption(modelId: $0["id"] as? String ?? "", name: $0["name"] as? String ?? ($0["id"] as? String ?? ""), vision: $0["vision"] as? Bool ?? false)
             }
             if let levels = f["thinking"] as? [String] { thinkingLevels = levels }
             if let cur = f["current"] as? [String: Any], let th = cur["thinking"] as? String { thinkingLevel = th }
