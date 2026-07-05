@@ -15,53 +15,63 @@ struct SessionsView: View {
     private var t: Theme { theme.t }
 
     var body: some View {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("ENCLAVE").font(.labl(10)).tracking(2.5).foregroundStyle(t.txtLabel)
-                        .padding(.horizontal, 16).padding(.top, 6).padding(.bottom, 2)
-                    Text("Sessions").font(.disp(40)).foregroundStyle(t.txt).textCase(.uppercase)
-                        .padding(.horizontal, 16).padding(.bottom, 12)
+        List {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("ENCLAVE").font(.labl(10)).tracking(2.5).foregroundStyle(t.txtLabel).padding(.bottom, 2)
+                Text("Sessions").font(.disp(40)).foregroundStyle(t.txt).textCase(.uppercase)
+            }.plainRow(top: 6, bottom: 10)
 
-                    if app.sessions.isEmpty {
-                        emptyState
-                    } else {
-                        searchBar
-                        if ordered.isEmpty {
-                            Text("No sessions match “\(query)”.").font(.bodyF(14)).foregroundStyle(t.txtMuted)
-                                .frame(maxWidth: .infinity).padding(.vertical, 40).padding(.horizontal, 24)
-                        }
-                        LazyVStack(spacing: 11) {
-                            ForEach(ordered) { s in
-                                if s.id == firstOfflineId {
-                                    HStack(spacing: 8) {
-                                        Text("OFFLINE").font(.labl(9)).tracking(2).foregroundStyle(t.txtMuted)
-                                        Rectangle().frame(height: 0.5).foregroundStyle(t.lineFaint)
-                                    }.padding(.top, 6)
-                                }
-                                card(s, live: app.live[s.id] == true)
-                                    .opacity(app.live[s.id] == true ? 1 : 0.6)
-                            }
-                        }.padding(.horizontal, 16)
-                    }
-
-                    Button { showPair = true } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "plus").font(.system(size: 15, weight: .semibold))
-                            Text("PAIR A SESSION").font(.labl(11)).tracking(1)
-                        }
-                        .foregroundStyle(t.txt).frame(maxWidth: .infinity).padding(.vertical, 14)
-                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(t.lineStrong))
-                    }.padding(16)
+            if app.sessions.isEmpty {
+                emptyState.plainRow(leading: 0, trailing: 0)
+            } else {
+                searchBar.plainRow(bottom: 12)
+                if ordered.isEmpty {
+                    Text("No sessions match “\(query)”.").font(.bodyF(14)).foregroundStyle(t.txtMuted)
+                        .frame(maxWidth: .infinity).padding(.vertical, 34).plainRow()
                 }
-                .padding(.bottom, 20)
-                .contentShape(Rectangle())
-                .onTapGesture { searchFocused = false }   // tap off the field to dismiss
+                ForEach(liveSessions) { s in sessionRow(s) }
+                if !offlineSessions.isEmpty {
+                    Section {
+                        ForEach(offlineSessions) { s in sessionRow(s) }
+                    } header: {
+                        HStack(spacing: 8) {
+                            Text("OFFLINE").font(.labl(9)).tracking(2).foregroundStyle(t.txtMuted)
+                            Rectangle().frame(height: 0.5).foregroundStyle(t.lineFaint)
+                            Button { withAnimation { app.clearOffline() } } label: {
+                                Text("CLEAR ALL").font(.labl(9)).tracking(1.4).foregroundStyle(t.cAdvisor)
+                            }
+                        }
+                        .textCase(nil)
+                        .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 6, trailing: 16))
+                    }
+                }
             }
-            .background(t.bg.ignoresSafeArea())
-            .scrollDismissesKeyboard(.immediately)        // …or drag the list
-            .refreshable { app.refreshLiveness() }
-            .tint(t.accent)
-            .task { app.refreshLiveness() }
+
+            Button { showPair = true } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus").font(.system(size: 15, weight: .semibold))
+                    Text("PAIR A SESSION").font(.labl(11)).tracking(1)
+                }
+                .foregroundStyle(t.txt).frame(maxWidth: .infinity).padding(.vertical, 14)
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(t.lineStrong))
+            }.plainRow(top: 14, bottom: 20)
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(t.bg.ignoresSafeArea())
+        .scrollDismissesKeyboard(.immediately)
+        .refreshable { app.refreshLiveness() }
+        .tint(t.accent)
+        .task { app.refreshLiveness() }
+    }
+
+    @ViewBuilder private func sessionRow(_ s: JoinedSession) -> some View {
+        card(s, live: app.live[s.id] == true)
+            .opacity(app.live[s.id] == true ? 1 : 0.6)
+            .plainRow(top: 5, bottom: 5)
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                Button(role: .destructive) { app.remove(s) } label: { Label("Delete", systemImage: "trash") }
+            }
     }
 
     private var deviceName: String { UIDevice.current.name }
@@ -118,6 +128,16 @@ struct SessionsView: View {
                 .font(.bodyF(13.5)).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity).padding(.vertical, 48).padding(.horizontal, 24)
+    }
+}
+
+/// Strip a List row down to the app's look: no separator, transparent background,
+/// custom insets — so the List reads like the old card stack but gains swipe-to-delete.
+private extension View {
+    func plainRow(top: CGFloat = 0, leading: CGFloat = 16, bottom: CGFloat = 0, trailing: CGFloat = 16) -> some View {
+        self.listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: top, leading: leading, bottom: bottom, trailing: trailing))
     }
 }
 

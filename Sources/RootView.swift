@@ -113,6 +113,14 @@ final class AppModel: ObservableObject {
 
     func remove(_ s: JoinedSession) { sessions.removeAll { $0.id == s.id }; live[s.id] = nil; save() }
 
+    /// Drop every offline session in one go (keeps the one you're connected to).
+    func clearOffline() {
+        let keep = connectedLink
+        for s in sessions where live[s.id] != true && s.link != keep { live[s.id] = nil }
+        sessions.removeAll { live[$0.id] != true && $0.link != keep }
+        save()
+    }
+
     /// Ping each saved room's relay status endpoint to see if a host is connected.
     /// Sessions whose relay has no status endpoint (or is unreachable) read offline.
     func refreshLiveness() {
