@@ -31,10 +31,11 @@ struct UITurn: Identifiable, Equatable {
 
     // thinking
     var thoughtSeconds: Int? = nil // set once thinking finishes → "thought for Xs"
+    var model: String = ""         // producing model (only kept when the session used >1)
 
     static func == (a: UITurn, b: UITurn) -> Bool {
         a.id == b.id && a.text == b.text && a.streaming == b.streaming && a.pending == b.pending
-            && a.meta == b.meta && a.lines == b.lines && a.thoughtSeconds == b.thoughtSeconds
+            && a.meta == b.meta && a.lines == b.lines && a.thoughtSeconds == b.thoughtSeconds && a.model == b.model
     }
 
     static func sys(_ kind: String, _ text: String) -> UITurn {

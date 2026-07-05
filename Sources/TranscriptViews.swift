@@ -309,11 +309,20 @@ struct ThinkingBlock: View {
         guard let s = turn.thoughtSeconds else { return "THINKING" }
         return s < 60 ? "THOUGHT FOR \(s)s" : "THOUGHT FOR \(s / 60)m \(s % 60)s"
     }
+    // Short model name for the attribution chip (only set when >1 model was used).
+    private var modelChip: String? {
+        turn.model.isEmpty ? nil : (turn.model.split(separator: "/").last.map(String.init) ?? turn.model)
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button { withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() } } label: {
                 HStack(spacing: 6) {
                     Text(header).font(.labl(9)).tracking(1.6).foregroundStyle(t.txtMuted)
+                    if let m = modelChip {
+                        Text(m).font(.labl(8)).tracking(0.5).foregroundStyle(t.accent)
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .overlay(Capsule().stroke(t.accent.opacity(0.4)))
+                    }
                     Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(t.txtGhost)
                     Spacer(minLength: 0)
                 }.contentShape(Rectangle())

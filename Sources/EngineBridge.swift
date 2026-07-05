@@ -678,11 +678,12 @@ final class GuestClient: ObservableObject {
                 case "user":
                     out.append(userTurn(id: eid, content: msg["content"]))
                 case "assistant":
+                    let msgModel = msg["model"] as? String ?? ""
                     for (i, block) in (msg["content"] as? [[String: Any]] ?? []).enumerated() {
                         switch block["type"] as? String {
                         case "text":
                             let text = block["text"] as? String ?? ""
-                            if !text.isEmpty { out.append(agentTurn(id: "\(eid)#\(i)", text: text)) }
+                            if !text.isEmpty { out.append(agentTurn(id: "\(eid)#\(i)", text: text, model: msgModel)) }
                         case "toolCall":
                             let name = block["name"] as? String ?? "tool"
                             if name == "todo" { break }   // the plan lives in the pinned panel, not a card
@@ -691,7 +692,7 @@ final class GuestClient: ObservableObject {
                             toolIndex[id] = out.count - 1
                         case "thinking", "redactedThinking":
                             let think = block["thinking"] as? String ?? block["text"] as? String ?? ""
-                            if !think.isEmpty { out.append(thinkingTurn(id: "\(eid)#\(i)", text: think, seconds: thoughtForEntry[eid])) }
+                            if !think.isEmpty { out.append(thinkingTurn(id: "\(eid)#\(i)", text: think, seconds: thoughtForEntry[eid], model: msgModel)) }
                         default: break
                         }
                     }
@@ -732,11 +733,14 @@ final class GuestClient: ObservableObject {
             case "service_tier_change":
                 out.append(UITurn.sys("model", "SERVICE TIER CHANGED"))
             case "custom_message":
-                // Non-collab-prompt display messages (rewind reports, injected notes).
-                // Skip our own /enclave control messages (e.g. the enclave-share QR, which
-                // is ANSI meant for the host terminal, not the app).
                 let ct = entry["customType"] as? String ?? ""
-                if entry["display"] as? Bool == true, ct != "collab-prompt", !ct.hasPrefix("enclave-") {
+                if ct == "advisor", entry["display"] as? Bool == true {
+                    // The advisor (a second model reviewing the turn) → its own labeled row.
+                    let text = contentString(entry["content"])
+                    if !text.isEmpty { var t = UITurn(id: eid, type: .advisor); t.text = text; out.append(t) }
+                } else if entry["display"] as? Bool == true, ct != "collab-prompt", !ct.hasPrefix("enclave-") {
+                    // Other non-collab-prompt display messages (rewind reports, injected notes).
+                    // Skip our own /enclave control messages (e.g. the ANSI enclave-share QR).
                     let text = contentString(entry["content"])
                     if !text.isEmpty { out.append(UITurn.sys("note", text)) }
                 }
@@ -795,6 +799,11 @@ final class GuestClient: ObservableObject {
         // Host notices (rate limits, tool failures) — surfaced at the bottom of the scroll.
         for n in notices { out.append(UITurn.sys(n.level == "error" ? "error" : "notice", n.message)) }
 
+        // Model chips only earn their space when the session actually used >1 model.
+        if Set(out.compactMap { $0.model.isEmpty ? nil : $0.model }).count <= 1 {
+            for i in out.indices { out[i].model = "" }
+        }
+
         turns = out
         // Only adopt a live plan once one actually arrives, so the cached plan shown on
         // reconnect isn't wiped to empty while the snapshot is still streaming in.
@@ -834,11 +843,11 @@ final class GuestClient: ObservableObject {
         t.image = firstImage(content)
         return t
     }
-    private func thinkingTurn(id: String, text: String, seconds: Int? = nil) -> UITurn {
-        var t = UITurn(id: id, type: .thinking); t.text = text; t.thoughtSeconds = seconds; return t
+    private func thinkingTurn(id: String, text: String, seconds: Int? = nil, model: String = "") -> UITurn {
+        var t = UITurn(id: id, type: .thinking); t.text = text; t.thoughtSeconds = seconds; t.model = model; return t
     }
-    private func agentTurn(id: String, text: String) -> UITurn {
-        var t = UITurn(id: id, type: .agent); t.text = text; return t
+    private func agentTurn(id: String, text: String, model: String = "") -> UITurn {
+        var t = UITurn(id: id, type: .agent); t.text = text; t.model = model; return t
     }
     private func toolTurn(id: String, name: String, args: Any?, intent: String?) -> UITurn {
         var t = UITurn(id: id, type: .tool)
