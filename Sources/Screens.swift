@@ -32,7 +32,9 @@ struct ActivityView: View {
                                 .font(.bodyF(13)).foregroundStyle(t.txtMuted).multilineTextAlignment(.center)
                         }.frame(maxWidth: .infinity).padding(.vertical, 48)
                     }
-                }.padding(16)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)   // fill width + left-align like Sessions/Trust
+                .padding(16)
             }
             .background(t.bg.ignoresSafeArea())
             .tint(t.accent)
