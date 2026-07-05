@@ -96,6 +96,9 @@ struct AgentInfo: Identifiable {
     let kind: String            // "main" | "sub"
     let status: String          // running / idle / parked / aborted
     let hasSessionFile: Bool
+    var parentId: String? = nil
+    var createdAt: Double = 0
+    var lastActivity: Double = 0
 }
 
 struct SubagentProgress: Identifiable {
@@ -109,6 +112,9 @@ struct SubagentProgress: Identifiable {
     let toolCount: Int
     let tokens: Int
     let cost: Double
+    var recentOutput: [String] = []   // live tail of the subagent's output
+    var contextTokens: Int? = nil
+    var contextWindow: Int? = nil
 }
 
 struct ParticipantInfo: Identifiable {

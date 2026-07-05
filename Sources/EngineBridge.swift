@@ -492,7 +492,10 @@ final class GuestClient: ObservableObject {
                       displayName: a["displayName"] as? String ?? "agent",
                       kind: a["kind"] as? String ?? "sub",
                       status: a["status"] as? String ?? "idle",
-                      hasSessionFile: a["hasSessionFile"] as? Bool ?? false)
+                      hasSessionFile: a["hasSessionFile"] as? Bool ?? false,
+                      parentId: a["parentId"] as? String,
+                      createdAt: (a["createdAt"] as? NSNumber)?.doubleValue ?? 0,
+                      lastActivity: (a["lastActivity"] as? NSNumber)?.doubleValue ?? 0)
         }
     }
 
@@ -510,13 +513,17 @@ final class GuestClient: ObservableObject {
                 lastIntent: p["lastIntent"] as? String,
                 toolCount: p["toolCount"] as? Int ?? 0,
                 tokens: p["tokens"] as? Int ?? 0,
-                cost: (p["cost"] as? NSNumber)?.doubleValue ?? 0)
+                cost: (p["cost"] as? NSNumber)?.doubleValue ?? 0,
+                recentOutput: (p["recentOutput"] as? [String] ?? []).suffix(6).map { $0 },
+                contextTokens: p["contextTokens"] as? Int,
+                contextWindow: p["contextWindow"] as? Int)
         } else if channel == "task:subagent:lifecycle", let id = data["id"] as? String {
             if let existing = progressMap[id] {
                 progressMap[id] = SubagentProgress(id: existing.id, index: existing.index, task: existing.task,
                     description: existing.description, status: data["status"] as? String ?? existing.status,
                     currentTool: existing.currentTool, lastIntent: existing.lastIntent,
-                    toolCount: existing.toolCount, tokens: existing.tokens, cost: existing.cost)
+                    toolCount: existing.toolCount, tokens: existing.tokens, cost: existing.cost,
+                    recentOutput: existing.recentOutput, contextTokens: existing.contextTokens, contextWindow: existing.contextWindow)
             } else {
                 progressMap[id] = SubagentProgress(id: id, index: data["index"] as? Int ?? 0,
                     task: data["description"] as? String ?? "subagent", description: data["description"] as? String,
@@ -604,6 +611,7 @@ final class GuestClient: ObservableObject {
     private func applyState(_ s: [String: Any]?) {
         guard let s else { return }
         working = s["isStreaming"] as? Bool ?? working
+        if s["isAborting"] as? Bool == true { activity = "ABORTING…" }
         queued = s["queuedMessageCount"] as? Int ?? queued
         if let n = s["sessionName"] as? String, !n.isEmpty { title = n }
         if let c = s["cwd"] as? String { cwd = c }

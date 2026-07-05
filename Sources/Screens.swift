@@ -44,10 +44,22 @@ struct ActivityLive: View {
     let t: Theme
     @State private var drill: AgentInfo?
 
+    // Roots first, each followed by its sub-agents; orphans (parent absent) last.
+    private var orderedAgents: [AgentInfo] {
+        var out: [AgentInfo] = []
+        for r in client.agents where r.parentId == nil {
+            out.append(r)
+            out.append(contentsOf: client.agents.filter { $0.parentId == r.id })
+        }
+        out.append(contentsOf: client.agents.filter { a in a.parentId != nil && !client.agents.contains { $0.id == a.parentId } })
+        return out
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 11) {
-            ForEach(client.agents) { a in
+            ForEach(orderedAgents) { a in
                 AgentRow(agent: a, progress: client.progress.first { $0.id == a.id || $0.task == a.displayName }, t: t)
+                    .padding(.leading, a.parentId != nil ? 18 : 0)   // nest sub-agents under their parent
                     .contentShape(Rectangle())
                     .onTapGesture { if a.hasSessionFile { drill = a } }
             }
@@ -76,9 +88,21 @@ struct AgentRow: View {
             }.padding(.bottom, progress == nil ? 0 : 9)
             if let p = progress {
                 Text(p.currentTool.map { "› \($0)" } ?? p.task).font(.term(13)).foregroundStyle(t.txtMuted).lineLimit(1).padding(.bottom, 6)
+                if !p.recentOutput.isEmpty {
+                    VStack(alignment: .leading, spacing: 1) {
+                        ForEach(Array(p.recentOutput.suffix(4).enumerated()), id: \.offset) { _, line in
+                            Text(line).font(.term(11)).foregroundStyle(t.txtGhost).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .padding(.horizontal, 8).padding(.vertical, 6)
+                    .background(t.bg2).clipShape(RoundedRectangle(cornerRadius: 12)).padding(.bottom, 6)
+                }
                 HStack(spacing: 8) {
                     Text("\(p.toolCount) tools").font(.term(12)).foregroundStyle(t.txtGhost)
                     Text("\(p.tokens >= 1000 ? "\(p.tokens/1000)K" : "\(p.tokens)") tok").font(.term(12)).foregroundStyle(t.txtGhost)
+                    if let ct = p.contextTokens, let cw = p.contextWindow, cw > 0 {
+                        Text("\(min(100, ct * 100 / cw))% ctx").font(.term(12)).foregroundStyle(t.txtGhost)
+                    }
                     if p.cost > 0 { Text(String(format: "$%.2f", p.cost)).font(.term(12)).foregroundStyle(t.txtGhost) }
                     Spacer()
                     if agent.hasSessionFile { Text("transcript ›").font(.labl(9)).foregroundStyle(t.accent) }
