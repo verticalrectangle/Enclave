@@ -171,6 +171,9 @@ private final class CollabSocket: NSObject, URLSessionWebSocketDelegate {
         comps.queryItems = [URLQueryItem(name: "role", value: "guest")]
         let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
         let task = session.webSocketTask(with: comps.url!)
+        // A snapshot chunk carrying browser screenshots easily exceeds the 1MB default,
+        // and an oversized frame is silently dropped → an empty transcript. Give it room.
+        task.maximumMessageSize = 128 * 1024 * 1024
         self.task = task
         task.resume()
         receive()
