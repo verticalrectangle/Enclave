@@ -2,7 +2,7 @@ name: Enclave
 options:
   bundleIdPrefix: xyz.epsilver
   deploymentTarget:
-    iOS: "18.0"
+    iOS: "26.0"
 targets:
   Enclave:
     type: application

@@ -60,6 +60,8 @@ struct SessionsView: View {
         Button { app.connect(link: s.link, name: UIDevice.current.name) } label: {
             JoinedCard(session: s, t: t, state: app.state[s.id] ?? SessionState())
                 .opacity(app.live[s.id] == true ? 1 : 0.6)
+                .frame(maxWidth: 340)
+                .frame(maxWidth: .infinity)
         }
         .plainRow(leading: 0, trailing: 0)
         .contextMenu {
@@ -210,42 +212,30 @@ struct JoinedCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            // 40pt glass-pane icon with Enclave logo + mode badge
+            // 46pt Liquid Glass icon tile with etched Enclave logo + mode badge
             ZStack(alignment: .bottomTrailing) {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(iconColor.opacity(0.12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(iconColor.opacity(0.30), lineWidth: 0.5)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(.clear)
+                    .frame(width: 46, height: 46)
+                    .glassEffect(
+                        .regular.tint(iconColor.opacity(0.30)).interactive(),
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
                     )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(LinearGradient(
-                                colors: [Color.white.opacity(t.mode == .dark ? 0.14 : 0.55), .clear],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ))
-                            .allowsHitTesting(false)
-                    )
-                    .frame(width: 40, height: 40)
+                    .overlay {
+                        LogoMark(t: t, size: 24, color: iconColor)
+                            .shadow(color: .black.opacity(t.mode == .dark ? 0.30 : 0.15), radius: 0.6, x: 0, y: 0.6)
+                            .shadow(color: .white.opacity(t.mode == .dark ? 0.10 : 0.50), radius: 0.4, x: 0, y: -0.4)
+                    }
 
-                LogoMark(t: t, size: 20, color: iconColor)
-                    .frame(width: 20, height: 20)
-
-                // read-only / control mode badge
-                Circle()
-                    .fill(t.bg)
-                    .frame(width: 14, height: 14)
-                    .overlay(
-                        Circle()
-                            .stroke(iconColor.opacity(0.60), lineWidth: 1)
-                    )
+                // read-only / control mode badge — ENLARGED
+                Circle().fill(t.bg).frame(width: 18, height: 18)
+                    .overlay(Circle().stroke(iconColor.opacity(0.60), lineWidth: 1))
                     .overlay(
                         Image(systemName: session.readOnly ? "eye" : "pen")
-                            .font(.system(size: 7, weight: .semibold))
+                            .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(iconColor)
                     )
-                    .offset(x: 4, y: 4)
+                    .offset(x: 5, y: 5)
             }
 
             VStack(alignment: .leading, spacing: 5) {
@@ -272,7 +262,7 @@ struct JoinedCard: View {
             }
         }
         .padding(13)
-        .glass(t, 16)
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func formatDate(_ date: Date) -> String {

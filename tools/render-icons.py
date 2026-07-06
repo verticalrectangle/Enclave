@@ -28,7 +28,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 # Geometry & palette
 # ---------------------------------------------------------------------------
 
-SS = 3                          # supersample factor
+SS = 4                          # supersample factor
 CANVAS = 1024
 W = H = CANVAS * SS
 CX = CY = CANVAS // 2 * SS      # 1024 at SS=2
@@ -177,14 +177,18 @@ def specular(size: int, cx: float, cy: float, rx: float, ry: float, alpha: float
     return img.filter(ImageFilter.GaussianBlur(radius=blur_r))
 
 
-def sheen(alpha: float = 0.30, frac: float = 0.60) -> Image.Image:
-    """White vertical gloss: alpha at top -> 0 over top `frac` of canvas."""
+def edge_refraction(color, alpha: float = 0.30, width1: int = 24, blur1: float = 10) -> Image.Image:
+    """Coloured arc along the lower-right glass edge — refraction caustic where light exits."""
     layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    end = int(H * frac)
-    for y in range(end):
-        a = int(255 * alpha * (1.0 - y / end))
-        layer.paste((255, 255, 255, a), (0, y, W, y + 1))
-    return layer
+    d = ImageDraw.Draw(layer)
+    arc_r = int(CANVAS * 0.60 * SS)
+    d.arc(
+        (CX - arc_r, CY - arc_r, CX + arc_r, CY + arc_r),
+        start=0, end=90,
+        fill=color + (int(255 * alpha),),
+        width=width1 * SS,
+    )
+    return blur(layer, blur1 * SS)
 
 
 def rim_light(inset1: int, radius1: int, width1: int, color, alpha: float, blur1: float) -> Image.Image:
@@ -197,16 +201,49 @@ def rim_light(inset1: int, radius1: int, width1: int, color, alpha: float, blur1
     return blur(layer, blur1 * SS)
 
 
-def raised_logo(canvas: Image.Image, sh_a: int = 60, sh_off1=(4, 5), sh_blur1: float = 3, hl_a: int = 40) -> Image.Image:
+def raised_logo(canvas: Image.Image, sh_a: int = 70, sh_off1=(3, 4), sh_blur1: float = 2.5, hl_a: int = 45) -> Image.Image:
     """Drop-shadow + crisp ink logo + top catch-light. Offsets are 1x px."""
     ox, oy = sh_off1[0] * SS, sh_off1[1] * SS
     shadow = draw_logo((0, 0, 0, sh_a))
     shadow = shadow.transform((W, H), Image.Transform.AFFINE, (1, 0, ox, 0, 1, oy))
     canvas.alpha_composite(blur(shadow, sh_blur1 * SS))
-    canvas.alpha_composite(draw_logo())                              # crisp ink, no blur
+    canvas.alpha_composite(draw_logo())                                  # crisp ink, no blur
     hl = draw_logo((255, 255, 255, hl_a))
-    hl = hl.transform((W, H), Image.Transform.AFFINE, (1, 0, int(-ox * 0.5), 0, 1, int(-oy * 0.5)))
-    canvas.alpha_composite(blur(hl, 4 * SS))
+    hl = hl.transform((W, H), Image.Transform.AFFINE, (1, 0, int(-ox * 0.6), 0, 1, int(-oy * 0.6)))
+    canvas.alpha_composite(blur(hl, 3 * SS))
+    return canvas
+
+
+def glass_body(tint, accent, tint_alpha: float = 0.10) -> Image.Image:
+    """Build the Apple Liquid Glass pane on a transparent canvas.
+
+    Bottom→top: translucent tint pane → dual specular (dome+pinpoint) →
+    inner ambient-occlusion band → bright perimeter rim → edge caustic.
+    """
+    canvas = new_layer()
+    glass_r = int(LOGO_BOX * 1.10)
+
+    # 1. Translucent tinted pane (the glass body colour).
+    disk = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    ImageDraw.Draw(disk).ellipse(
+        (CX - glass_r, CY - glass_r, CX + glass_r, CY + glass_r),
+        fill=tint + (int(255 * tint_alpha),),
+    )
+    canvas.alpha_composite(disk)
+
+    # 2. Dual specular: broad wet dome + tight glossy pinpoint (upper-left).
+    canvas.alpha_composite(specular(W, CX - W * 0.22, CY - H * 0.24, W * 0.22, H * 0.14, 0.32, 40 * SS))
+    canvas.alpha_composite(specular(W, CX - W * 0.08, CY - H * 0.32, W * 0.04, H * 0.025, 0.65, 10 * SS))
+
+    # 3. Inner ambient-occlusion band (glass thickness / depth at the perimeter).
+    canvas.alpha_composite(rim_light(20, 220, 10, (0x2A, 0x27, 0x40), 0.16, 4))
+
+    # 4. Bright perimeter rim (the glass catch-light).
+    canvas.alpha_composite(rim_light(12, 224, 6, (255, 255, 255), 0.55, 2))
+
+    # 5. Edge refraction caustic (coloured arc, lower-right where light exits).
+    canvas.alpha_composite(edge_refraction(accent, 0.95, 24, 10))
+
     return canvas
 
 
@@ -285,13 +322,10 @@ def draw_logo(ink: Tuple[int, int, int, int] = INK + (255,)) -> Image.Image:
 # ---------------------------------------------------------------------------
 
 def render_frost_clear() -> Image.Image:
-    """Clear neutral Liquid Glass baseline."""
+    """Clear neutral Liquid Glass — the faithful baseline."""
     canvas = Image.new("RGBA", (W, H), BG + (255,))
     canvas.alpha_composite(lgrad(H, [(0, BG2 + (255,)), (1, BG + (255,))]))
-    canvas.alpha_composite(sheen(0.30, 0.60))
-    canvas.alpha_composite(specular(W, CX - W * 0.20, CY - H * 0.22, W * 0.24, H * 0.16, 0.32, 35 * SS))  # dome
-    canvas.alpha_composite(specular(W, CX - W * 0.06, CY - H * 0.30, W * 0.05, H * 0.03, 0.55, 8 * SS))   # pinpoint
-    canvas.alpha_composite(rim_light(28, 210, 10, (255, 255, 255), 0.40, 5))
+    canvas.alpha_composite(glass_body((255, 255, 255), FOAM, tint_alpha=0.08))
     raised_logo(canvas)
     return downscale(canvas)
 
@@ -300,113 +334,93 @@ def render_gold_amber() -> Image.Image:
     """Warm gold-tinted glass with a gold rim behind the ring."""
     canvas = Image.new("RGBA", (W, H), BG + (255,))
     canvas.alpha_composite(lgrad(H, [(0, (0xFF, 0xFA, 0xF3, 255)), (0.5, (0xFB, 0xF0, 0xDC, 255)), (1, (0xF6, 0xE7, 0xC8, 255))]))
-    canvas.alpha_composite(sheen(0.26, 0.60))
-    canvas.alpha_composite(specular(W, CX - W * 0.20, CY - H * 0.22, W * 0.24, H * 0.16, 0.40, 35 * SS))
-    canvas.alpha_composite(specular(W, CX - W * 0.06, CY - H * 0.30, W * 0.05, H * 0.03, 0.55, 8 * SS))
-    canvas.alpha_composite(rim_light(28, 210, 10, GOLD, 0.45, 5))
+    canvas.alpha_composite(glass_body((0xFF, 0xF0, 0xDC), GOLD, tint_alpha=0.14))
     gr = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     gd = ImageDraw.Draw(gr)
     gd.ellipse(
-        (CX - RING_OUTER // 2 - 6 * SS, CY - RING_OUTER // 2 - 6 * SS, CX + RING_OUTER // 2 + 6 * SS, CY + RING_OUTER // 2 + 6 * SS),
-        outline=GOLD + (int(255 * 0.55),),
-        width=10 * SS,
+        (CX - RING_OUTER // 2 - 4 * SS, CY - RING_OUTER // 2 - 4 * SS, CX + RING_OUTER // 2 + 4 * SS, CY + RING_OUTER // 2 + 4 * SS),
+        outline=GOLD + (int(255 * 0.50),), width=8 * SS,
     )
-    canvas.alpha_composite(blur(gr, 6 * SS))
+    canvas.alpha_composite(blur(gr, 5 * SS))
     raised_logo(canvas)
     return downscale(canvas)
 
 
 def render_deep_well() -> Image.Image:
-    """Deeply recessed carved crystal with a bright outer bevel and dark well."""
+    """Deeply recessed carved crystal: clear glass over a dark lensing well."""
     canvas = Image.new("RGBA", (W, H), BG + (255,))
     canvas.alpha_composite(lgrad(H, [(0, BG2 + (255,)), (1, BG + (255,))]))
-    canvas.alpha_composite(sheen(0.22, 0.55))
-    canvas.alpha_composite(rim_light(24, 215, 14, (255, 255, 255), 0.55, 3))   # bright outer bevel
-    canvas.alpha_composite(rim_light(44, 196, 8, (0, 0, 0), 0.16, 5))          # soft inner recess
+    canvas.alpha_composite(glass_body((255, 255, 255), IRIS, tint_alpha=0.05))
     well = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     wd = ImageDraw.Draw(well)
     wd.ellipse(
-        (CX - RING_OUTER // 2 - 50 * SS, CY - RING_OUTER // 2 - 50 * SS, CX + RING_OUTER // 2 + 50 * SS, CY + RING_OUTER // 2 + 50 * SS),
-        fill=(0, 0, 0, int(255 * 0.10)),
+        (CX - RING_OUTER // 2 - 20 * SS, CY - RING_OUTER // 2 - 20 * SS, CX + RING_OUTER // 2 + 20 * SS, CY + RING_OUTER // 2 + 20 * SS),
+        fill=(0, 0, 0, int(255 * 0.14)),
     )
-    canvas.alpha_composite(blur(well, 70 * SS))                               # lensing-dark well
-    canvas.alpha_composite(specular(W, CX - W * 0.20, CY - H * 0.22, W * 0.24, H * 0.16, 0.28, 35 * SS))  # dome
-    canvas.alpha_composite(specular(W, CX - W * 0.06, CY - H * 0.30, W * 0.05, H * 0.03, 0.50, 8 * SS))   # pinpoint
-    raised_logo(canvas, sh_a=85, sh_off1=(5, 7), sh_blur1=5)
+    canvas.alpha_composite(blur(well, 40 * SS))
+    canvas.alpha_composite(rim_light(48, 192, 6, (0, 0, 0), 0.20, 4))   # dark inner recess
+    raised_logo(canvas, sh_a=85, sh_off1=(4, 6), sh_blur1=4)
     return downscale(canvas)
 
 
 def render_aurora_bloom() -> Image.Image:
-    """Dawn-tinted glossy glass with foam/iris/rose blooms and micro-sparkle."""
+    """Dawn-tinted glossy glass with foam/iris/love blooms."""
     canvas = Image.new("RGBA", (W, H), BG + (255,))
     canvas.alpha_composite(lgrad(H, [(0, (0xFF, 0xF5, 0xED, 255)), (0.5, (0xFF, 0xFA, 0xF3, 255)), (1, (0xFA, 0xF4, 0xED, 255))]))
-    b1 = specular(W, CX - LOGO_BOX * 0.40, CY - LOGO_BOX * 0.30, LOGO_BOX * 0.55, LOGO_BOX * 0.45, 0.26, 50 * SS)
-    b1 = Image.blend(b1, Image.new("RGBA", (W, H), FOAM + (255,)), 0.50)
-    canvas.alpha_composite(b1)
-    b2 = specular(W, CX + LOGO_BOX * 0.35, CY + LOGO_BOX * 0.25, LOGO_BOX * 0.50, LOGO_BOX * 0.40, 0.26, 48 * SS)
-    b2 = Image.blend(b2, Image.new("RGBA", (W, H), IRIS + (255,)), 0.50)
-    canvas.alpha_composite(b2)
-    b3 = specular(W, CX - LOGO_BOX * 0.05, CY - LOGO_BOX * 0.45, LOGO_BOX * 0.45, LOGO_BOX * 0.35, 0.22, 42 * SS)
-    b3 = Image.blend(b3, Image.new("RGBA", (W, H), LOVE + (255,)), 0.45)
-    canvas.alpha_composite(b3)
-    canvas.alpha_composite(sheen(0.32, 0.60))
-    canvas.alpha_composite(specular(W, CX - W * 0.20, CY - H * 0.22, W * 0.24, H * 0.16, 0.40, 35 * SS))
-    canvas.alpha_composite(specular(W, CX - W * 0.06, CY - H * 0.30, W * 0.05, H * 0.03, 0.55, 8 * SS))
-    canvas.alpha_composite(rim_light(28, 210, 10, (255, 255, 255), 0.38, 5))
+    canvas.alpha_composite(glass_body((255, 255, 255), LOVE, tint_alpha=0.08))
+    for col, bx, by, a in [
+        (FOAM, CX - LOGO_BOX * 0.35, CY - LOGO_BOX * 0.25, 0.18),
+        (IRIS, CX + LOGO_BOX * 0.30, CY + LOGO_BOX * 0.20, 0.18),
+        (LOVE, CX, CY - LOGO_BOX * 0.40, 0.16),
+    ]:
+        b = specular(W, bx, by, LOGO_BOX * 0.45, LOGO_BOX * 0.35, a, 45 * SS)
+        b = Image.blend(b, Image.new("RGBA", (W, H), col + (255,)), 0.35)
+        canvas.alpha_composite(b)
     raised_logo(canvas)
-    rng = __import__("random").Random(42)
-    sp = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    sd = ImageDraw.Draw(sp)
-    for _ in range(140):
-        sx, sy = rng.randint(0, W - 1), rng.randint(0, H - 1)
-        if ((sx - CX) ** 2 + (sy - CY) ** 2) ** 0.5 < LOGO_BOX * 0.6:
-            continue
-        rr = rng.choice([2, 3, 4])
-        c = rng.choice([GOLD, FOAM, IRIS, LOVE])
-        sd.ellipse((sx - rr, sy - rr, sx + rr, sy + rr), fill=c + (int(255 * 0.9),))
-    canvas.alpha_composite(blur(sp, 1.5 * SS))
     return downscale(canvas)
 
 
 def render_prism_caustic() -> Image.Image:
-    """Refractive jewel with chromatic rim and caustic light streaks."""
+    """Refractive jewel: clear glass + chromatic perimeter arcs + caustic streak."""
     canvas = Image.new("RGBA", (W, H), BG + (255,))
     canvas.alpha_composite(lgrad(H, [(0, BG2 + (255,)), (1, BG + (255,))]))
-    canvas.alpha_composite(sheen(0.30, 0.60))
-    canvas.alpha_composite(rim_light(22, 216, 10, GOLD, 0.65, 3))
-    canvas.alpha_composite(rim_light(28, 210, 10, FOAM, 0.55, 3))
-    canvas.alpha_composite(rim_light(34, 204, 10, IRIS, 0.55, 3))
-    canvas.alpha_composite(rim_light(40, 198, 8, (255, 255, 255), 0.35, 3))
-    canvas.alpha_composite(specular(W, CX - W * 0.22, CY - H * 0.24, W * 0.10, H * 0.07, 0.45, 15 * SS))  # facet spec
-    canvas.alpha_composite(specular(W, CX + W * 0.18, CY + H * 0.20, W * 0.08, H * 0.06, 0.30, 12 * SS))
+    canvas.alpha_composite(glass_body((255, 255, 255), GOLD, tint_alpha=0.05))
+    for col, alpha, start, end in [
+        (GOLD, 0.50, -160, -20),
+        (FOAM, 0.40, -140, 0),
+        (IRIS, 0.40, -120, 20),
+    ]:
+        cp = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        cd = ImageDraw.Draw(cp)
+        cd.arc(
+            (CX - RING_OUTER // 2 - 4 * SS, CY - RING_OUTER // 2 - 4 * SS,
+             CX + RING_OUTER // 2 + 4 * SS, CY + RING_OUTER // 2 + 4 * SS),
+            start=start, end=end, fill=col + (int(255 * alpha),), width=6 * SS,
+        )
+        canvas.alpha_composite(blur(cp, 3 * SS))
     streak = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     st = ImageDraw.Draw(streak)
-    st.line(
-        [(CX - W * 0.35, CY + H * 0.10), (CX + W * 0.35, CY - H * 0.10)],
-        fill=(255, 255, 255, int(255 * 0.60)),
-        width=7 * SS,
-    )
-    canvas.alpha_composite(blur(streak, 4 * SS))
+    st.line([(CX - W * 0.30, CY + H * 0.08), (CX + W * 0.30, CY - H * 0.08)],
+            fill=(255, 255, 255, int(255 * 0.45)), width=5 * SS)
+    canvas.alpha_composite(blur(streak, 3 * SS))
     raised_logo(canvas)
     return downscale(canvas)
 
 
 def render_pearl_opal() -> Image.Image:
-    """Milky iridescent opal glass with soft color blooms."""
+    """Milky iridescent opal glass with soft gold/foam/iris/love blooms."""
     canvas = Image.new("RGBA", (W, H), BG + (255,))
     canvas.alpha_composite(lgrad(H, [(0, (0xFF, 0xFB, 0xF6, 255)), (1, (0xF8, 0xF2, 0xEC, 255))]))
+    canvas.alpha_composite(glass_body((0xFF, 0xF8, 0xF0), IRIS, tint_alpha=0.12))
     for col, bx, by in [
-        (GOLD, CX - LOGO_BOX * 0.30, CY - LOGO_BOX * 0.25),
-        (FOAM, CX + LOGO_BOX * 0.28, CY - LOGO_BOX * 0.20),
-        (IRIS, CX - LOGO_BOX * 0.15, CY + LOGO_BOX * 0.30),
-        (LOVE, CX + LOGO_BOX * 0.25, CY + LOGO_BOX * 0.28),
+        (GOLD, CX - LOGO_BOX * 0.25, CY - LOGO_BOX * 0.20),
+        (FOAM, CX + LOGO_BOX * 0.22, CY - LOGO_BOX * 0.18),
+        (IRIS, CX - LOGO_BOX * 0.12, CY + LOGO_BOX * 0.28),
+        (LOVE, CX + LOGO_BOX * 0.20, CY + LOGO_BOX * 0.22),
     ]:
-        b = specular(W, bx, by, LOGO_BOX * 0.45, LOGO_BOX * 0.40, 0.14, 45 * SS)
-        b = Image.blend(b, Image.new("RGBA", (W, H), col + (255,)), 0.40)
+        b = specular(W, bx, by, LOGO_BOX * 0.40, LOGO_BOX * 0.35, 0.12, 40 * SS)
+        b = Image.blend(b, Image.new("RGBA", (W, H), col + (255,)), 0.30)
         canvas.alpha_composite(b)
-    canvas.alpha_composite(sheen(0.38, 0.62))
-    canvas.alpha_composite(specular(W, CX - W * 0.20, CY - H * 0.22, W * 0.24, H * 0.16, 0.30, 35 * SS))
-    canvas.alpha_composite(rim_light(28, 210, 8, (255, 255, 255), 0.42, 5))
     raised_logo(canvas)
     return downscale(canvas)
 
