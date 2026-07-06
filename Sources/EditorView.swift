@@ -123,10 +123,9 @@ struct EditorView: View {
             // triggering an animated jump per chunk (the source of the jitter).
             .defaultScrollAnchor(.bottom)
             .onChange(of: composerFocused) { _, focused in
-                if focused { withAnimation(.easeInOut(duration: 0.2)) { planExpanded = false } }   // collapse the plan while typing
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-                    withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("bottom", anchor: .bottom) }
-                }
+                guard focused else { return }   // on dismiss, let defaultScrollAnchor handle it natively
+                withAnimation(.easeInOut(duration: 0.2)) { planExpanded = false }   // collapse the plan while typing
+                withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("bottom", anchor: .bottom) }
             }
             .scrollDismissesKeyboard(.interactively)
             .simultaneousGesture(TapGesture().onEnded { hideKeyboard() })
