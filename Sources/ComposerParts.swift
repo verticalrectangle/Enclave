@@ -84,12 +84,3 @@ struct SlashPalette: View {
         .glass(t, 16, panel: true)
     }
 }
-
-struct MetaChip: View {
-    let t: Theme; let text: String; var tint: Color? = nil
-    var body: some View {
-        Text(text).font(.labl(9)).tracking(1).foregroundStyle(tint ?? t.txtMuted)
-            .padding(.horizontal, 8).padding(.vertical, 3)
-            .etched(t, tint: tint != nil ? tint!.opacity(0.12) : nil)
-    }
-}
