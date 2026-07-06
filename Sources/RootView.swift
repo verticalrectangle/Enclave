@@ -257,29 +257,6 @@ final class AppModel: ObservableObject {
     }
 }
 
-/// The persistent top bar shared by all three tabs: the Enclave mark on the left
-/// (taps back to the first tab) and the appearance toggle on the right.
-struct EnclaveTopBar: ViewModifier {
-    @EnvironmentObject var theme: ThemeStore
-    @EnvironmentObject var app: AppModel
-    func body(content: Content) -> some View {
-        let t = theme.t
-        return content.toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button { app.tab = 0 } label: { LogoMark(t: t, size: 22, color: t.txt) }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { theme.toggle() } label: {
-                    Image(systemName: theme.effective == .dark ? "sun.max" : "moon").foregroundStyle(t.txtMuted)
-                }
-            }
-        }
-    }
-}
-extension View {
-    func enclaveTopBar() -> some View { modifier(EnclaveTopBar()) }
-}
-
 struct RootView: View {
     @EnvironmentObject var theme: ThemeStore
     @EnvironmentObject var app: AppModel
@@ -290,7 +267,6 @@ struct RootView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                topBar
                 TabView(selection: $app.tab) {
                     Tab("Sessions", systemImage: "square.stack.3d.up", value: 0) {
                         SessionsView(showPair: $showPair)
@@ -307,7 +283,28 @@ struct RootView: View {
                 }
             }
             .background(t.bg.ignoresSafeArea())
-            .toolbar(.hidden, for: .navigationBar)   // we draw our own pinned top bar
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { app.tab = 0 } label: {
+                        LogoMark(t: t, size: 18, color: t.txt)
+                            .frame(width: 38, height: 38)
+                            .glass(t, 16)
+                    }
+                    .press()
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { theme.toggle() } label: {
+                        Image(systemName: theme.effective == .dark ? "sun.max" : "moon")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(t.txt)
+                            .frame(width: 38, height: 38)
+                            .glass(t, 16)
+                    }
+                    .press()
+                }
+            }
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             // Native push: tapping a session (→ showEditor) slides the editor in from
             // the right; Leave / back-swipe pops it left.
             .navigationDestination(isPresented: $app.showEditor) {
@@ -347,27 +344,4 @@ struct RootView: View {
         }
     }
 
-    /// Pinned above the tabs (outside the TabView) so it stays put as you swipe tabs,
-    /// just like the bottom tab bar. The mark taps back to the first tab.
-    private var topBar: some View {
-        HStack {
-            Button { app.tab = 0 } label: {
-                LogoMark(t: t, size: 18, color: t.txt)
-                    .frame(width: 38, height: 38)
-                    .glass(t, 16)
-            }
-            .press()
-            Spacer()
-            Button { theme.toggle() } label: {
-                Image(systemName: theme.effective == .dark ? "sun.max" : "moon")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(t.txt)
-                    .frame(width: 38, height: 38)
-                    .glass(t, 16)
-            }
-            .press()
-        }
-        .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 8)
-        .background(t.bg)
-    }
 }
