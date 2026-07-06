@@ -36,6 +36,7 @@ struct SessionsView: View {
                         }
                     }
                 }
+                pairButton.plainRow(top: 10, bottom: 16)
             }
         }
         .listStyle(.plain)
@@ -70,6 +71,16 @@ struct SessionsView: View {
         }
     }
 
+    // MARK: - pair button
+
+    private var pairButton: some View {
+        Button { showPair = true } label: {
+            HStack(spacing: 8) { Image(systemName: "plus"); Text("PAIR A SESSION").font(.labl(11)) }
+                .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 14)
+                .glass(t, 16, active: true)
+        }.press()
+    }
+
     // MARK: - empty state
 
     private var emptyState: some View {
@@ -78,11 +89,7 @@ struct SessionsView: View {
             Text("NO SESSIONS YET").font(.labl(10)).tracking(2).foregroundStyle(t.txtMuted)
             (Text("Share a session from your coding agent — run ").foregroundStyle(t.txtMuted) + Text("omp /collab").font(.term(15)).foregroundStyle(t.accent) + Text(" on the box — then pair with the link.").foregroundStyle(t.txtMuted))
                 .font(.bodyF(13.5)).multilineTextAlignment(.center)
-            Button { showPair = true } label: {
-                HStack(spacing: 8) { Image(systemName: "plus"); Text("PAIR A SESSION").font(.labl(11)) }
-                    .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 14)
-                    .glass(t, 16, active: true)
-            }.press().padding(.top, 6)
+            pairButton.padding(.top, 6)
         }
         .padding(.horizontal, 24).padding(.vertical, 48)
     }
