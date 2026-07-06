@@ -42,7 +42,6 @@ struct SessionsView: View {
         .background(t.bg.ignoresSafeArea())
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { toolbarContent }
     }
 
     // MARK: - derived lists
@@ -52,20 +51,6 @@ struct SessionsView: View {
     }
     private var offlineSessions: [JoinedSession] {
         app.sessions.filter { app.live[$0.id] != true }.sorted { $0.savedAt > $1.savedAt }
-    }
-
-    // MARK: - toolbar
-
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            Button { app.tab = 0 } label: { LogoMark(t: t, size: 22, color: t.txt) }
-        }
-        ToolbarItem(placement: .topBarTrailing) {
-            Button { theme.toggle() } label: {
-                Image(systemName: theme.effective == .dark ? "sun.max" : "moon").foregroundStyle(t.txtMuted)
-            }
-        }
     }
 
     // MARK: - rows

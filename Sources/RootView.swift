@@ -303,8 +303,6 @@ struct RootView: View {
                     .press()
                 }
             }
-            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
             // Native push: tapping a session (→ showEditor) slides the editor in from
             // the right; Leave / back-swipe pops it left.
             .navigationDestination(isPresented: $app.showEditor) {
