@@ -185,8 +185,7 @@ struct JoinedCard: View {
                 }
                 MetaChip(t: t, text: session.readOnly ? "watch" : "control")
                 MetaChip(t: t, text: session.relay)
-                Spacer()
-                Text(live ? "tap to join" : "offline").font(.term(12)).foregroundStyle(t.txtGhost)
+                if !live { Text("offline").font(.term(12)).foregroundStyle(t.txtGhost) }
             }
         }
         .padding(13)

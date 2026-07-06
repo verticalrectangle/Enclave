@@ -99,7 +99,7 @@ extension Font {
 
 struct GlassBG: ViewModifier {
     let t: Theme
-    var radius: CGFloat = 16
+    var radius: CGFloat = 22
     var flat = false
     var active = false
     var panel = false
@@ -125,7 +125,7 @@ struct GlassBG: ViewModifier {
 }
 
 extension View {
-    func glass(_ t: Theme, _ radius: CGFloat = 16, flat: Bool = false, active: Bool = false, panel: Bool = false) -> some View {
+    func glass(_ t: Theme, _ radius: CGFloat = 22, flat: Bool = false, active: Bool = false, panel: Bool = false) -> some View {
         modifier(GlassBG(t: t, radius: radius, flat: flat, active: active, panel: panel))
     }
     func press() -> some View { buttonStyle(PressStyle()) }
