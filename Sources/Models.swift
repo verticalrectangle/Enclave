@@ -89,7 +89,18 @@ struct Session: Identifiable {
     enum Status: String { case running, waiting, idle }
 }
 
-// MARK: - Agents & subagent progress (from `agents` frames + task:subagent:* bus)
+// MARK: - Background session list state
+
+/// Lightweight live state for a session in the list, kept up to date by a
+/// background GuestClient watcher. Separate from the full `Session` value used
+/// inside the editor transcript.
+struct SessionState: Equatable {
+    var live: Bool = false
+    var working: Bool = false
+    var phase: String = "offline"
+    var title: String = ""
+    var lastSeen: Date?
+}
 
 struct AgentInfo: Identifiable {
     let id: String

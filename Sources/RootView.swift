@@ -15,6 +15,7 @@ final class AppModel: ObservableObject {
     @Published var showEditor = false
     @Published var tab = 0          // selected main tab; the logo button jumps here to 0
     @Published var live: [String: Bool] = [:]   // session.id → host currently connected
+    @Published var state: [String: SessionState] = [:] // session.id → richer background state
 
     private let key = "enclave.sessions"
     private let liveActivity = LiveActivityController()
@@ -22,6 +23,8 @@ final class AppModel: ObservableObject {
     private var wasWorking = false
     private var notifiedAsks: Set<String> = []
     private var lastDoneTurnCount = -1
+    private var clients: [String: GuestClient] = [:]    // background watchers
+    private var watchers: [String: AnyCancellable] = [:]  // objectWillChange subscriptions
 
     init() {
         if let data = UserDefaults.standard.data(forKey: key),
@@ -33,6 +36,7 @@ final class AppModel: ObservableObject {
 
     @discardableResult
     func connect(link: String, name: String, paired: Bool = false) -> Bool {
+        stopWatcher(for: link)   // hand off from background watcher to active editor client
         guard let client = GuestClient(link: link, name: name) else { return false }
         client.justPaired = paired   // fresh QR pair → transcript shows a paired notice
         active = client
@@ -50,6 +54,9 @@ final class AppModel: ObservableObject {
 
     private func onClientChanged() {
         guard let c = active else { return }
+        if let link = connectedLink, let i = sessions.firstIndex(where: { $0.link == link }) {
+            updateState(sessions[i].id, from: c)
+        }
         if c.phase == "ended" { liveActivity.end() }
         else { liveActivity.sync(sessionId: c.sessionId, state: LiveActivityController.state(from: c)) }
         // Only trust a WELCOMED connection (a host actually answered). Tapping a
@@ -95,7 +102,8 @@ final class AppModel: ObservableObject {
 
     func leave() {
         guard active != nil else { return }   // idempotent: Leave button + onDisappear both call this
-        if let c = active, c.welcomed, let link = connectedLink, let i = sessions.firstIndex(where: { $0.link == link }) {
+        let leftLink = connectedLink
+        if let c = active, c.welcomed, let link = leftLink, let i = sessions.firstIndex(where: { $0.link == link }) {
             sessions[i].title = c.title
             sessions[i].readOnly = c.readOnly
             sessions[i].enhanced = c.enhanced   // authoritative once actually welcomed
@@ -106,28 +114,43 @@ final class AppModel: ObservableObject {
         liveActivity.end()
         active?.close()
         active = nil
-        connectedLink = nil
         showEditor = false
-        refreshLiveness()   // re-probe now that we've left
+        // Hand off the just-left session to a background watcher so the list stays live.
+        if let link = leftLink, let s = sessions.first(where: { $0.link == link }) {
+            connectedLink = nil
+            startWatcher(for: s)
+        } else {
+            connectedLink = nil
+        }
+        refreshLiveness()
     }
 
-    func remove(_ s: JoinedSession) { sessions.removeAll { $0.id == s.id }; live[s.id] = nil; save() }
+    func remove(_ s: JoinedSession) { sessions.removeAll { $0.id == s.id }; live[s.id] = nil; state[s.id] = nil; stopWatcher(for: s.id); save() }
 
     /// Drop every offline session in one go (keeps the one you're connected to).
     func clearOffline() {
         let keep = connectedLink
-        for s in sessions where live[s.id] != true && s.link != keep { live[s.id] = nil }
+        for s in sessions where live[s.id] != true && s.link != keep {
+            live[s.id] = nil
+            state[s.id] = nil
+            stopWatcher(for: s.id)
+        }
         sessions.removeAll { live[$0.id] != true && $0.link != keep }
         save()
     }
 
     /// Ping each saved room's relay status endpoint to see if a host is connected.
-    /// Sessions whose relay has no status endpoint (or is unreachable) read offline.
+    /// Live sessions also get a background GuestClient watcher so the list reflects
+    /// realtime state (working, phase, title) without loading the full chat.
     func refreshLiveness() {
         let connected = connectedLink
         for s in sessions {
-            if s.link == connected { live[s.id] = active?.welcomed ?? false; continue }  // in it → live iff a host answered
-            guard let url = statusURL(for: s.link) else { live[s.id] = false; continue }
+            if s.link == connected {
+                live[s.id] = active?.welcomed ?? false
+                syncWatchers()
+                continue
+            }
+            guard let url = statusURL(for: s.link) else { live[s.id] = false; state[s.id] = SessionState(); syncWatchers(); continue }
             Task { [weak self] in
                 var req = URLRequest(url: url)
                 req.timeoutInterval = 6
@@ -138,8 +161,68 @@ final class AppModel: ObservableObject {
                    let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                     isLive = obj["live"] as? Bool ?? false
                 }
-                await MainActor.run { self?.live[s.id] = isLive }
+                await MainActor.run {
+                    self?.live[s.id] = isLive
+                    if !isLive { self?.state[s.id] = SessionState() }
+                    self?.syncWatchers()
+                }
             }
+        }
+    }
+
+    // MARK: - Background session watchers
+
+    private var deviceName: String { UIDevice.current.name }
+
+    private func startWatcher(for s: JoinedSession) {
+        guard clients[s.id] == nil else { return }
+        guard let client = GuestClient(link: s.link, name: deviceName) else { return }
+        clients[s.id] = client
+        client.connect()
+        watchers[s.id] = client.objectWillChange.receive(on: RunLoop.main).sink { [weak self, weak client] in
+            guard let self, let client else { return }
+            self.updateState(s.id, from: client)
+        }
+    }
+
+    private func stopWatcher(for id: String) {
+        clients[id]?.close()
+        clients[id] = nil
+        watchers[id]?.cancel()
+        watchers[id] = nil
+    }
+
+    private func syncWatchers() {
+        for s in sessions {
+            // Never run a background watcher for the currently active editor session.
+            if s.link == connectedLink || clients[s.id] === active { stopWatcher(for: s.id); continue }
+            if live[s.id] == true { startWatcher(for: s) } else { stopWatcher(for: s.id) }
+        }
+    }
+
+    private func updateState(_ id: String, from client: GuestClient) {
+        let welcomed = client.welcomed
+        let phase = client.phase
+        state[id] = SessionState(
+            live: welcomed,
+            working: client.working,
+            phase: phase,
+            title: client.title,
+            lastSeen: Date()
+        )
+        live[id] = welcomed
+
+        if welcomed, !client.title.isEmpty, client.title != "live session",
+           let i = sessions.firstIndex(where: { $0.id == id }),
+           sessions[i].title != client.title {
+            sessions[i].title = client.title
+            save()
+        }
+
+        if phase == "ended" {
+            live[id] = false
+            state[id] = SessionState()
+            stopWatcher(for: id)
         }
     }
 
@@ -161,6 +244,7 @@ final class AppModel: ObservableObject {
             sessions.insert(s, at: 0)
         }
         save()
+        syncWatchers()
     }
     private func save() {
         if let data = try? JSONEncoder().encode(sessions) { UserDefaults.standard.set(data, forKey: key) }

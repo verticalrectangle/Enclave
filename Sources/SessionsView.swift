@@ -69,10 +69,6 @@ struct SessionsView: View {
 
     private var deviceName: String { UIDevice.current.name }
 
-    private func activeAction(for s: JoinedSession, live: Bool) -> String? {
-        guard live, app.active?.sessionId == s.id, app.active?.working == true else { return nil }
-        return "REPLYING"
-    }
     private var liveSessions: [JoinedSession] {
         app.sessions.filter { app.live[$0.id] == true }.sorted { $0.savedAt > $1.savedAt }
     }
@@ -85,9 +81,9 @@ struct SessionsView: View {
     private var firstOfflineId: String? { offlineSessions.first?.id }
 
     @ViewBuilder private func card(_ s: JoinedSession, live: Bool) -> some View {
-        let action = activeAction(for: s, live: live)
         Button { app.connect(link: s.link, name: deviceName) } label: {
-            JoinedCard(session: s, t: t, live: live, action: action)
+            JoinedCard(session: s, t: t, state: app.state[s.id] ?? SessionState())
+                .opacity(live ? 1 : 0.6)
         }
         .press()
         .contextMenu {
@@ -154,9 +150,8 @@ struct SearchView: View {
                     }
                     ForEach(results) { s in
                         let live = app.live[s.id] == true
-                        let action: String? = (live && app.active?.sessionId == s.id && app.active?.working == true) ? "REPLYING" : nil
                         Button { app.connect(link: s.link, name: UIDevice.current.name) } label: {
-                            JoinedCard(session: s, t: t, live: live, action: action)
+                            JoinedCard(session: s, t: t, state: app.state[s.id] ?? SessionState())
                                 .opacity(live ? 1 : 0.6)
                         }
                         .press()
@@ -175,29 +170,77 @@ struct SearchView: View {
 }
 
 struct JoinedCard: View {
-    let session: JoinedSession; let t: Theme; var live: Bool = false
-    var action: String? = nil
+    let session: JoinedSession
+    let t: Theme
+    let state: SessionState
+
+    private var isLive: Bool { state.live }
+    private var isReplying: Bool { state.live && state.working }
+    private var statusText: String {
+        isReplying ? "REPLYING" : (isLive ? "LIVE" : "OFFLINE")
+    }
+    private var statusColor: Color {
+        isReplying ? t.accent : (isLive ? t.cOk : t.txtGhost)
+    }
+    private var statusIcon: String {
+        isReplying ? "circle.dashed" : (isLive ? "circle.fill" : "network.slash")
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                Text(session.title).font(.disp(17)).foregroundStyle(t.txt).textCase(.uppercase).lineLimit(1)
-                    .padding(.leading, 5)
-                Spacer()
-                Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(t.txtGhost)
-            }.padding(.bottom, 11)
-            HStack(spacing: 6) {
-                if let enh = session.enhanced {
-                    Text(enh ? "ENCLAVE" : "COLLAB").font(.term(12)).foregroundStyle(t.txtMuted)
+        HStack(alignment: .top, spacing: 12) {
+            // 40pt rounded-square icon with status overlay
+            ZStack(alignment: .bottomTrailing) {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(t.txt.opacity(0.04))
+                    .frame(width: 40, height: 40)
+                Image(systemName: isLive ? "network" : "network.slash")
+                    .font(.system(size: 18))
+                    .foregroundStyle(t.txtMuted)
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 10, height: 10)
+                    .overlay(Circle().stroke(t.bg, lineWidth: 2))
+                    .offset(x: 3, y: 3)
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 8) {
+                    Text(session.title)
+                        .font(.disp(17))
+                        .foregroundStyle(t.txt)
+                        .lineLimit(1)
+                    Spacer()
+                    Text(formatDate(session.savedAt))
+                        .font(.term(12))
+                        .foregroundStyle(t.txtGhost)
                 }
-                Text(session.readOnly ? "WATCH" : "CONTROL").font(.term(12)).foregroundStyle(t.txtMuted)
-                Text(session.relay).font(.term(12)).foregroundStyle(t.txtMuted)
-                if let action {
-                    Text(action).font(.term(12)).foregroundStyle(t.accent)
+                HStack(spacing: 6) {
+                    Image(systemName: statusIcon).font(.system(size: 8)).foregroundStyle(statusColor)
+                    Text(statusText).font(.term(12)).foregroundStyle(statusColor)
+                    Text("·").font(.term(12)).foregroundStyle(t.txtGhost)
+                    if let enh = session.enhanced {
+                        Text(enh ? "ENCLAVE" : "COLLAB").font(.term(12)).foregroundStyle(t.txtMuted)
+                        Text("·").font(.term(12)).foregroundStyle(t.txtGhost)
+                    }
+                    Text(session.readOnly ? "WATCH" : "CONTROL").font(.term(12)).foregroundStyle(t.txtMuted)
+                    Text("·").font(.term(12)).foregroundStyle(t.txtGhost)
+                    Text(session.relay).font(.term(12)).foregroundStyle(t.txtMuted)
                 }
-                if !live { Text("offline").font(.term(12)).foregroundStyle(t.txtGhost) }
             }
         }
         .padding(13)
         .glass(t, 16)
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        let now = Date()
+        let diff = now.timeIntervalSince(date)
+        if diff < 60 { return "now" }
+        if diff < 3600 { return "\(Int(diff / 60))m" }
+        if diff < 86400 { return "\(Int(diff / 3600))h" }
+        if diff < 604800 { return "\(Int(diff / 86400))d" }
+        let f = DateFormatter()
+        f.dateFormat = "MMM d"
+        return f.string(from: date)
     }
 }
