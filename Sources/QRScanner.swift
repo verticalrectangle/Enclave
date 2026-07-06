@@ -110,7 +110,7 @@ struct ScannerScreen: View {
                 Text("Scan your agent's session QR")
                     .font(.term(16)).foregroundStyle(.white)
                     .padding(.horizontal, 16).padding(.vertical, 10)
-                    .background(.black.opacity(0.5), in: Capsule())
+                    .background(.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
                     .padding(.bottom, 60)
             }
         }

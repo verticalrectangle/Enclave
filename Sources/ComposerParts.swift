@@ -49,8 +49,8 @@ struct Chip: View {
             .foregroundStyle(on ? t.accent : t.txtMuted)
             .padding(.horizontal, 10).padding(.vertical, 4)
             .background(on ? t.accentDim : .clear)
-            .overlay(Capsule().stroke(on ? t.accentLine : t.line))
-            .clipShape(Capsule())
+            .overlay(RoundedRectangle(cornerRadius: 4, style: .continuous).stroke(on ? t.accentLine : t.line))
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
     }
 }
 
@@ -92,6 +92,6 @@ struct MetaChip: View {
     var body: some View {
         Text(text).font(.labl(9)).tracking(1).foregroundStyle(tint ?? t.txtMuted)
             .padding(.horizontal, 8).padding(.vertical, 3)
-            .overlay(Capsule().stroke((tint ?? t.line).opacity(tint == nil ? 1 : 0.5)))
+            .overlay(RoundedRectangle(cornerRadius: 4, style: .continuous).stroke((tint ?? t.line).opacity(tint == nil ? 1 : 0.5)))
     }
 }
