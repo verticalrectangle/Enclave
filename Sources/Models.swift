@@ -177,7 +177,7 @@ enum SessionColor: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
     func color(in t: Theme) -> Color {
         switch self {
-        case .default: return t.txtMuted
+        case .default: return t.txt
         case .accent: return t.accent
         case .foam: return t.cBash
         case .iris: return t.cLsp
