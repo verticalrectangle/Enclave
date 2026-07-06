@@ -811,8 +811,12 @@ final class GuestClient: ObservableObject {
             toolIndex[turn.id] = i
         }
 
-        // Optimistic sent message — shown until the host echoes its collab-prompt entry.
-        if pendingSendText != nil, collabPromptCount() > pendingSendBaseline {
+        // Optimistic sent message — shown until the host echoes its prompt back.
+        // Some hosts/Enclave plugins echo as `custom_message` with customType "collab-prompt";
+        // others echo as a regular `message` entry with role "user". Clear the ghost when
+        // either kind arrives.
+        if pendingSendText != nil,
+           (collabPromptCount() > pendingSendBaseline || hostHasEchoedUserText(pendingSendText)) {
             pendingSendText = nil; pendingSendImage = nil
         }
         if let pt = pendingSendText {
@@ -916,6 +920,21 @@ final class GuestClient: ObservableObject {
             else { turn.lines = Array(lines.prefix(14)) }
         }
         if isError && turn.meta.isEmpty { turn.meta = "error" }
+    }
+
+    private func hostHasEchoedUserText(_ text: String?) -> Bool {
+        guard let text, !text.isEmpty else { return false }
+        // collab-prompt echo (host's custom_message entry)
+        if entries.last(where: { ($0["customType"] as? String) == "collab-prompt" }) != nil {
+            return true
+        }
+        // regular user message echo (message entry with role == "user")
+        if let last = entries.last, last["type"] as? String == "message",
+           let msg = last["message"] as? [String: Any],
+           msg["role"] as? String == "user" {
+            return contentString(msg["content"]).trimmingCharacters(in: .whitespacesAndNewlines) == text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return false
     }
 
     // ── content helpers ───────────────────────────────────────────────────────
