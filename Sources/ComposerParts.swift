@@ -35,9 +35,10 @@ struct ComposerTips: View {
         }
         .id(i)
         .transition(.opacity)
+        .animation(.easeInOut(duration: 0.35), value: i)
         .padding(.horizontal, 10).padding(.top, 7).padding(.bottom, 8)
         .overlay(Rectangle().frame(height: 0.5).foregroundStyle(t.lineFaint), alignment: .top)
-        .onReceive(timer) { _ in withAnimation(.easeInOut(duration: 0.35)) { i = (i + 1) % tips.count } }
+        .onReceive(timer) { _ in i = (i + 1) % tips.count }
     }
 }
 
