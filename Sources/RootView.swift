@@ -351,11 +351,21 @@ struct RootView: View {
     /// just like the bottom tab bar. The mark taps back to the first tab.
     private var topBar: some View {
         HStack {
-            Button { app.tab = 0 } label: { LogoMark(t: t, size: 22, color: t.txt) }
+            Button { app.tab = 0 } label: {
+                LogoMark(t: t, size: 18, color: t.txt)
+                    .frame(width: 38, height: 38)
+                    .glass(t, 16)
+            }
+            .press()
             Spacer()
             Button { theme.toggle() } label: {
-                Image(systemName: theme.effective == .dark ? "sun.max" : "moon").font(.system(size: 17)).foregroundStyle(t.txtMuted)
+                Image(systemName: theme.effective == .dark ? "sun.max" : "moon")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(t.txt)
+                    .frame(width: 38, height: 38)
+                    .glass(t, 16)
             }
+            .press()
         }
         .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 8)
         .background(t.bg)
