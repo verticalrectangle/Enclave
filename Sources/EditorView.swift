@@ -41,11 +41,9 @@ struct EditorView: View {
     var body: some View {
         ZStack {
             t.bg.ignoresSafeArea()
-            VStack(spacing: 0) {
-                transcript
-                composerStack
-            }
+            transcript
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) { composerStack }
         .navigationTitle(vm.session.repo)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
