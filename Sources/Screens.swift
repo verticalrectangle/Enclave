@@ -239,7 +239,10 @@ struct PairView: View {
                         HStack(spacing: 9) { Image(systemName: "qrcode.viewfinder").font(.system(size: 19)); Text("SCAN QR CODE").font(.labl(11)) }
                             .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 16)
                             .glass(t, 16, active: true)
-                    }.press().padding(.bottom, 18)
+                    }.press()
+                    .frame(maxWidth: sessionCardMaxWidth)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 18)
 
                     HStack(spacing: 10) {
                         Rectangle().fill(t.lineFaint).frame(height: 1)
@@ -260,7 +263,10 @@ struct PairView: View {
                         HStack(spacing: 8) { Image(systemName: "bolt.fill"); Text("CONNECT").font(.labl(11)) }
                             .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 14)
                             .glass(t, 16, active: true)
-                    }.press().disabled(link.trimmingCharacters(in: .whitespaces).isEmpty).padding(.bottom, error == nil ? 20 : 6)
+                    }.press()
+                    .frame(maxWidth: sessionCardMaxWidth)
+                    .frame(maxWidth: .infinity)
+                    .disabled(link.trimmingCharacters(in: .whitespaces).isEmpty).padding(.bottom, error == nil ? 20 : 6)
                     if let err = error { Text(err).font(.term(12)).foregroundStyle(t.cAdvisor).padding(.bottom, 16) }
 
                     Text("A full link (control) can prompt and steer; a view link joins read-only. Access is set by the link, not chosen here.")

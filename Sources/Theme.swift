@@ -5,6 +5,8 @@
 
 import SwiftUI
 
+let sessionCardMaxWidth: CGFloat = 340
+
 enum Appearance: String { case system, dark, light }
 
 @MainActor

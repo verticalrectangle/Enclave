@@ -60,10 +60,10 @@ struct SessionsView: View {
         Button { app.connect(link: s.link, name: UIDevice.current.name) } label: {
             JoinedCard(session: s, t: t, state: app.state[s.id] ?? SessionState())
                 .opacity(app.live[s.id] == true ? 1 : 0.6)
-                .frame(maxWidth: 340)
+                .frame(maxWidth: sessionCardMaxWidth)
                 .frame(maxWidth: .infinity)
         }
-        .plainRow(leading: 0, trailing: 0)
+        .plainRow(top: 8, bottom: 8, leading: 0, trailing: 0)
         .contextMenu {
             ColorMenu(session: s, t: t)
             Button(role: .destructive) { app.remove(s) } label: { Label("Remove", systemImage: "trash") }
@@ -81,6 +81,8 @@ struct SessionsView: View {
                 .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 14)
                 .glass(t, 16, active: true)
         }.press()
+        .frame(maxWidth: sessionCardMaxWidth)
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - empty state
