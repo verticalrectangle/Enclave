@@ -28,7 +28,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 # Geometry & palette
 # ---------------------------------------------------------------------------
 
-SS = 2                          # supersample factor
+SS = 3                          # supersample factor
 CANVAS = 1024
 W = H = CANVAS * SS
 CX = CY = CANVAS // 2 * SS      # 1024 at SS=2
@@ -59,7 +59,7 @@ RING_WIDTH = 75 * SS
 # Slit: stroke width 60 px (0.06/0.82*824), round caps/joins.
 SLIT_WIDTH = 60 * SS
 
-VARIANTS = ["etched-frost", "liquid-aero", "aurora-dawn", "gem-cut"]
+VARIANTS = ["frost-clear", "gold-amber", "deep-well", "aurora-bloom", "prism-caustic", "pearl-opal"]
 OUT_DIR = Path("Marketing/icon")
 
 
@@ -111,7 +111,8 @@ def new_layer() -> Image.Image:
 
 
 def downscale(img: Image.Image) -> Image.Image:
-    return img.resize((CANVAS, CANVAS), Image.Resampling.LANCZOS)
+    out = img.resize((CANVAS, CANVAS), Image.Resampling.LANCZOS)
+    return out.filter(ImageFilter.UnsharpMask(radius=0.8, percent=80, threshold=2))
 
 
 def flatten(img: Image.Image, bg: Tuple[int, int, int]) -> Image.Image:
@@ -174,6 +175,39 @@ def specular(size: int, cx: float, cy: float, rx: float, ry: float, alpha: float
     draw = ImageDraw.Draw(img)
     draw.ellipse((cx - rx, cy - ry, cx + rx, cy + ry), fill=(255, 255, 255, int(255 * alpha)))
     return img.filter(ImageFilter.GaussianBlur(radius=blur_r))
+
+
+def sheen(alpha: float = 0.30, frac: float = 0.60) -> Image.Image:
+    """White vertical gloss: alpha at top -> 0 over top `frac` of canvas."""
+    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    end = int(H * frac)
+    for y in range(end):
+        a = int(255 * alpha * (1.0 - y / end))
+        layer.paste((255, 255, 255, a), (0, y, W, y + 1))
+    return layer
+
+
+def rim_light(inset1: int, radius1: int, width1: int, color, alpha: float, blur1: float) -> Image.Image:
+    """Bright rounded-rect stroke `inset1` (1x) px from edge, blurred."""
+    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    ins, rad, wd = inset1 * SS, radius1 * SS, width1 * SS
+    d.rounded_rectangle((ins, ins, W - ins, H - ins), radius=rad,
+                        outline=color + (int(255 * alpha),), width=wd)
+    return blur(layer, blur1 * SS)
+
+
+def raised_logo(canvas: Image.Image, sh_a: int = 60, sh_off1=(4, 5), sh_blur1: float = 3, hl_a: int = 40) -> Image.Image:
+    """Drop-shadow + crisp ink logo + top catch-light. Offsets are 1x px."""
+    ox, oy = sh_off1[0] * SS, sh_off1[1] * SS
+    shadow = draw_logo((0, 0, 0, sh_a))
+    shadow = shadow.transform((W, H), Image.Transform.AFFINE, (1, 0, ox, 0, 1, oy))
+    canvas.alpha_composite(blur(shadow, sh_blur1 * SS))
+    canvas.alpha_composite(draw_logo())                              # crisp ink, no blur
+    hl = draw_logo((255, 255, 255, hl_a))
+    hl = hl.transform((W, H), Image.Transform.AFFINE, (1, 0, int(-ox * 0.5), 0, 1, int(-oy * 0.5)))
+    canvas.alpha_composite(blur(hl, 4 * SS))
+    return canvas
 
 
 def intaglio(layer: Image.Image, strength: float = 1.0) -> Image.Image:
@@ -250,255 +284,130 @@ def draw_logo(ink: Tuple[int, int, int, int] = INK + (255,)) -> Image.Image:
 # Variants
 # ---------------------------------------------------------------------------
 
-def render_etched_frost() -> Image.Image:
-    """Restrained etched-glass baseline: the logo die-stamped into frosted glass."""
+def render_frost_clear() -> Image.Image:
+    """Clear neutral Liquid Glass baseline."""
     canvas = Image.new("RGBA", (W, H), BG + (255,))
-
-    # Ground vertical gradient bg2 -> bg.
-    grad = lgrad(H, [(0, BG2 + (255,)), (1, BG + (255,))])
-    canvas.alpha_composite(grad)
-
-    # Frosted-glass noise: very subtle low-contrast grain.
-    rng = __import__("random").Random(7)
-    noise = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    nd = ImageDraw.Draw(noise)
-    for _ in range(8000):
-        x = rng.randint(0, W - 1)
-        y = rng.randint(0, H - 1)
-        v = rng.randint(-8, 8)
-        base = 0xFA + v
-        nd.point((x, y), fill=(base, base, base, 25))
-    noise = blur(noise, 0.8)
-    canvas.alpha_composite(noise)
-
-    # Soft top sheen: white 0.55 -> 0 over top half.
-    sheen = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    for y in range(H // 2):
-        a = int(255 * 0.55 * (1 - y / (H // 2)))
-        sheen.paste((255, 255, 255, a), (0, y, W, y + 1))
-    canvas.alpha_composite(sheen)
-
-    # Subtle frosted vignette.
-    vig = rgrad(W, CX, CY, [(0, (255, 255, 255, 0)), (0.75, (255, 255, 255, 0)), (1, (255, 255, 255, 70))])
-    canvas.alpha_composite(vig)
-
-    # Logo stamped into the glass via intaglio.
-    logo = draw_logo()
-    logo = intaglio(logo, strength=1.4)
-    canvas.alpha_composite(logo)
-
+    canvas.alpha_composite(lgrad(H, [(0, BG2 + (255,)), (1, BG + (255,))]))
+    canvas.alpha_composite(sheen(0.30, 0.60))
+    canvas.alpha_composite(specular(W, CX - W * 0.20, CY - H * 0.22, W * 0.24, H * 0.16, 0.32, 35 * SS))  # dome
+    canvas.alpha_composite(specular(W, CX - W * 0.06, CY - H * 0.30, W * 0.05, H * 0.03, 0.55, 8 * SS))   # pinpoint
+    canvas.alpha_composite(rim_light(28, 210, 10, (255, 255, 255), 0.40, 5))
+    raised_logo(canvas)
     return downscale(canvas)
 
 
-def render_liquid_aero() -> Image.Image:
-    """Wet glossy Frutiger-Aero: translucent disk, Aero orb, gold rim-light."""
+def render_gold_amber() -> Image.Image:
+    """Warm gold-tinted glass with a gold rim behind the ring."""
     canvas = Image.new("RGBA", (W, H), BG + (255,))
-
-    # Ground radial frost: bg2 centre -> warm gold-tinted edge.
-    bg = rgrad(W, CX, CY, [(0, BG2 + (255,)), (0.85, (0xF8, 0xE9, 0xD4, 255)), (1, (0xF2, 0xDF, 0xC2, 255))])
-    canvas.alpha_composite(bg)
-
-    # Translucent glass disk behind the logo.
-    disk = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    dd = ImageDraw.Draw(disk)
-    disk_r = int(LOGO_BOX * 1.05)
-    # Convex top-white -> bottom-dark gradient for the disk.
-    disk_grad = lgrad(disk_r * 2, [(0, (255, 255, 255, 70)), (0.5, (255, 255, 255, 35)), (1, (0, 0, 0, 25))])
-    disk.paste(disk_grad, (CX - disk_r, CY - disk_r))
-    # Mask to circle.
-    mask = Image.new("L", (W, H), 0)
-    md = ImageDraw.Draw(mask)
-    md.ellipse((CX - disk_r, CY - disk_r, CX + disk_r, CY + disk_r), fill=255)
-    disk.putalpha(mask)
-    canvas.alpha_composite(disk)
-
-    # Bottom contact shadow for the disk.
-    shadow = specular(W, CX, CY + LOGO_BOX * 0.55, LOGO_BOX * 0.55, LOGO_BOX * 0.12, 0.18, 35)
-    canvas.alpha_composite(shadow)
-
-    # Gold rim-light: thin concentric circle stroke just behind the ring.
-    rim = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    rd = ImageDraw.Draw(rim)
-    rd.ellipse(
-        (CX - RING_OUTER // 2 - 4, CY - RING_OUTER // 2 - 4, CX + RING_OUTER // 2 + 4, CY + RING_OUTER // 2 + 4),
-        outline=GOLD + (int(255 * 0.7),),
-        width=8,
-    )
-    rim = blur(rim, 3)
-    canvas.alpha_composite(rim)
-
-    # Logo ink.
-    logo = draw_logo()
-    canvas.alpha_composite(logo)
-
-    # Big Aero specular (top-left, ~26% of canvas).
-    orb = specular(W, CX - W * 0.22, CY - H * 0.22, W * 0.26, H * 0.18, 0.45, 70)
-    canvas.alpha_composite(orb)
-
-    # Pinpoint secondary specular.
-    pin = specular(W, CX - W * 0.08, CY - H * 0.30, W * 0.06, H * 0.04, 0.65, 18)
-    canvas.alpha_composite(pin)
-
-    return downscale(canvas)
-
-
-def render_aurora_dawn() -> Image.Image:
-    """Dreamy dawn wash with gold/foam/iris blooms and micro-sparkle."""
-    canvas = Image.new("RGBA", (W, H), BG + (255,))
-
-    # Diagonal wash: smooth bg -> warm corner via a 1D gradient mapped by (x+y).
-    wash_grad = []
-    n = W + H
-    for i in range(n + 1):
-        t = i / n
-        # Base warm shift.
-        r = int(lerp(0xFA, 0xF8, t))
-        g = int(lerp(0xF4, 0xE5, t))
-        b = int(lerp(0xED, 0xC4, t))
-        # Faint gold band in the middle.
-        gold_t = max(0.0, 1.0 - abs(t - 0.5) * 5.0) * 0.12
-        r = int(lerp(r, 0xEA, gold_t))
-        g = int(lerp(g, 0x9D, gold_t))
-        b = int(lerp(b, 0x34, gold_t))
-        wash_grad.append((r, g, b, 255))
-    wash = Image.new("RGBA", (W, H))
-    for y in range(H):
-        for x in range(W):
-            wash.putpixel((x, y), wash_grad[x + y])
-    canvas.alpha_composite(wash)
-
-    # Soft translucent frosted disk behind the logo.
-    disk = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    dd = ImageDraw.Draw(disk)
-    disk_r = int(LOGO_BOX * 1.08)
-    disk_grad = lgrad(disk_r * 2, [(0, (255, 255, 255, 60)), (0.5, (255, 255, 255, 30)), (1, (255, 255, 255, 10))])
-    disk.paste(disk_grad, (CX - disk_r, CY - disk_r))
-    mask = Image.new("L", (W, H), 0)
-    md = ImageDraw.Draw(mask)
-    md.ellipse((CX - disk_r, CY - disk_r, CX + disk_r, CY + disk_r), fill=255)
-    disk.putalpha(mask)
-    canvas.alpha_composite(disk)
-
-    # Soft foam/iris blooms (large, airy light leaks).
-    bloom1 = specular(W, CX - LOGO_BOX * 0.40, CY - LOGO_BOX * 0.30, LOGO_BOX * 0.55, LOGO_BOX * 0.45, 0.14, 120)
-    bloom1 = Image.blend(bloom1, Image.new("RGBA", (W, H), FOAM + (255,)), 0.35)
-    canvas.alpha_composite(bloom1)
-
-    bloom2 = specular(W, CX + LOGO_BOX * 0.35, CY + LOGO_BOX * 0.25, LOGO_BOX * 0.50, LOGO_BOX * 0.40, 0.14, 115)
-    bloom2 = Image.blend(bloom2, Image.new("RGBA", (W, H), IRIS + (255,)), 0.35)
-    canvas.alpha_composite(bloom2)
-
-    bloom3 = specular(W, CX + LOGO_BOX * 0.15, CY - LOGO_BOX * 0.45, LOGO_BOX * 0.40, LOGO_BOX * 0.30, 0.10, 100)
-    bloom3 = Image.blend(bloom3, Image.new("RGBA", (W, H), GOLD + (255,)), 0.25)
-    canvas.alpha_composite(bloom3)
-
-    # Gold inner glow behind the ring.
-    glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    gd = ImageDraw.Draw(glow)
+    canvas.alpha_composite(lgrad(H, [(0, (0xFF, 0xFA, 0xF3, 255)), (0.5, (0xFB, 0xF0, 0xDC, 255)), (1, (0xF6, 0xE7, 0xC8, 255))]))
+    canvas.alpha_composite(sheen(0.26, 0.60))
+    canvas.alpha_composite(specular(W, CX - W * 0.20, CY - H * 0.22, W * 0.24, H * 0.16, 0.40, 35 * SS))
+    canvas.alpha_composite(specular(W, CX - W * 0.06, CY - H * 0.30, W * 0.05, H * 0.03, 0.55, 8 * SS))
+    canvas.alpha_composite(rim_light(28, 210, 10, GOLD, 0.45, 5))
+    gr = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(gr)
     gd.ellipse(
-        (CX - RING_OUTER // 2 - 20, CY - RING_OUTER // 2 - 20, CX + RING_OUTER // 2 + 20, CY + RING_OUTER // 2 + 20),
-        outline=GOLD + (int(255 * 0.45),),
-        width=28,
+        (CX - RING_OUTER // 2 - 6 * SS, CY - RING_OUTER // 2 - 6 * SS, CX + RING_OUTER // 2 + 6 * SS, CY + RING_OUTER // 2 + 6 * SS),
+        outline=GOLD + (int(255 * 0.55),),
+        width=10 * SS,
     )
-    glow = blur(glow, 20)
-    canvas.alpha_composite(glow)
-
-    # Logo ink.
-    logo = draw_logo()
-    canvas.alpha_composite(logo)
-
-    # Soft top sheen.
-    sheen = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    for y in range(H // 2):
-        a = int(255 * 0.35 * (1 - y / (H // 2)))
-        sheen.paste((255, 255, 255, a), (0, y, W, y + 1))
-    canvas.alpha_composite(sheen)
-
-    # Micro-sparkle dots.
-    rng = __import__("random").Random(42)
-    spark = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    sd = ImageDraw.Draw(spark)
-    for _ in range(60):
-        sx = rng.randint(0, W - 1)
-        sy = rng.randint(0, H - 1)
-        if ((sx - CX) ** 2 + (sy - CY) ** 2) ** 0.5 < LOGO_BOX * 0.65:
-            continue
-        r = rng.choice([2, 3])
-        col = rng.choice([GOLD, FOAM, IRIS])
-        sd.ellipse((sx - r, sy - r, sx + r, sy + r), fill=col + (int(255 * 0.6),))
-    spark = blur(spark, 2)
-    canvas.alpha_composite(spark)
-
+    canvas.alpha_composite(blur(gr, 6 * SS))
+    raised_logo(canvas)
     return downscale(canvas)
 
 
-def render_gem_cut() -> Image.Image:
-    """Crystal / faceted disk with sharp seams, bright highlights, and a carved well."""
-    canvas = Image.new("RGBA", (W, H), BG2 + (255,))
-
-    # Facet background: 8 radial slices with alternating warm/cool crystal tints.
-    n_facets = 8
-    base_tints = [
-        (0xFF, 0xFA, 0xF3), (0xF4, 0xED, 0xE8), (0xFF, 0xFA, 0xF3), (0xF6, 0xEE, 0xE4),
-        (0xFA, 0xF4, 0xED), (0xF4, 0xED, 0xE8), (0xFF, 0xFA, 0xF3), (0xF9, 0xF2, 0xE9),
-    ]
-    for i in range(n_facets):
-        a0 = i * 360 / n_facets
-        a1 = (i + 1) * 360 / n_facets
-        poly = [(CX, CY)]
-        for step in range(0, 21):
-            a = a0 + (a1 - a0) * step / 20
-            rad = W * 0.8
-            x = CX + rad * __import__("math").cos(__import__("math").radians(a))
-            y = CY + rad * __import__("math").sin(__import__("math").radians(a))
-            poly.append((x, y))
-        d = ImageDraw.Draw(canvas)
-        d.polygon(poly, fill=base_tints[i])
-
-    # Sharp crystalline seams: bright top edge + dark bottom edge.
-    seams = new_layer()
-    sd = ImageDraw.Draw(seams)
-    for i in range(n_facets):
-        a = i * 360 / n_facets
-        rad = W * 0.8
-        x = CX + rad * __import__("math").cos(__import__("math").radians(a))
-        y = CY + rad * __import__("math").sin(__import__("math").radians(a))
-        # Dark seam.
-        sd.line([(CX, CY), (x, y)], fill=(0, 0, 0, 55), width=8)
-        # Bright highlight slightly offset.
-        hx = CX + 5 * __import__("math").cos(__import__("math").radians(a + 90))
-        hy = CY + 5 * __import__("math").sin(__import__("math").radians(a + 90))
-        sd.line([(hx, hy), (x + hx - CX, y + hy - CY)], fill=(255, 255, 255, 120), width=5)
-    seams = blur(seams, 3)
-    canvas.alpha_composite(seams)
-
-    # Carved well: radial dark gradient behind the ring, lighter at center.
-    well = rgrad(W, CX, CY, [(0, (255, 255, 255, 30)), (0.45, (0, 0, 0, 0)), (0.75, (0, 0, 0, 50)), (1, (0, 0, 0, 90))])
-    canvas.alpha_composite(well)
-
-    # Drop shadow for the logo so it sits in the well.
-    shadow = draw_logo((0, 0, 0, int(255 * 0.25)))
-    shadow = shadow.transform((W, H), Image.Transform.AFFINE, (1, 0, 12, 0, 1, 12))
-    shadow = blur(shadow, 12)
-    canvas.alpha_composite(shadow)
-
-    # Gold refraction line along the lower-right ring.
-    refract = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    rd = ImageDraw.Draw(refract)
-    rd.arc(
-        (CX - RING_OUTER // 2 - 2, CY - RING_OUTER // 2 - 2, CX + RING_OUTER // 2 + 2, CY + RING_OUTER // 2 + 2),
-        start=-50,
-        end=40,
-        fill=GOLD + (int(255 * 0.85),),
-        width=12,
+def render_deep_well() -> Image.Image:
+    """Deeply recessed carved crystal with a bright outer bevel and dark well."""
+    canvas = Image.new("RGBA", (W, H), BG + (255,))
+    canvas.alpha_composite(lgrad(H, [(0, BG2 + (255,)), (1, BG + (255,))]))
+    canvas.alpha_composite(sheen(0.22, 0.55))
+    canvas.alpha_composite(rim_light(24, 215, 14, (255, 255, 255), 0.55, 3))   # bright outer bevel
+    canvas.alpha_composite(rim_light(44, 196, 8, (0, 0, 0), 0.16, 5))          # soft inner recess
+    well = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    wd = ImageDraw.Draw(well)
+    wd.ellipse(
+        (CX - RING_OUTER // 2 - 50 * SS, CY - RING_OUTER // 2 - 50 * SS, CX + RING_OUTER // 2 + 50 * SS, CY + RING_OUTER // 2 + 50 * SS),
+        fill=(0, 0, 0, int(255 * 0.10)),
     )
-    refract = blur(refract, 5)
-    canvas.alpha_composite(refract)
+    canvas.alpha_composite(blur(well, 70 * SS))                               # lensing-dark well
+    canvas.alpha_composite(specular(W, CX - W * 0.20, CY - H * 0.22, W * 0.24, H * 0.16, 0.28, 35 * SS))  # dome
+    canvas.alpha_composite(specular(W, CX - W * 0.06, CY - H * 0.30, W * 0.05, H * 0.03, 0.50, 8 * SS))   # pinpoint
+    raised_logo(canvas, sh_a=85, sh_off1=(5, 7), sh_blur1=5)
+    return downscale(canvas)
 
-    # Logo ink on top of the refraction.
-    logo = draw_logo()
-    canvas.alpha_composite(logo)
 
+def render_aurora_bloom() -> Image.Image:
+    """Dawn-tinted glossy glass with foam/iris/rose blooms and micro-sparkle."""
+    canvas = Image.new("RGBA", (W, H), BG + (255,))
+    canvas.alpha_composite(lgrad(H, [(0, (0xFF, 0xF5, 0xED, 255)), (0.5, (0xFF, 0xFA, 0xF3, 255)), (1, (0xFA, 0xF4, 0xED, 255))]))
+    b1 = specular(W, CX - LOGO_BOX * 0.40, CY - LOGO_BOX * 0.30, LOGO_BOX * 0.55, LOGO_BOX * 0.45, 0.26, 50 * SS)
+    b1 = Image.blend(b1, Image.new("RGBA", (W, H), FOAM + (255,)), 0.50)
+    canvas.alpha_composite(b1)
+    b2 = specular(W, CX + LOGO_BOX * 0.35, CY + LOGO_BOX * 0.25, LOGO_BOX * 0.50, LOGO_BOX * 0.40, 0.26, 48 * SS)
+    b2 = Image.blend(b2, Image.new("RGBA", (W, H), IRIS + (255,)), 0.50)
+    canvas.alpha_composite(b2)
+    b3 = specular(W, CX - LOGO_BOX * 0.05, CY - LOGO_BOX * 0.45, LOGO_BOX * 0.45, LOGO_BOX * 0.35, 0.22, 42 * SS)
+    b3 = Image.blend(b3, Image.new("RGBA", (W, H), LOVE + (255,)), 0.45)
+    canvas.alpha_composite(b3)
+    canvas.alpha_composite(sheen(0.32, 0.60))
+    canvas.alpha_composite(specular(W, CX - W * 0.20, CY - H * 0.22, W * 0.24, H * 0.16, 0.40, 35 * SS))
+    canvas.alpha_composite(specular(W, CX - W * 0.06, CY - H * 0.30, W * 0.05, H * 0.03, 0.55, 8 * SS))
+    canvas.alpha_composite(rim_light(28, 210, 10, (255, 255, 255), 0.38, 5))
+    raised_logo(canvas)
+    rng = __import__("random").Random(42)
+    sp = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(sp)
+    for _ in range(140):
+        sx, sy = rng.randint(0, W - 1), rng.randint(0, H - 1)
+        if ((sx - CX) ** 2 + (sy - CY) ** 2) ** 0.5 < LOGO_BOX * 0.6:
+            continue
+        rr = rng.choice([2, 3, 4])
+        c = rng.choice([GOLD, FOAM, IRIS, LOVE])
+        sd.ellipse((sx - rr, sy - rr, sx + rr, sy + rr), fill=c + (int(255 * 0.9),))
+    canvas.alpha_composite(blur(sp, 1.5 * SS))
+    return downscale(canvas)
+
+
+def render_prism_caustic() -> Image.Image:
+    """Refractive jewel with chromatic rim and caustic light streaks."""
+    canvas = Image.new("RGBA", (W, H), BG + (255,))
+    canvas.alpha_composite(lgrad(H, [(0, BG2 + (255,)), (1, BG + (255,))]))
+    canvas.alpha_composite(sheen(0.30, 0.60))
+    canvas.alpha_composite(rim_light(22, 216, 10, GOLD, 0.65, 3))
+    canvas.alpha_composite(rim_light(28, 210, 10, FOAM, 0.55, 3))
+    canvas.alpha_composite(rim_light(34, 204, 10, IRIS, 0.55, 3))
+    canvas.alpha_composite(rim_light(40, 198, 8, (255, 255, 255), 0.35, 3))
+    canvas.alpha_composite(specular(W, CX - W * 0.22, CY - H * 0.24, W * 0.10, H * 0.07, 0.45, 15 * SS))  # facet spec
+    canvas.alpha_composite(specular(W, CX + W * 0.18, CY + H * 0.20, W * 0.08, H * 0.06, 0.30, 12 * SS))
+    streak = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    st = ImageDraw.Draw(streak)
+    st.line(
+        [(CX - W * 0.35, CY + H * 0.10), (CX + W * 0.35, CY - H * 0.10)],
+        fill=(255, 255, 255, int(255 * 0.60)),
+        width=7 * SS,
+    )
+    canvas.alpha_composite(blur(streak, 4 * SS))
+    raised_logo(canvas)
+    return downscale(canvas)
+
+
+def render_pearl_opal() -> Image.Image:
+    """Milky iridescent opal glass with soft color blooms."""
+    canvas = Image.new("RGBA", (W, H), BG + (255,))
+    canvas.alpha_composite(lgrad(H, [(0, (0xFF, 0xFB, 0xF6, 255)), (1, (0xF8, 0xF2, 0xEC, 255))]))
+    for col, bx, by in [
+        (GOLD, CX - LOGO_BOX * 0.30, CY - LOGO_BOX * 0.25),
+        (FOAM, CX + LOGO_BOX * 0.28, CY - LOGO_BOX * 0.20),
+        (IRIS, CX - LOGO_BOX * 0.15, CY + LOGO_BOX * 0.30),
+        (LOVE, CX + LOGO_BOX * 0.25, CY + LOGO_BOX * 0.28),
+    ]:
+        b = specular(W, bx, by, LOGO_BOX * 0.45, LOGO_BOX * 0.40, 0.14, 45 * SS)
+        b = Image.blend(b, Image.new("RGBA", (W, H), col + (255,)), 0.40)
+        canvas.alpha_composite(b)
+    canvas.alpha_composite(sheen(0.38, 0.62))
+    canvas.alpha_composite(specular(W, CX - W * 0.20, CY - H * 0.22, W * 0.24, H * 0.16, 0.30, 35 * SS))
+    canvas.alpha_composite(rim_light(28, 210, 8, (255, 255, 255), 0.42, 5))
+    raised_logo(canvas)
     return downscale(canvas)
 
 
@@ -507,8 +416,10 @@ def render_gem_cut() -> Image.Image:
 # ---------------------------------------------------------------------------
 
 def make_grid(out_dir: Path) -> Path:
-    """Build a 2x2 contact sheet with filename labels."""
+    """Build a contact sheet with filename labels."""
     grid_path = out_dir / "icon-grid.png"
+    cols = (len(VARIANTS) + 1) // 2
+    rows = (len(VARIANTS) + cols - 1) // cols
 
     # Try ImageMagick montage first.
     magick = shutil.which("magick")
@@ -517,7 +428,7 @@ def make_grid(out_dir: Path) -> Path:
         cmd = [
             magick, "montage",
         ] + files + [
-            "-tile", "2x2",
+            "-tile", f"{cols}x{rows}",
             "-geometry", "512x512+16+16",
             "-background", "#FAF4ED",
             "-fill", "#575279",
@@ -534,7 +445,8 @@ def make_grid(out_dir: Path) -> Path:
     # Pillow fallback.
     thumb = 512
     pad = 16
-    grid_w = grid_h = thumb * 2 + pad * 3
+    grid_w = thumb * cols + pad * (cols + 1)
+    grid_h = thumb * rows + pad * (rows + 1) + 28 * rows
     grid = Image.new("RGBA", (grid_w, grid_h), BG + (255,))
     gd = ImageDraw.Draw(grid)
 
@@ -554,8 +466,8 @@ def make_grid(out_dir: Path) -> Path:
     for i, v in enumerate(VARIANTS):
         img = Image.open(out_dir / f"enclave-icon-{v}-1024.png").convert("RGBA")
         img = img.resize((thumb, thumb), Image.Resampling.LANCZOS)
-        x = pad + (i % 2) * (thumb + pad)
-        y = pad + (i // 2) * (thumb + pad)
+        x = pad + (i % cols) * (thumb + pad)
+        y = pad + (i // cols) * (thumb + pad)
         grid.paste(img, (x, y))
         label = f"enclave-icon-{v}-1024"
         bbox = gd.textbbox((0, 0), label, font=font)
@@ -579,10 +491,12 @@ def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     renderers = {
-        "etched-frost": render_etched_frost,
-        "liquid-aero": render_liquid_aero,
-        "aurora-dawn": render_aurora_dawn,
-        "gem-cut": render_gem_cut,
+        "frost-clear": render_frost_clear,
+        "gold-amber": render_gold_amber,
+        "deep-well": render_deep_well,
+        "aurora-bloom": render_aurora_bloom,
+        "prism-caustic": render_prism_caustic,
+        "pearl-opal": render_pearl_opal,
     }
 
     variants = VARIANTS if args.variant == "all" else [args.variant]
@@ -595,7 +509,7 @@ def main() -> int:
         paths.append(path)
         print(path)
 
-    if (args.variant == "all" and args.grid) or (args.variant == "all" and not args.grid):
+    if args.variant == "all":
         # Default behavior for 'all' is to also build the grid.
         grid_path = make_grid(OUT_DIR)
         print(grid_path)
