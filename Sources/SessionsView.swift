@@ -69,6 +69,10 @@ struct SessionsView: View {
 
     private var deviceName: String { UIDevice.current.name }
 
+    private func activeAction(for s: JoinedSession, live: Bool) -> String? {
+        guard live, app.active?.sessionId == s.id, app.active?.working == true else { return nil }
+        return "REPLYING"
+    }
     private var liveSessions: [JoinedSession] {
         app.sessions.filter { app.live[$0.id] == true }.sorted { $0.savedAt > $1.savedAt }
     }
@@ -81,8 +85,9 @@ struct SessionsView: View {
     private var firstOfflineId: String? { offlineSessions.first?.id }
 
     @ViewBuilder private func card(_ s: JoinedSession, live: Bool) -> some View {
+        let action = activeAction(for: s, live: live)
         Button { app.connect(link: s.link, name: deviceName) } label: {
-            JoinedCard(session: s, t: t, live: live)
+            JoinedCard(session: s, t: t, live: live, action: action)
         }
         .press()
         .contextMenu {
@@ -148,9 +153,11 @@ struct SearchView: View {
                             .font(.bodyF(14)).foregroundStyle(t.txtMuted).frame(maxWidth: .infinity).padding(.vertical, 44)
                     }
                     ForEach(results) { s in
+                        let live = app.live[s.id] == true
+                        let action: String? = (live && app.active?.sessionId == s.id && app.active?.working == true) ? "REPLYING" : nil
                         Button { app.connect(link: s.link, name: UIDevice.current.name) } label: {
-                            JoinedCard(session: s, t: t, live: app.live[s.id] == true)
-                                .opacity(app.live[s.id] == true ? 1 : 0.6)
+                            JoinedCard(session: s, t: t, live: live, action: action)
+                                .opacity(live ? 1 : 0.6)
                         }
                         .press()
                         .contextMenu {
@@ -169,13 +176,12 @@ struct SearchView: View {
 
 struct JoinedCard: View {
     let session: JoinedSession; let t: Theme; var live: Bool = false
+    var action: String? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                Circle().fill(live ? t.cOk : t.txtGhost).frame(width: 7, height: 7)
-                    .padding(.leading, 3)
                 Text(session.title).font(.disp(17)).foregroundStyle(t.txt).textCase(.uppercase).lineLimit(1)
-                    .padding(.leading, 2)
+                    .padding(.leading, 5)
                 Spacer()
                 Image(systemName: "chevron.right").font(.system(size: 13)).foregroundStyle(t.txtGhost)
             }.padding(.bottom, 11)
@@ -185,6 +191,9 @@ struct JoinedCard: View {
                 }
                 Text(session.readOnly ? "WATCH" : "CONTROL").font(.term(12)).foregroundStyle(t.txtMuted)
                 Text(session.relay).font(.term(12)).foregroundStyle(t.txtMuted)
+                if let action {
+                    Text(action).font(.term(12)).foregroundStyle(t.accent)
+                }
                 if !live { Text("offline").font(.term(12)).foregroundStyle(t.txtGhost) }
             }
         }
