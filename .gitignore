@@ -12,6 +12,10 @@ DerivedData/
 # Local tooling config
 .claude/
 
+# Python
+__pycache__/
+*.pyc
+
 # Vendored upstream reference — the oh-my-pi monorepo the app is a client for.
 # Not part of the Enclave app; keep it out of this repo.
 oh-my-pi-main/
