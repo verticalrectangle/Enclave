@@ -193,7 +193,7 @@ struct JoinedCard: View {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(t.txt.opacity(0.04))
                     .frame(width: 40, height: 40)
-                Image(systemName: isLive ? "network" : "network.slash")
+                Image(systemName: session.readOnly ? "eye" : "pen")
                     .font(.system(size: 18))
                     .foregroundStyle(t.txtMuted)
                 Circle()

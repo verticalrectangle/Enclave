@@ -52,7 +52,7 @@ struct EditorView: View {
             ToolbarItem(placement: .principal) {
                 VStack(spacing: 1) {
                     Text(vm.session.repo).font(.disp(15)).foregroundStyle(t.txt).textCase(.uppercase).lineLimit(1)
-                    Text("\(vm.session.dir) · \(vm.session.branch)").font(.term(12)).foregroundStyle(t.txtMuted).lineLimit(1)
+                    Text(vm.session.dir).font(.term(12)).foregroundStyle(t.txtMuted).lineLimit(1)
                 }
             }
             ToolbarItem(placement: .topBarTrailing) { sessionMenu }
