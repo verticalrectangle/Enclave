@@ -129,7 +129,7 @@ extension View {
         modifier(GlassBG(t: t, radius: radius, flat: flat, active: active, panel: panel))
     }
     func press() -> some View { buttonStyle(PressStyle()) }
-    func etched(_ t: Theme, tint: Color? = nil, radius: CGFloat = 4) -> some View {
+    func etched(_ t: Theme, tint: Color? = nil, radius: CGFloat = 2) -> some View {
         modifier(EtchedBG(t: t, tint: tint, radius: radius))
     }
 }
@@ -141,7 +141,7 @@ extension View {
 struct EtchedBG: ViewModifier {
     let t: Theme
     var tint: Color? = nil
-    var radius: CGFloat = 4
+    var radius: CGFloat = 2
     func body(content: Content) -> some View {
         let dark = t.mode == .dark
         let fill = tint ?? (dark ? Color.white.opacity(0.035) : Color.black.opacity(0.035))
