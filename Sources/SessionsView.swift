@@ -87,6 +87,7 @@ struct SessionsView: View {
         }
         .press()
         .contextMenu {
+            ColorMenu(session: s, t: t)
             Button(role: .destructive) { app.remove(s) } label: { Label("Remove", systemImage: "trash") }
         }
     }
@@ -156,6 +157,7 @@ struct SearchView: View {
                         }
                         .press()
                         .contextMenu {
+                            ColorMenu(session: s, t: t)
                             Button(role: .destructive) { app.remove(s) } label: { Label("Remove", systemImage: "trash") }
                         }
                     }
@@ -169,7 +171,43 @@ struct SearchView: View {
     }
 }
 
-struct JoinedCard: View {
+/// Color tag picker for a session card.
+private struct ColorMenu: View {
+    let session: JoinedSession
+    let t: Theme
+    @EnvironmentObject var app: AppModel
+
+    var body: some View {
+        Menu {
+            ForEach(SessionColor.allCases) { color in
+                Button { app.setTagColor(color, for: session.id) } label: {
+                    HStack(spacing: 8) {
+                        Circle().fill(color.color(in: t)).frame(width: 12, height: 12)
+                        Text(label(for: color)).font(.bodyF(14))
+                        Spacer()
+                        if session.tagColor == color {
+                            Image(systemName: "checkmark").font(.system(size: 12, weight: .semibold))
+                        }
+                    }
+                }
+            }
+        } label: {
+            Label("Color", systemImage: "paintpalette")
+        }
+    }
+
+    private func label(for color: SessionColor) -> String {
+        switch color {
+        case .default: return "Default"
+        case .accent: return "Accent"
+        case .foam: return "Foam"
+        case .iris: return "Iris"
+        case .pine: return "Pine"
+        case .rose: return "Rose"
+        case .green: return "Green"
+        }
+    }
+}
     let session: JoinedSession
     let t: Theme
     let state: SessionState
@@ -185,17 +223,18 @@ struct JoinedCard: View {
     private var statusIcon: String {
         isReplying ? "circle.dashed" : (isLive ? "circle.fill" : "network.slash")
     }
+    private var iconColor: Color { session.tagColor.color(in: t) }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             // 40pt rounded-square icon with status overlay
             ZStack(alignment: .bottomTrailing) {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(t.txt.opacity(0.04))
+                    .fill(iconColor.opacity(0.12))
                     .frame(width: 40, height: 40)
                 Image(systemName: session.readOnly ? "eye" : "pen")
                     .font(.system(size: 18))
-                    .foregroundStyle(t.txtMuted)
+                    .foregroundStyle(iconColor)
                 Circle()
                     .fill(statusColor)
                     .frame(width: 10, height: 10)
@@ -222,8 +261,6 @@ struct JoinedCard: View {
                         Text(enh ? "ENCLAVE" : "COLLAB").font(.term(12)).foregroundStyle(t.txtMuted)
                         Text("·").font(.term(12)).foregroundStyle(t.txtGhost)
                     }
-                    Text(session.readOnly ? "WATCH" : "CONTROL").font(.term(12)).foregroundStyle(t.txtMuted)
-                    Text("·").font(.term(12)).foregroundStyle(t.txtGhost)
                     Text(session.relay).font(.term(12)).foregroundStyle(t.txtMuted)
                 }
             }

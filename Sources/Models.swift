@@ -172,6 +172,22 @@ struct ModelOption: Identifiable { var id: String { modelId }; let modelId: Stri
 
 // MARK: - Joined sessions (persisted locally — the guest's own room list)
 
+enum SessionColor: String, Codable, CaseIterable, Identifiable {
+    case `default`, accent, foam, iris, pine, rose, green
+    var id: String { rawValue }
+    func color(in t: Theme) -> Color {
+        switch self {
+        case .default: return t.txtMuted
+        case .accent: return t.accent
+        case .foam: return t.cBash
+        case .iris: return t.cLsp
+        case .pine: return t.cTask
+        case .rose: return t.cAdvisor
+        case .green: return t.cOk
+        }
+    }
+}
+
 struct JoinedSession: Identifiable, Codable, Equatable {
     var id: String              // stable per room link
     var link: String
@@ -180,4 +196,5 @@ struct JoinedSession: Identifiable, Codable, Equatable {
     var readOnly: Bool
     var savedAt: Date
     var enhanced: Bool? = nil   // true = /enclave, false = /collab, nil = never connected
+    var tagColor: SessionColor = .default
 }

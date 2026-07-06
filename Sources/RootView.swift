@@ -127,6 +127,12 @@ final class AppModel: ObservableObject {
 
     func remove(_ s: JoinedSession) { sessions.removeAll { $0.id == s.id }; live[s.id] = nil; state[s.id] = nil; stopWatcher(for: s.id); save() }
 
+    func setTagColor(_ color: SessionColor, for id: String) {
+        guard let i = sessions.firstIndex(where: { $0.id == id }) else { return }
+        sessions[i].tagColor = color
+        save()
+    }
+
     /// Drop every offline session in one go (keeps the one you're connected to).
     func clearOffline() {
         let keep = connectedLink
