@@ -18,6 +18,7 @@ struct Attachment: Identifiable {
 
 struct EditorView: View {
     @EnvironmentObject var theme: ThemeStore
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject var vm: SessionVM
     @StateObject private var dictation = Dictation()
     @State private var draft = ""
@@ -57,6 +58,9 @@ struct EditorView: View {
         }
         .fullScreenCover(item: Binding(get: { viewer.map { IdStr($0) } }, set: { viewer = $0?.v })) { img in
             ImageViewer(src: img.v, label: "focused image") { viewer = nil }.environmentObject(theme)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { vm.live.reconnectIfNeeded() }
         }
     }
 

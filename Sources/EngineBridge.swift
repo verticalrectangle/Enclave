@@ -156,17 +156,24 @@ private final class CollabSocket: NSObject, URLSessionWebSocketDelegate {
     var onOpen: (() -> Void)?
     var onFrame: (([String: Any]) -> Void)?
     var onControl: (([String: Any]) -> Void)?
-    var onClose: ((String) -> Void)?
+    var onUnexpectedClose: ((String) -> Void)?
 
     private let wsURL: URL
     private let key: SymmetricKey
     private var task: URLSessionWebSocketTask?
     private var closed = false
+    private var intentionalClose = false
+    private var generation = 0
 
     init(wsURL: URL, key: SymmetricKey) { self.wsURL = wsURL; self.key = key }
 
     func connect() {
+        intentionalClose = false
         closed = false
+        task?.cancel(with: .goingAway, reason: nil)
+        task = nil
+        generation += 1
+        let gen = generation
         var comps = URLComponents(url: wsURL, resolvingAgainstBaseURL: false)!
         comps.queryItems = [URLQueryItem(name: "role", value: "guest")]
         let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
@@ -176,10 +183,11 @@ private final class CollabSocket: NSObject, URLSessionWebSocketDelegate {
         task.maximumMessageSize = 128 * 1024 * 1024
         self.task = task
         task.resume()
-        receive()
+        receive(gen)
     }
 
     func close() {
+        intentionalClose = true
         closed = true
         task?.cancel(with: .goingAway, reason: nil)
         task = nil
@@ -194,15 +202,18 @@ private final class CollabSocket: NSObject, URLSessionWebSocketDelegate {
     }
 
     func urlSession(_ s: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol proto: String?) {
+        guard webSocketTask === task else { return }
         onOpen?()
     }
     func urlSession(_ s: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith code: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+        guard webSocketTask === task else { return }
         fail("connection closed (\(code.rawValue))")
     }
 
-    private func receive() {
+    private func receive(_ gen: Int) {
         task?.receive { [weak self] result in
-            guard let self, !self.closed else { return }
+            guard let self, self.generation == gen else { return }
+            guard !self.closed else { return }
             switch result {
             case .failure(let err):
                 self.fail(err.localizedDescription)
@@ -221,15 +232,15 @@ private final class CollabSocket: NSObject, URLSessionWebSocketDelegate {
                     }
                 @unknown default: break
                 }
-                self.receive()
+                self.receive(gen)
             }
         }
     }
 
     private func fail(_ reason: String) {
-        if closed { return }
+        guard !intentionalClose, !closed else { return }
         closed = true
-        onClose?(reason)
+        onUnexpectedClose?(reason)
     }
 }
 
@@ -299,6 +310,9 @@ final class GuestClient: ObservableObject {
     @Published private(set) var activity: String?        // transient host activity (retrying / compacting / fallback)
     @Published private(set) var notices: [NoticeItem] = [] // host toasts (rate limits, tool failures)
     private var planKey = ""                              // UserDefaults key for this room's cached plan
+    private var terminated = false                          // host deliberately ended (bye / room-closed / pre-welcome error) — never reconnect
+    private var reconnectAttempt = 0
+    private var reconnectTask: Task<Void, Never>?
     var justPaired = false                          // joined via a fresh QR pair → show a paired notice
 
     // Incremental rebuild caches: avoid reprocessing the entire `entries` array on every
@@ -328,7 +342,7 @@ final class GuestClient: ObservableObject {
         socket.onControl = { [weak self] c in Task { @MainActor in
             if c["t"] as? String == "room-closed" { self?.end("room closed") }
         } }
-        socket.onClose = { [weak self] r in Task { @MainActor in self?.end(r) } }
+        socket.onUnexpectedClose = { [weak self] r in Task { @MainActor in self?.scheduleReconnect(reason: r) } }
     }
 
     /// `nil` when the pasted link doesn't parse — surface the reason to the user.
@@ -338,7 +352,47 @@ final class GuestClient: ObservableObject {
     }
 
     func connect() { socket.connect() }
-    func close() { socket.close() }
+
+    func close() {
+        terminated = true
+        reconnectTask?.cancel()
+        reconnectAttempt = 0
+        socket.close()
+    }
+
+    private func backoff(for attempt: Int) -> TimeInterval {
+        TimeInterval([1, 2, 4, 8, 16][min(attempt, 4)])
+    }
+
+    private func scheduleReconnect(reason: String) {
+        guard !terminated, phase != "ended" else { return }
+        reconnectTask?.cancel()
+        guard reconnectAttempt < 5 else {
+            phase = "ended"; endedReason = "reconnect failed · \(reason)"; working = false
+            rebuild()
+            return
+        }
+        let delay = backoff(for: reconnectAttempt)
+        reconnectAttempt += 1
+        phase = "reconnecting"
+        rebuild()
+        reconnectTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            if Task.isCancelled { return }
+            self?.socket.connect()
+        }
+    }
+
+    func reconnectIfNeeded() {
+        // Only act when the connection is actually dead/retrying — NOT on the initial
+        // launch (phase == "connecting") or while live. Host-ended (terminated) is final.
+        guard !terminated, phase == "reconnecting" || phase == "ended" else { return }
+        reconnectTask?.cancel()
+        reconnectAttempt = 0
+        phase = "reconnecting"
+        rebuild()
+        socket.connect()
+    }
 
     // ── commands ─────────────────────────────────────────────────────────────
 
@@ -438,6 +492,8 @@ final class GuestClient: ObservableObject {
         switch t {
         case "welcome":
             welcomed = true
+            reconnectAttempt = 0
+            reconnectTask?.cancel()
             entries = []
             stream = nil; streamDone = false; activeTools = []; uiRequest = nil
             progressMap = [:]; progress = []
@@ -660,6 +716,8 @@ final class GuestClient: ObservableObject {
 
     private func end(_ reason: String) {
         if phase == "ended" { return }
+        terminated = true
+        reconnectTask?.cancel()
         phase = "ended"
         endedReason = reason
         working = false
