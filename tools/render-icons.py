@@ -259,10 +259,10 @@ def draw_logo(ink: Tuple[int, int, int, int] = INK + (255,)) -> Image.Image:
         fill=(0, 0, 0, 0),
     )
 
-    # Slit geometry.
+    # Slit geometry: an open almond-shaped stroke sealed by a horizontal bar.
     b = 0.09
     s = 0.055
-    # Almond: two cubic curves forming a closed lens.
+    # Outer almond: two cubic curves forming a closed lens.
     p0 = mapu(0.50, 0.28)
     p1 = mapu(0.50 - b, 0.40)
     p2 = mapu(0.50 - b, 0.60)
@@ -270,9 +270,9 @@ def draw_logo(ink: Tuple[int, int, int, int] = INK + (255,)) -> Image.Image:
     p4 = mapu(0.50 + b, 0.60)
     p5 = mapu(0.50 + b, 0.40)
     almond = cubic(p0, p1, p2, p3, n=96) + cubic(p3, p4, p5, p0, n=96)
-    draw.polygon(almond, fill=ink)
+    draw.line(almond, fill=ink, width=SLIT_WIDTH, joint="curve")
 
-    # Seal: horizontal line across the centre.
+    # Seal: horizontal line across the centre of the transparent slit.
     seal_a = mapu(0.50 - s, 0.50)
     seal_b = mapu(0.50 + s, 0.50)
     draw.line([seal_a, seal_b], fill=ink, width=SLIT_WIDTH, joint="curve")
