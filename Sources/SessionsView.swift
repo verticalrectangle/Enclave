@@ -181,11 +181,16 @@ struct JoinedCard: View {
             }.padding(.bottom, 11)
             HStack(spacing: 6) {
                 if let enh = session.enhanced {
-                    MetaChip(t: t, text: enh ? "enclave" : "collab", tint: enh ? t.accent : nil)
+                    Text(enh ? "ENCLAVE" : "COLLAB").font(.term(12)).foregroundStyle(t.txtMuted)
+                    Text("·").font(.term(12)).foregroundStyle(t.txtGhost)
                 }
-                MetaChip(t: t, text: session.readOnly ? "watch" : "control")
-                MetaChip(t: t, text: session.relay)
-                if !live { Text("offline").font(.term(12)).foregroundStyle(t.txtGhost) }
+                Text(session.readOnly ? "WATCH" : "CONTROL").font(.term(12)).foregroundStyle(t.txtMuted)
+                Text("·").font(.term(12)).foregroundStyle(t.txtGhost)
+                Text(session.relay).font(.term(12)).foregroundStyle(t.txtMuted)
+                if !live {
+                    Text("·").font(.term(12)).foregroundStyle(t.txtGhost)
+                    Text("offline").font(.term(12)).foregroundStyle(t.txtGhost)
+                }
             }
         }
         .padding(13)
