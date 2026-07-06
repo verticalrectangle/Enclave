@@ -49,8 +49,8 @@ struct Theme {
     var lineStrong: Color { dark ? .white.opacity(0.22) : Color(hex: 0xCECACD) }
     var lineHover:  Color { dark ? .white.opacity(0.50) : Color(hex: 0x9893A5) }
 
-    // accent — amber (dark) / gold (light): the live/terminal voice
-    var accent:     Color { dark ? Color(hex: 0xFFB850) : Color(hex: 0xEA9D34) }
+    // accent — ice blue-silver (dark, goth Frutiger Aero) / gold (light): the live/terminal voice
+    var accent:     Color { dark ? Color(hex: 0xC8D6E5) : Color(hex: 0xEA9D34) }
     var accentDim:  Color { accent.opacity(dark ? 0.16 : 0.14) }
     var accentLine: Color { accent.opacity(dark ? 0.45 : 0.50) }
 
