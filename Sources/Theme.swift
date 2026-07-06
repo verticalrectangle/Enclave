@@ -129,6 +129,45 @@ extension View {
         modifier(GlassBG(t: t, radius: radius, flat: flat, active: active, panel: panel))
     }
     func press() -> some View { buttonStyle(PressStyle()) }
+    func etched(_ t: Theme, tint: Color? = nil, radius: CGFloat = 4) -> some View {
+        modifier(EtchedBG(t: t, tint: tint, radius: radius))
+    }
+}
+
+/// Etched-glass chip: no border stroke. A translucent fill creates a shallow
+/// depression; inner top-edge highlight + bottom-edge shadow sell the illusion
+/// that the label was die-stamped into the glass — not a sticker on top of it.
+/// `tint` sets the fill (accentDim for active chips); omit for a neutral recess.
+struct EtchedBG: ViewModifier {
+    let t: Theme
+    var tint: Color? = nil
+    var radius: CGFloat = 4
+    func body(content: Content) -> some View {
+        let dark = t.mode == .dark
+        let fill = tint ?? (dark ? Color.white.opacity(0.035) : Color.black.opacity(0.035))
+        content
+            .background(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(fill)
+            )
+            .overlay(
+                // top inner-edge highlight
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .stroke(LinearGradient(colors: [
+                        dark ? Color.white.opacity(0.10) : Color.white.opacity(0.7),
+                        .clear
+                    ], startPoint: .top, endPoint: .bottom), lineWidth: 0.5)
+            )
+            .overlay(
+                // bottom inner-edge shadow
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .stroke(LinearGradient(colors: [
+                        .clear,
+                        dark ? Color.black.opacity(0.20) : Color.black.opacity(0.08)
+                    ], startPoint: .top, endPoint: .bottom), lineWidth: 0.5)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+    }
 }
 
 struct PressStyle: ButtonStyle {

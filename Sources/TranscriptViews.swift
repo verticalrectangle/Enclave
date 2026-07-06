@@ -322,7 +322,7 @@ struct ThinkingBlock: View {
                     if let m = modelChip {
                         Text(m).font(.labl(8)).tracking(0.5).foregroundStyle(t.accent)
                             .padding(.horizontal, 5).padding(.vertical, 1)
-                            .overlay(RoundedRectangle(cornerRadius: 4, style: .continuous).stroke(t.accent.opacity(0.4)))
+                            .etched(t, tint: t.accent.opacity(0.10))
                     }
                     Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(t.txtGhost)
                     Spacer(minLength: 0)
