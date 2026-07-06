@@ -208,6 +208,8 @@ private struct ColorMenu: View {
         }
     }
 }
+
+struct JoinedCard: View {
     let session: JoinedSession
     let t: Theme
     let state: SessionState
