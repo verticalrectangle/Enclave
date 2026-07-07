@@ -75,6 +75,7 @@ struct SessionsView: View {
                 }
                 .frame(maxWidth: .infinity)
         }
+        .buttonStyle(.plain)
         .padding(.vertical, 8)
     }
 
