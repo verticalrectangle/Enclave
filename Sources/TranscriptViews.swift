@@ -75,6 +75,8 @@ struct TurnRow: View {
                         Text(inlineMarkdown(p)).font(.serif(16)).foregroundStyle(t.txt)
                             .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
                     }
+                case .advisory(let severity, let guidance, let body):
+                    AdvisoryCard(severity: severity, guidance: guidance, advisoryBody: body, t: t)
                 case .code(let lang, let body):
                     CodeBlock(lang: lang, code: body, t: t)
                 }
@@ -101,10 +103,39 @@ struct TurnRow: View {
 
 // MARK: - Markdown blocks (prose + fenced code)
 
-enum MDBlock { case prose(String); case code(lang: String, body: String) }
+enum MDBlock { case prose(String); case code(lang: String, body: String); case advisory(severity: String?, guidance: String?, body: String) }
 
-/// Split agent text into prose runs and fenced ``` code blocks. Tolerant of an
-/// unclosed fence (still streaming): everything after the opener renders as code.
+func decodeEntities(_ s: String) -> String {
+    s.replacingOccurrences(of: "&lt;", with: "<")
+     .replacingOccurrences(of: "&gt;", with: ">")
+     .replacingOccurrences(of: "&quot;", with: "\"")
+     .replacingOccurrences(of: "&apos;", with: "'")
+     .replacingOccurrences(of: "&amp;", with: "&")
+}
+
+func advisoryAttrs(from opener: String) -> (severity: String?, guidance: String?) {
+    var severity: String?
+    var guidance: String?
+    if let regex = try? NSRegularExpression(pattern: "severity=\"([^\"]*)\"") {
+        let range = NSRange(opener.startIndex..., in: opener)
+        if let match = regex.firstMatch(in: opener, options: [], range: range),
+           let r = Range(match.range(at: 1), in: opener) {
+            severity = String(opener[r])
+        }
+    }
+    if let regex = try? NSRegularExpression(pattern: "guidance=\"([^\"]*)\"") {
+        let range = NSRange(opener.startIndex..., in: opener)
+        if let match = regex.firstMatch(in: opener, options: [], range: range),
+           let r = Range(match.range(at: 1), in: opener) {
+            guidance = String(opener[r])
+        }
+    }
+    return (severity, guidance)
+}
+
+/// Split agent text into prose runs, fenced ``` code blocks, and <advisory> callouts.
+/// Tolerant of an unclosed fence or advisory (still streaming): everything after the
+/// opener renders as that block type.
 func markdownBlocks(_ s: String) -> [MDBlock] {
     var out: [MDBlock] = []
     var prose: [String] = []
@@ -112,13 +143,39 @@ func markdownBlocks(_ s: String) -> [MDBlock] {
     var i = 0
     func flush() { if !prose.isEmpty { out.append(.prose(prose.joined(separator: "\n"))); prose = [] } }
     while i < lines.count {
-        if lines[i].trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+        let trimmed = lines[i].trimmingCharacters(in: .whitespaces)
+        if trimmed.hasPrefix("```") {
             flush()
-            let lang = String(lines[i].trimmingCharacters(in: .whitespaces).dropFirst(3)).trimmingCharacters(in: .whitespaces)
+            let lang = String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces)
             var body: [String] = []; i += 1
             while i < lines.count, !lines[i].trimmingCharacters(in: .whitespaces).hasPrefix("```") { body.append(lines[i]); i += 1 }
             if i < lines.count { i += 1 }   // consume closing fence
             out.append(.code(lang: lang, body: body.joined(separator: "\n")))
+        } else if trimmed.hasPrefix("<advisory"), let closeIdx = trimmed.firstIndex(of: ">") {
+            flush()
+            let afterClose = trimmed.index(after: closeIdx)
+            let opener = String(trimmed[..<afterClose])
+            let rest = String(trimmed[afterClose...])
+            let (severity, guidance) = advisoryAttrs(from: opener)
+            var body: [String] = []
+            if let closerRange = rest.range(of: "</advisory>") {
+                let piece = String(rest[..<closerRange.lowerBound])
+                if !piece.isEmpty { body.append(piece) }
+                out.append(.advisory(severity: severity, guidance: guidance, body: decodeEntities(body.joined(separator: "\n"))))
+                i += 1
+            } else {
+                if !rest.isEmpty { body.append(rest) }
+                i += 1
+                while i < lines.count, !lines[i].contains("</advisory>") { body.append(lines[i]); i += 1 }
+                if i < lines.count {
+                    if let closerRange = lines[i].range(of: "</advisory>") {
+                        let piece = String(lines[i][..<closerRange.lowerBound])
+                        if !piece.isEmpty { body.append(piece) }
+                    }
+                    i += 1
+                }
+                out.append(.advisory(severity: severity, guidance: guidance, body: decodeEntities(body.joined(separator: "\n"))))
+            }
         } else { prose.append(lines[i]); i += 1 }
     }
     flush()
@@ -156,6 +213,53 @@ struct CodeBlock: View {
         .background(t.bg2)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(t.lineFaint))
+    }
+}
+
+/// Renders a parsed \u003cadvisory\u003e callout with severity, guidance, and body.
+struct AdvisoryCard: View {
+    let severity: String?
+    let guidance: String?
+    let advisoryBody: String
+    let t: Theme
+
+    private var color: Color {
+        switch severity {
+        case "info": return t.txtMuted
+        default: return t.cAdvisor
+        }
+    }
+
+    private var glyph: String {
+        switch severity {
+        case "blocker": return "exclamationmark.octagon.fill"
+        case "concern", "warning": return "exclamationmark.triangle.fill"
+        case "info": return "info.circle.fill"
+        default: return "bell.fill"
+        }
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: glyph).font(.system(size: 12)).foregroundStyle(color)
+                    Text((severity ?? "advisory").uppercased()).font(.labl(9)).tracking(1.2).foregroundStyle(color)
+                    Spacer(minLength: 0)
+                }
+                if let guidance = guidance, !guidance.isEmpty {
+                    Text(guidance).font(.bodyF(12)).foregroundStyle(t.txtMuted).fixedSize(horizontal: false, vertical: true)
+                }
+                if !advisoryBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(inlineMarkdown(advisoryBody)).font(.serif(16)).foregroundStyle(t.txt).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                }
+            }
+            .padding(.leading, 11).padding(.trailing, 12).padding(.vertical, 8)
+            Spacer(minLength: 0)
+        }
+        .background(t.glassFill2)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(t.lineFaint))
     }
 }
 
