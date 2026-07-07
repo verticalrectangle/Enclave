@@ -581,6 +581,8 @@ final class GuestClient: ObservableObject {
             }
             if let levels = f["thinking"] as? [String] { thinkingLevels = levels }
             if let cur = f["current"] as? [String: Any], let th = cur["thinking"] as? String { thinkingLevel = th }
+            imageFetchAttempted.removeAll()
+            cachedStaticTurns = []; cachedEntryCount = 0
         case "enclave-result":          // reply to a control command
             if let reqId = f["reqId"] as? Int,
                let cont = pendingImageFetches.removeValue(forKey: reqId) {
@@ -911,6 +913,11 @@ final class GuestClient: ObservableObject {
                     } else {
                         var turn = toolTurn(id: id, name: msg["toolName"] as? String ?? "tool", args: nil, intent: nil)
                         fillResult(&turn, content: msg["content"], isError: isError)
+                        if isInspect, !isError, turn.image == nil, let p = imagePath, !p.isEmpty, !p.hasPrefix("attachment://"), !p.hasPrefix("Image #") {
+                            if let cached = fetchedImages[p] { turn.image = cached }
+                            let mime = details?["mimeType"] as? String
+                            inspectImages.append((id: id, path: p, mime: mime))
+                        }
                         out.append(turn)
                     }
                 default: break
