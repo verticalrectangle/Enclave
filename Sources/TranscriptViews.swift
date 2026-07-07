@@ -133,9 +133,32 @@ func advisoryAttrs(from opener: String) -> (severity: String?, guidance: String?
     return (severity, guidance)
 }
 
+func advisoryStart(in line: String) -> String.Index? {
+    if let r = line.range(of: "<advisory") { return r.lowerBound }
+    if let r = line.range(of: "&lt;advisory") { return r.lowerBound }
+    return nil
+}
+
+func advisoryTagEnd(in line: String, after start: String.Index) -> String.Index? {
+    let suffix = line[start...]
+    var literalPos: String.Index?
+    var entityPos: String.Index?
+    if let r = suffix.range(of: ">") { literalPos = r.upperBound }
+    if let r = suffix.range(of: "&gt;") { entityPos = r.upperBound }
+    if let l = literalPos, let e = entityPos {
+        return l < e ? l : e
+    }
+    return literalPos ?? entityPos
+}
+
+func advisoryCloserRange(in line: String) -> Range<String.Index>? {
+    line.range(of: "</advisory>") ?? line.range(of: "&lt;/advisory&gt;")
+}
+
 /// Split agent text into prose runs, fenced ``` code blocks, and <advisory> callouts.
-/// Tolerant of an unclosed fence or advisory (still streaming): everything after the
-/// opener renders as that block type.
+/// Tolerant of entity-escaped tags and inline placement; tolerant of an unclosed
+/// fence or advisory (still streaming): everything after the opener renders as that
+/// block type.
 func markdownBlocks(_ s: String) -> [MDBlock] {
     var out: [MDBlock] = []
     var prose: [String] = []
@@ -151,26 +174,33 @@ func markdownBlocks(_ s: String) -> [MDBlock] {
             while i < lines.count, !lines[i].trimmingCharacters(in: .whitespaces).hasPrefix("```") { body.append(lines[i]); i += 1 }
             if i < lines.count { i += 1 }   // consume closing fence
             out.append(.code(lang: lang, body: body.joined(separator: "\n")))
-        } else if trimmed.hasPrefix("<advisory"), let closeIdx = trimmed.firstIndex(of: ">") {
+        } else if let start = advisoryStart(in: trimmed), let tagEnd = advisoryTagEnd(in: trimmed, after: start) {
             flush()
-            let afterClose = trimmed.index(after: closeIdx)
-            let opener = String(trimmed[..<afterClose])
-            let rest = String(trimmed[afterClose...])
+            let prefix = String(trimmed[..<start])
+            if !prefix.trimmingCharacters(in: .whitespaces).isEmpty {
+                out.append(.prose(prefix))
+            }
+            let opener = String(trimmed[start..<tagEnd])
+            let rest = String(trimmed[tagEnd...])
             let (severity, guidance) = advisoryAttrs(from: opener)
             var body: [String] = []
-            if let closerRange = rest.range(of: "</advisory>") {
+            if let closerRange = advisoryCloserRange(in: rest) {
                 let piece = String(rest[..<closerRange.lowerBound])
                 if !piece.isEmpty { body.append(piece) }
+                let suffix = String(rest[closerRange.upperBound...])
+                if !suffix.trimmingCharacters(in: .whitespaces).isEmpty { prose.append(suffix) }
                 out.append(.advisory(severity: severity, guidance: guidance, body: decodeEntities(body.joined(separator: "\n"))))
                 i += 1
             } else {
                 if !rest.isEmpty { body.append(rest) }
                 i += 1
-                while i < lines.count, !lines[i].contains("</advisory>") { body.append(lines[i]); i += 1 }
+                while i < lines.count, advisoryCloserRange(in: lines[i]) == nil { body.append(lines[i]); i += 1 }
                 if i < lines.count {
-                    if let closerRange = lines[i].range(of: "</advisory>") {
+                    if let closerRange = advisoryCloserRange(in: lines[i]) {
                         let piece = String(lines[i][..<closerRange.lowerBound])
                         if !piece.isEmpty { body.append(piece) }
+                        let suffix = String(lines[i][closerRange.upperBound...])
+                        if !suffix.trimmingCharacters(in: .whitespaces).isEmpty { prose.append(suffix) }
                     }
                     i += 1
                 }
