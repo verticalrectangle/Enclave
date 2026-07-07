@@ -254,7 +254,7 @@ final class GuestClient: ObservableObject {
     @Published private(set) var turns: [UITurn] = []
     @Published private(set) var phase: String = "connecting"   // connecting/waiting/live/ended
     @Published private(set) var working = false
-    @Published private(set) var title = "omp session"
+    @Published private(set) var title = "session"
     @Published private(set) var cwd = "~"
     @Published private(set) var modelName = "—"
     @Published private(set) var tokensLabel = "—"

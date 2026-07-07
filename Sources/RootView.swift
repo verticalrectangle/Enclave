@@ -79,7 +79,7 @@ final class AppModel: ObservableObject {
             lastDoneTurnCount = c.turns.count
             if away {
                 let last = c.turns.last(where: { $0.type == .agent })?.text ?? ""
-                Notifier.post(title: c.title.isEmpty ? "omp session" : c.title,
+                Notifier.post(title: c.title.isEmpty ? "session" : c.title,
                               body: last.isEmpty ? "The agent finished." : String(last.prefix(140)),
                               id: "done-\(c.sessionId)-\(c.turns.count)")
             }
@@ -92,7 +92,7 @@ final class AppModel: ObservableObject {
             if !notifiedAsks.contains(key) {
                 notifiedAsks.insert(key)
                 if away {
-                    Notifier.post(title: c.title.isEmpty ? "omp session" : c.title,
+                    Notifier.post(title: c.title.isEmpty ? "session" : c.title,
                                   body: ask.question.isEmpty ? "The host is asking for your input." : ask.question,
                                   id: "ask-\(rq)")
                 }

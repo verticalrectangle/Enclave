@@ -37,7 +37,7 @@ struct EnclaveLiveActivity: Widget {
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(s.title.isEmpty ? "omp session" : s.title).font(.footnote).bold().foregroundStyle(.white).lineLimit(1)
+                        Text(s.title.isEmpty ? "session" : s.title).font(.footnote).bold().foregroundStyle(.white).lineLimit(1)
                         HStack(spacing: 6) {
                             Circle().fill(statusColor(s)).frame(width: 6, height: 6)
                             Text(s.action.isEmpty ? "live" : s.action).font(.caption).foregroundStyle(statusColor(s)).lineLimit(1)
