@@ -63,15 +63,19 @@ struct SessionsView: View {
     // MARK: - rows
 
     private func sessionRow(_ s: JoinedSession) -> some View {
-        JoinedCard(session: s, t: t, state: app.state[s.id] ?? SessionState())
-            .opacity(app.live[s.id] == true ? 1 : 0.6)
+        let cardOpacity: CGFloat = app.live[s.id] == true ? 1 : 0.6
+        return JoinedCard(session: s, t: t, state: app.state[s.id] ?? SessionState())
+            .opacity(cardOpacity)
             .frame(maxWidth: sessionCardMaxWidth)
             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 16, style: .continuous))
             .onTapGesture { app.connect(link: s.link, name: UIDevice.current.name) }
             .contextMenu {
                 ColorMenu(session: s, t: t)
                 Button(role: .destructive) { app.remove(s) } label: { Label("Remove", systemImage: "trash") }
+            } preview: {
+                JoinedCard(session: s, t: t, state: app.state[s.id] ?? SessionState())
+                    .frame(maxWidth: sessionCardMaxWidth)
+                    .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
