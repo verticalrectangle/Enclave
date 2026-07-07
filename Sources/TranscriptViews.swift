@@ -336,16 +336,24 @@ struct ToolCard: View {
                 // screenshots, and decoding them all up front is what stalls the view.
                 // The full image decodes only when you tap to focus it.
                 if let img = turn.image {
-                    Button { onImage(img) } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "photo").font(.system(size: 12)).foregroundStyle(c)
-                            Text("image result").font(.term(13)).foregroundStyle(t.txtBody)
-                            Text("tap to view").font(.labl(8.5)).tracking(0.6).foregroundStyle(t.txtMuted)
-                            Spacer(minLength: 0)
-                            Image(systemName: "eye").font(.system(size: 11)).foregroundStyle(t.txtMuted)
+                    if turn.kind == "inspect" {
+                        Button { onImage(img) } label: {
+                            SrcImage(src: img) { $0.resizable().scaledToFill() } placeholder: { t.line }
+                                .frame(width: 180, height: 120).clipped()
+                                .clipShape(RoundedRectangle(cornerRadius: 16)).glass(t, 16)
                         }
-                        .padding(.horizontal, 10).padding(.vertical, 8)
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(t.lineFaint))
+                    } else {
+                        Button { onImage(img) } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "photo").font(.system(size: 12)).foregroundStyle(c)
+                                Text("image result").font(.term(13)).foregroundStyle(t.txtBody)
+                                Text("tap to view").font(.labl(8.5)).tracking(0.6).foregroundStyle(t.txtMuted)
+                                Spacer(minLength: 0)
+                                Image(systemName: "eye").font(.system(size: 11)).foregroundStyle(t.txtMuted)
+                            }
+                            .padding(.horizontal, 10).padding(.vertical, 8)
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(t.lineFaint))
+                        }
                     }
                 }
                 if let cap = turn.caption { Text(cap).font(.bodyF(13)).foregroundStyle(t.txtBody) }
@@ -602,9 +610,15 @@ struct ImageViewer: View {
         ZStack {
             Rectangle().fill(.ultraThinMaterial).ignoresSafeArea().onTapGesture(perform: onClose)
             VStack(spacing: 14) {
-                SrcImage(src: src) { $0.resizable().scaledToFit() } placeholder: { t.line }
-                    .frame(maxHeight: 480).clipShape(RoundedRectangle(cornerRadius: 16))
-                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(t.lineStrong))
+                GeometryReader { g in
+                    let natural = SrcImage.naturalSize(src)?.height ?? .infinity
+                    let cap = min(natural, g.size.height * 0.75)
+                    SrcImage(src: src) { $0.resizable().scaledToFit() } placeholder: { t.line }
+                        .frame(maxHeight: cap)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(t.lineStrong))
+                }
+                .frame(maxHeight: 480)
                 Text(label).font(.term(14)).foregroundStyle(t.lockFg)
                 Text("TAP ANYWHERE TO CLOSE").font(.labl(9)).foregroundStyle(t.lockFg.opacity(0.5))
             }.padding(22)
@@ -627,6 +641,13 @@ struct SrcImage<Content: View, Placeholder: View>: View {
         } else {
             placeholder()
         }
+    }
+
+    static func naturalSize(_ src: String) -> CGSize? {
+        if src.hasPrefix("data:"), let ui = decode(src) {
+            return CGSize(width: ui.size.width * ui.scale, height: ui.size.height * ui.scale)
+        }
+        return nil
     }
 
     static func decode(_ dataURI: String) -> UIImage? {
