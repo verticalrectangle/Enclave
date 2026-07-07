@@ -26,6 +26,12 @@ FAMILIES = {
                     "glass-ring-cyan", "glass-ring-sky", "glass-ring-azure", "glass-ring-cobalt", "glass-ring-indigo",
                     "glass-ring-violet", "glass-ring-orchid", "glass-ring-magenta", "glass-ring-rose", "glass-ring-blush"],
     "Glass · Copper": ["copper-glow-disc", "copper-glow-ring"],
+    "Glass Pastel": ["glass-pastel-lavender", "glass-pastel-mint", "glass-pastel-peach", "glass-pastel-sky", "glass-pastel-lemon", "glass-pastel-rose", "glass-pastel-lilac", "glass-pastel-aqua"],
+    "Glass Pastel Ring": ["glass-pastel-lavender-ring", "glass-pastel-mint-ring", "glass-pastel-peach-ring", "glass-pastel-sky-ring", "glass-pastel-lemon-ring", "glass-pastel-rose-ring", "glass-pastel-lilac-ring", "glass-pastel-aqua-ring"],
+    "Glass Neon": ["glass-neon-magenta", "glass-neon-lime", "glass-neon-cyan", "glass-neon-yellow", "glass-neon-orange", "glass-neon-purple", "glass-neon-green", "glass-neon-pink"],
+    "Glass Neon Ring": ["glass-neon-magenta-ring", "glass-neon-lime-ring", "glass-neon-cyan-ring", "glass-neon-yellow-ring", "glass-neon-orange-ring", "glass-neon-purple-ring", "glass-neon-green-ring", "glass-neon-pink-ring"],
+    "Glass Mono": ["glass-mono-obsidian", "glass-mono-charcoal", "glass-mono-slate", "glass-mono-silver", "glass-mono-ivory", "glass-mono-fog", "glass-mono-ink", "glass-mono-mist"],
+    "Glass Mono Ring": ["glass-mono-obsidian-ring", "glass-mono-charcoal-ring", "glass-mono-slate-ring", "glass-mono-silver-ring", "glass-mono-ivory-ring", "glass-mono-fog-ring", "glass-mono-ink-ring", "glass-mono-mist-ring"],
 }
 
 

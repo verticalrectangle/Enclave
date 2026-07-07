@@ -108,6 +108,58 @@ enum IconVariant: String, CaseIterable {
     case glassRingRose      = "glass-ring-rose"
     case glassRingBlush     = "glass-ring-blush"
 
+    // Pastel glass family — pastel
+    case glassPastelLavender = "glass-pastel-lavender"
+    case glassPastelLavenderRing = "glass-pastel-lavender-ring"
+    case glassPastelMint = "glass-pastel-mint"
+    case glassPastelMintRing = "glass-pastel-mint-ring"
+    case glassPastelPeach = "glass-pastel-peach"
+    case glassPastelPeachRing = "glass-pastel-peach-ring"
+    case glassPastelSky = "glass-pastel-sky"
+    case glassPastelSkyRing = "glass-pastel-sky-ring"
+    case glassPastelLemon = "glass-pastel-lemon"
+    case glassPastelLemonRing = "glass-pastel-lemon-ring"
+    case glassPastelRose = "glass-pastel-rose"
+    case glassPastelRoseRing = "glass-pastel-rose-ring"
+    case glassPastelLilac = "glass-pastel-lilac"
+    case glassPastelLilacRing = "glass-pastel-lilac-ring"
+    case glassPastelAqua = "glass-pastel-aqua"
+    case glassPastelAquaRing = "glass-pastel-aqua-ring"
+    // Neon glass family — neon
+    case glassNeonMagenta = "glass-neon-magenta"
+    case glassNeonMagentaRing = "glass-neon-magenta-ring"
+    case glassNeonLime = "glass-neon-lime"
+    case glassNeonLimeRing = "glass-neon-lime-ring"
+    case glassNeonCyan = "glass-neon-cyan"
+    case glassNeonCyanRing = "glass-neon-cyan-ring"
+    case glassNeonYellow = "glass-neon-yellow"
+    case glassNeonYellowRing = "glass-neon-yellow-ring"
+    case glassNeonOrange = "glass-neon-orange"
+    case glassNeonOrangeRing = "glass-neon-orange-ring"
+    case glassNeonPurple = "glass-neon-purple"
+    case glassNeonPurpleRing = "glass-neon-purple-ring"
+    case glassNeonGreen = "glass-neon-green"
+    case glassNeonGreenRing = "glass-neon-green-ring"
+    case glassNeonPink = "glass-neon-pink"
+    case glassNeonPinkRing = "glass-neon-pink-ring"
+    // Mono glass family — mono
+    case glassMonoObsidian = "glass-mono-obsidian"
+    case glassMonoObsidianRing = "glass-mono-obsidian-ring"
+    case glassMonoCharcoal = "glass-mono-charcoal"
+    case glassMonoCharcoalRing = "glass-mono-charcoal-ring"
+    case glassMonoSlate = "glass-mono-slate"
+    case glassMonoSlateRing = "glass-mono-slate-ring"
+    case glassMonoSilver = "glass-mono-silver"
+    case glassMonoSilverRing = "glass-mono-silver-ring"
+    case glassMonoIvory = "glass-mono-ivory"
+    case glassMonoIvoryRing = "glass-mono-ivory-ring"
+    case glassMonoFog = "glass-mono-fog"
+    case glassMonoFogRing = "glass-mono-fog-ring"
+    case glassMonoInk = "glass-mono-ink"
+    case glassMonoInkRing = "glass-mono-ink-ring"
+    case glassMonoMist = "glass-mono-mist"
+    case glassMonoMistRing = "glass-mono-mist-ring"
+
     private static let auroraBloomCols: [(Color, UnitPoint, CGFloat)] = [
         (Color(hex: 0x56B4C9), UnitPoint(x: 0.28, y: 0.30), 0.50),
         (Color(hex: 0x9C7BFF), UnitPoint(x: 0.72, y: 0.66), 0.50),
@@ -547,6 +599,297 @@ enum IconVariant: String, CaseIterable {
                                   (Color(hex: 0xF35A49), UnitPoint(x: 0.70, y: 0.66), 0.46)],
                          glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
                          ink: .white, coreShadow: 0)
+        // Pastel glass family — pastel
+        case .glassPastelLavender:
+            return .init(backdrop: [Color(hex: 0x2D1F3A), Color(hex: 0x1A1221)],
+                         blooms: [(Color(hex: 0xD4B8FF), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x9B7BFF), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassPastelLavenderRing:
+            return .init(backdrop: [Color(hex: 0x2D1F3A), Color(hex: 0x1A1221)],
+                         blooms: [(Color(hex: 0xD4B8FF), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x9B7BFF), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassPastelMint:
+            return .init(backdrop: [Color(hex: 0x1F3A2D), Color(hex: 0x122116)],
+                         blooms: [(Color(hex: 0xB8FFD4), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x7BFF9B), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassPastelMintRing:
+            return .init(backdrop: [Color(hex: 0x1F3A2D), Color(hex: 0x122116)],
+                         blooms: [(Color(hex: 0xB8FFD4), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x7BFF9B), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassPastelPeach:
+            return .init(backdrop: [Color(hex: 0x3A2A1F), Color(hex: 0x211612)],
+                         blooms: [(Color(hex: 0xFFD4B8), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xFF9B7B), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassPastelPeachRing:
+            return .init(backdrop: [Color(hex: 0x3A2A1F), Color(hex: 0x211612)],
+                         blooms: [(Color(hex: 0xFFD4B8), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xFF9B7B), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassPastelSky:
+            return .init(backdrop: [Color(hex: 0x1F2A3A), Color(hex: 0x121621)],
+                         blooms: [(Color(hex: 0xB8E4FF), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x7BB8FF), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassPastelSkyRing:
+            return .init(backdrop: [Color(hex: 0x1F2A3A), Color(hex: 0x121621)],
+                         blooms: [(Color(hex: 0xB8E4FF), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x7BB8FF), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassPastelLemon:
+            return .init(backdrop: [Color(hex: 0x3A3A1F), Color(hex: 0x212112)],
+                         blooms: [(Color(hex: 0xFFFFB8), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xFFFF7B), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassPastelLemonRing:
+            return .init(backdrop: [Color(hex: 0x3A3A1F), Color(hex: 0x212112)],
+                         blooms: [(Color(hex: 0xFFFFB8), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xFFFF7B), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassPastelRose:
+            return .init(backdrop: [Color(hex: 0x3A1F2A), Color(hex: 0x211216)],
+                         blooms: [(Color(hex: 0xFFB8D4), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xFF7B9B), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassPastelRoseRing:
+            return .init(backdrop: [Color(hex: 0x3A1F2A), Color(hex: 0x211216)],
+                         blooms: [(Color(hex: 0xFFB8D4), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xFF7B9B), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassPastelLilac:
+            return .init(backdrop: [Color(hex: 0x2A1F3A), Color(hex: 0x161221)],
+                         blooms: [(Color(hex: 0xE4B8FF), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xB87BFF), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassPastelLilacRing:
+            return .init(backdrop: [Color(hex: 0x2A1F3A), Color(hex: 0x161221)],
+                         blooms: [(Color(hex: 0xE4B8FF), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xB87BFF), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassPastelAqua:
+            return .init(backdrop: [Color(hex: 0x1F3A3A), Color(hex: 0x122121)],
+                         blooms: [(Color(hex: 0xB8FFFF), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x7BFFFF), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassPastelAquaRing:
+            return .init(backdrop: [Color(hex: 0x1F3A3A), Color(hex: 0x122121)],
+                         blooms: [(Color(hex: 0xB8FFFF), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x7BFFFF), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        // Neon glass family — neon
+        case .glassNeonMagenta:
+            return .init(backdrop: [Color(hex: 0x360D32), Color(hex: 0x170315)],
+                         blooms: [(Color(hex: 0xFF00FF), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xFF33CC), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassNeonMagentaRing:
+            return .init(backdrop: [Color(hex: 0x360D32), Color(hex: 0x170315)],
+                         blooms: [(Color(hex: 0xFF00FF), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xFF33CC), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassNeonLime:
+            return .init(backdrop: [Color(hex: 0x15360D), Color(hex: 0x071703)],
+                         blooms: [(Color(hex: 0xCCFF00), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x66FF00), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassNeonLimeRing:
+            return .init(backdrop: [Color(hex: 0x15360D), Color(hex: 0x071703)],
+                         blooms: [(Color(hex: 0xCCFF00), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x66FF00), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassNeonCyan:
+            return .init(backdrop: [Color(hex: 0x0D3636), Color(hex: 0x031717)],
+                         blooms: [(Color(hex: 0x00FFFF), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x33CCFF), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassNeonCyanRing:
+            return .init(backdrop: [Color(hex: 0x0D3636), Color(hex: 0x031717)],
+                         blooms: [(Color(hex: 0x00FFFF), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x33CCFF), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassNeonYellow:
+            return .init(backdrop: [Color(hex: 0x36320D), Color(hex: 0x171503)],
+                         blooms: [(Color(hex: 0xFFFF00), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xFFCC00), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassNeonYellowRing:
+            return .init(backdrop: [Color(hex: 0x36320D), Color(hex: 0x171503)],
+                         blooms: [(Color(hex: 0xFFFF00), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xFFCC00), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassNeonOrange:
+            return .init(backdrop: [Color(hex: 0x36250D), Color(hex: 0x170F03)],
+                         blooms: [(Color(hex: 0xFF6600), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xFF9900), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassNeonOrangeRing:
+            return .init(backdrop: [Color(hex: 0x36250D), Color(hex: 0x170F03)],
+                         blooms: [(Color(hex: 0xFF6600), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xFF9900), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassNeonPurple:
+            return .init(backdrop: [Color(hex: 0x210D36), Color(hex: 0x0D0317)],
+                         blooms: [(Color(hex: 0x9900FF), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xCC33FF), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassNeonPurpleRing:
+            return .init(backdrop: [Color(hex: 0x210D36), Color(hex: 0x0D0317)],
+                         blooms: [(Color(hex: 0x9900FF), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xCC33FF), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassNeonGreen:
+            return .init(backdrop: [Color(hex: 0x0D3611), Color(hex: 0x031705)],
+                         blooms: [(Color(hex: 0x00FF66), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x33FF99), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassNeonGreenRing:
+            return .init(backdrop: [Color(hex: 0x0D3611), Color(hex: 0x031705)],
+                         blooms: [(Color(hex: 0x00FF66), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x33FF99), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassNeonPink:
+            return .init(backdrop: [Color(hex: 0x360D25), Color(hex: 0x17030F)],
+                         blooms: [(Color(hex: 0xFF3399), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xFF66B2), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassNeonPinkRing:
+            return .init(backdrop: [Color(hex: 0x360D25), Color(hex: 0x17030F)],
+                         blooms: [(Color(hex: 0xFF3399), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xFF66B2), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        // Mono glass family — mono
+        case .glassMonoObsidian:
+            return .init(backdrop: [Color(hex: 0x0A0A0A), Color(hex: 0x050505)],
+                         blooms: [(Color(hex: 0x333333), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x555555), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassMonoObsidianRing:
+            return .init(backdrop: [Color(hex: 0x0A0A0A), Color(hex: 0x050505)],
+                         blooms: [(Color(hex: 0x333333), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x555555), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassMonoCharcoal:
+            return .init(backdrop: [Color(hex: 0x1A1A1A), Color(hex: 0x0F0F0F)],
+                         blooms: [(Color(hex: 0x555555), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x777777), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassMonoCharcoalRing:
+            return .init(backdrop: [Color(hex: 0x1A1A1A), Color(hex: 0x0F0F0F)],
+                         blooms: [(Color(hex: 0x555555), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x777777), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassMonoSlate:
+            return .init(backdrop: [Color(hex: 0x2A2A2A), Color(hex: 0x1A1A1A)],
+                         blooms: [(Color(hex: 0x777777), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x999999), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassMonoSlateRing:
+            return .init(backdrop: [Color(hex: 0x2A2A2A), Color(hex: 0x1A1A1A)],
+                         blooms: [(Color(hex: 0x777777), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x999999), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassMonoSilver:
+            return .init(backdrop: [Color(hex: 0x3A3A3A), Color(hex: 0x252525)],
+                         blooms: [(Color(hex: 0xAAAAAA), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xCCCCCC), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassMonoSilverRing:
+            return .init(backdrop: [Color(hex: 0x3A3A3A), Color(hex: 0x252525)],
+                         blooms: [(Color(hex: 0xAAAAAA), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xCCCCCC), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassMonoIvory:
+            return .init(backdrop: [Color(hex: 0x4A4A4A), Color(hex: 0x353535)],
+                         blooms: [(Color(hex: 0xDDDDDD), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xF0F0F0), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassMonoIvoryRing:
+            return .init(backdrop: [Color(hex: 0x4A4A4A), Color(hex: 0x353535)],
+                         blooms: [(Color(hex: 0xDDDDDD), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xF0F0F0), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassMonoFog:
+            return .init(backdrop: [Color(hex: 0x3A3A3A), Color(hex: 0x252525)],
+                         blooms: [(Color(hex: 0xBBBBBB), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xDDDDDD), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassMonoFogRing:
+            return .init(backdrop: [Color(hex: 0x3A3A3A), Color(hex: 0x252525)],
+                         blooms: [(Color(hex: 0xBBBBBB), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xDDDDDD), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassMonoInk:
+            return .init(backdrop: [Color(hex: 0x050505), Color(hex: 0x020202)],
+                         blooms: [(Color(hex: 0x222222), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x444444), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassMonoInkRing:
+            return .init(backdrop: [Color(hex: 0x050505), Color(hex: 0x020202)],
+                         blooms: [(Color(hex: 0x222222), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0x444444), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
+        case .glassMonoMist:
+            return .init(backdrop: [Color(hex: 0x2A2A2A), Color(hex: 0x1A1A1A)],
+                         blooms: [(Color(hex: 0x888888), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xAAAAAA), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         ink: .white, coreShadow: 0)
+        case .glassMonoMistRing:
+            return .init(backdrop: [Color(hex: 0x2A2A2A), Color(hex: 0x1A1A1A)],
+                         blooms: [(Color(hex: 0x888888), UnitPoint(x: 0.32, y: 0.34), 0.54),
+                                  (Color(hex: 0xAAAAAA), UnitPoint(x: 0.70, y: 0.66), 0.46)],
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
+                         ink: .white, coreShadow: 0)
         }
     }
 }
@@ -640,19 +983,27 @@ struct IconView: View {
             .frame(width: S * 0.82, height: S * 0.82)
             .shadow(color: .black.opacity(0.22), radius: S * 0.010, x: 0, y: S * 0.006)
         case .flatGlassRing:
-            // flat frosted-glass ring tile; thick stroke becomes the glass ring, slit etched in center
+            // flat frosted-glass "disk on top of disk" ring-mold; slit etched on the inner disk
             ZStack {
+                // outer frosted glass disc
                 Circle()
-                    .strokeBorder(Color.white.opacity(0.001), lineWidth: S * 0.16)
+                    .fill(.white.opacity(0.001))
                     .glassEffect(.regular, in: .circle)
+                // inner frosted glass disc on top, slightly smaller
+                Circle()
+                    .fill(.white.opacity(0.001))
+                    .glassEffect(.regular, in: .circle)
+                    .frame(width: S * 0.66, height: S * 0.66)
                     .overlay(alignment: .center) {
                         EnclaveSlit(open: 1)
                             .stroke(Color.white.opacity(0.65),
                                     style: StrokeStyle(lineWidth: S * 0.06,
                                                         lineCap: .round, lineJoin: .round))
                     }
-                GlassRing(innerRadius: S * 0.33, outerRadius: S * 0.41)
-                    .stroke(Color.white.opacity(0.55), lineWidth: S * 0.004)
+                // rims for both disks
+                Circle().strokeBorder(Color.white.opacity(0.55), lineWidth: S * 0.004)
+                Circle().strokeBorder(Color.white.opacity(0.55), lineWidth: S * 0.004)
+                    .frame(width: S * 0.66, height: S * 0.66)
             }
             .frame(width: S * 0.82, height: S * 0.82)
             .shadow(color: .black.opacity(0.22), radius: S * 0.010, x: 0, y: S * 0.006)
