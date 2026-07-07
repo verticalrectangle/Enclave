@@ -63,20 +63,18 @@ struct SessionsView: View {
     // MARK: - rows
 
     private func sessionRow(_ s: JoinedSession) -> some View {
-        Button { app.connect(link: s.link, name: UIDevice.current.name) } label: {
-            JoinedCard(session: s, t: t, state: app.state[s.id] ?? SessionState())
-                .opacity(app.live[s.id] == true ? 1 : 0.6)
-                .frame(maxWidth: sessionCardMaxWidth)
-                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .contextMenu {
-                    ColorMenu(session: s, t: t)
-                    Button(role: .destructive) { app.remove(s) } label: { Label("Remove", systemImage: "trash") }
-                }
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.plain)
-        .padding(.vertical, 8)
+        JoinedCard(session: s, t: t, state: app.state[s.id] ?? SessionState())
+            .opacity(app.live[s.id] == true ? 1 : 0.6)
+            .frame(maxWidth: sessionCardMaxWidth)
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .onTapGesture { app.connect(link: s.link, name: UIDevice.current.name) }
+            .contextMenu {
+                ColorMenu(session: s, t: t)
+                Button(role: .destructive) { app.remove(s) } label: { Label("Remove", systemImage: "trash") }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
     }
 
     // MARK: - pair button
