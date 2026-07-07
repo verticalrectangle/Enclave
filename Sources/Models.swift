@@ -110,6 +110,7 @@ struct SessionState: Equatable {
     var working: Bool = false
     var phase: String = "offline"
     var title: String = ""
+    var mode: String? = nil        // host mode from the last mode_change (e.g. "plan")
     var lastSeen: Date?
 }
 

@@ -159,6 +159,9 @@ struct EditorView: View {
                 .padding(.horizontal, 12).padding(.vertical, 7)
                 .glass(t, 16, flat: true)
             }
+            if vm.currentMode == "plan" && !vm.isRunning {
+                planReviewBanner
+            }
             if showPalette {
                 SlashPalette(t: t, commands: vm.commands) { name in vm.runCommand(name); showPalette = false }
             }
@@ -180,6 +183,17 @@ struct EditorView: View {
         }
         .padding(.horizontal, 13).padding(.vertical, 9)
         .glass(t, 16, panel: true)
+    }
+
+    private var planReviewBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "checklist").font(.system(size: 13)).foregroundStyle(t.cAdvisor)
+            Text("Plan ready — approve it on the box. Enclave can't approve plans yet.")
+                .font(.term(13)).foregroundStyle(t.cAdvisor).lineLimit(2)
+            Spacer()
+        }
+        .padding(.horizontal, 12).padding(.vertical, 7)
+        .glass(t, 16, flat: true)
     }
 
     private var readOnlyBar: some View {

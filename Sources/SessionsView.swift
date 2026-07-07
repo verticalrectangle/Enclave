@@ -208,15 +208,19 @@ struct JoinedCard: View {
     let state: SessionState
 
     private var isLive: Bool { state.live }
+    private var isPlanReview: Bool { state.mode == "plan" && !state.working && state.live }
     private var isReplying: Bool { state.live && state.working }
     private var statusText: String {
-        isReplying ? "REPLYING" : (isLive ? "LIVE" : "OFFLINE")
+        if isPlanReview { return "PLAN REVIEW" }
+        return isReplying ? "REPLYING" : (isLive ? "LIVE" : "OFFLINE")
     }
     private var statusColor: Color {
-        isReplying ? t.accent : (isLive ? t.cOk : t.txtGhost)
+        if isPlanReview { return t.cAdvisor }
+        return isReplying ? t.accent : (isLive ? t.cOk : t.txtGhost)
     }
     private var statusIcon: String {
-        isReplying ? "circle.dashed" : (isLive ? "circle.fill" : "network.slash")
+        if isPlanReview { return "checklist" }
+        return isReplying ? "circle.dashed" : (isLive ? "circle.fill" : "network.slash")
     }
     private var iconColor: Color { session.tagColor.color(in: t) }
 

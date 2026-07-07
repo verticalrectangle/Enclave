@@ -308,6 +308,7 @@ final class GuestClient: ObservableObject {
     @Published private(set) var plan: [PlanPhase] = []   // latest `todo` tool plan (phases → tasks)
     @Published private(set) var goal: GoalInfo?          // goal mode's active objective
     @Published private(set) var activity: String?        // transient host activity (retrying / compacting / fallback)
+    @Published private(set) var currentMode: String?    // active mode from the last mode_change entry (e.g. "plan"); nil = none
     @Published private(set) var notices: [NoticeItem] = [] // host toasts (rate limits, tool failures)
     private var planKey = ""                              // UserDefaults key for this room's cached plan
     private var terminated = false                          // host deliberately ended (bye / room-closed / pre-welcome error) — never reconnect
@@ -501,6 +502,7 @@ final class GuestClient: ObservableObject {
             progressMap = [:]; progress = []
             enhanced = false; canSendImages = false; nativeVision = false; visionModelAvailable = false; commands = []
             endedReason = nil
+            currentMode = nil
             if let header = f["header"] as? [String: Any] {
                 title = header["title"] as? String ?? header["id"] as? String ?? title
                 sessionId = header["id"] as? String ?? sessionId
@@ -513,6 +515,10 @@ final class GuestClient: ObservableObject {
             // exercised in the simulator without a live omp host.
             if let mode = ProcessInfo.processInfo.environment["ENCLAVE_ASK_MOCK"], !mode.isEmpty {
                 uiRequest = mockAsk(mode); rebuild()
+            }
+            // Dev seam: force plan-review state for QA.
+            if let m = ProcessInfo.processInfo.environment["ENCLAVE_PLAN_MOCK"], !m.isEmpty {
+                currentMode = "plan"; working = false; rebuild()
             }
         case "snapshot-chunk":
             if let list = f["entries"] as? [[String: Any]] { entries.append(contentsOf: list) }
@@ -728,6 +734,7 @@ final class GuestClient: ObservableObject {
         phase = "ended"
         endedReason = reason
         working = false
+        currentMode = nil
         socket.close()
         rebuild()
     }
@@ -737,6 +744,8 @@ final class GuestClient: ObservableObject {
     private struct StaticRebuild {
         let turns: [UITurn]
         let plan: [PlanPhase]
+        let mode: String?
+        let sawModeChange: Bool
     }
 
     private func rebuild() {
@@ -747,13 +756,19 @@ final class GuestClient: ObservableObject {
 
         let staticTurns: [UITurn]
         let latestPlan: [PlanPhase]?
+        let latestMode: String?
+        let sawModeChange: Bool
         if entriesUnchanged {
             staticTurns = cachedStaticTurns
             latestPlan = nil
+            latestMode = nil
+            sawModeChange = false
         } else {
             let result = buildStaticTurns()
             staticTurns = result.turns
             latestPlan = result.plan
+            latestMode = result.mode
+            sawModeChange = result.sawModeChange
             cachedStaticTurns = staticTurns
             cachedEntryCount = entries.count
         }
@@ -778,6 +793,11 @@ final class GuestClient: ObservableObject {
             Self.savePlan(plan, planKey)
         }
 
+        // Adopt mode only when a real mode_change entry is observed this rebuild;
+        // a snapshot mid-stream leaves sawModeChange false, so we don't wipe the
+        // active mode while reconnecting. A mode_change to "none" clears it.
+        if sawModeChange, currentMode != latestMode { currentMode = latestMode }
+
         onChange?()
     }
 
@@ -785,6 +805,8 @@ final class GuestClient: ObservableObject {
         var out: [UITurn] = []
         var toolIndex: [String: Int] = [:]
         var latestPlan: [PlanPhase] = []
+        var latestMode: String? = nil
+        var sawModeChange = false
 
         // Confirm a fresh QR pair at the top of the scroll, once the host welcomes us.
         if welcomed && justPaired { out.append(UITurn.sys("paired", "SUCCESSFULLY PAIRED THIS SESSION")) }
@@ -844,6 +866,8 @@ final class GuestClient: ObservableObject {
                 out.append(UITurn.sys("compaction", (entry["shortSummary"] as? String ?? "COMPACTING CONTEXT").uppercased()))
             case "mode_change":
                 let mode = entry["mode"] as? String ?? "none"
+                sawModeChange = true
+                latestMode = (mode == "none") ? nil : mode
                 out.append(UITurn.sys("mode", mode == "none" ? "EXITED MODE" : "ENTERED \(mode.uppercased()) MODE"))
             case "branch_summary":
                 out.append(UITurn.sys("rewind", "REWOUND · " + (entry["summary"] as? String ?? "earlier work")))
@@ -866,7 +890,7 @@ final class GuestClient: ObservableObject {
             }
         }
 
-        return StaticRebuild(turns: out, plan: latestPlan)
+        return StaticRebuild(turns: out, plan: latestPlan, mode: latestMode, sawModeChange: sawModeChange)
     }
 
     private func buildTail(staticTurns: [UITurn]) -> [UITurn] {

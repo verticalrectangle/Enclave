@@ -27,6 +27,7 @@ final class SessionVM: ObservableObject {
     var imagePossible: Bool { live.canSendImages || live.visionModelAvailable }
     var commands: [EnclaveCommand] { live.commands }
     var plan: [PlanPhase] { live.plan }
+    var currentMode: String? { live.currentMode }
     var goal: GoalInfo? { live.goal }
     var models: [ModelOption] { live.models }
     var thinkingLevels: [String] { live.thinkingLevels }

@@ -25,6 +25,8 @@ final class AppModel: ObservableObject {
     private var lastDoneTurnCount = -1
     private var clients: [String: GuestClient] = [:]    // background watchers
     private var watchers: [String: AnyCancellable] = [:]  // objectWillChange subscriptions
+    private var welcomeTimeouts: [String: Task<Void, Never>] = [:]
+    private let welcomeGrace: TimeInterval = 8
 
     init() {
         if let data = UserDefaults.standard.data(forKey: key),
@@ -63,7 +65,7 @@ final class AppModel: ObservableObject {
         // dead room connects but never welcomes — don't overwrite the saved room's
         // title/badge with the client's pre-welcome defaults, and don't call it live.
         if let link = connectedLink, let i = sessions.firstIndex(where: { $0.link == link }) {
-            live[sessions[i].id] = c.welcomed
+            if c.welcomed { live[sessions[i].id] = true }
             if c.welcomed {
                 if !c.title.isEmpty, c.title != "live session", sessions[i].title != c.title { sessions[i].title = c.title; save() }
                 if c.enhanced, sessions[i].enhanced != true { sessions[i].enhanced = true; save() }
@@ -192,10 +194,32 @@ final class AppModel: ObservableObject {
     }
 
     private func stopWatcher(for id: String) {
+        cancelWelcomeTimeout(for: id)
         clients[id]?.close()
         clients[id] = nil
         watchers[id]?.cancel()
         watchers[id] = nil
+    }
+
+    private func scheduleWelcomeTimeout(for id: String, client: GuestClient) {
+        // Only background watchers can strand in "connected, never welcomed". The
+        // active editor client shows its own connecting state and is excluded.
+        guard clients[id] === client else { return }
+        cancelWelcomeTimeout(for: id)
+        welcomeTimeouts[id] = Task { [weak self, weak client] in
+            try? await Task.sleep(nanoseconds: UInt64((self?.welcomeGrace ?? 8) * 1_000_000_000))
+            guard !Task.isCancelled, let self = self else { return }
+            await MainActor.run {
+                guard let c = client, !c.welcomed, c.phase != "ended" else { return }
+                // Still no welcome after the grace window — treat host as unreachable.
+                self.live[id] = false
+                self.state[id] = SessionState()
+                self.stopWatcher(for: id)
+            }
+        }
+    }
+    private func cancelWelcomeTimeout(for id: String) {
+        welcomeTimeouts[id]?.cancel(); welcomeTimeouts[id] = nil
     }
 
     private func syncWatchers() {
@@ -209,27 +233,51 @@ final class AppModel: ObservableObject {
     private func updateState(_ id: String, from client: GuestClient) {
         let welcomed = client.welcomed
         let phase = client.phase
-        state[id] = SessionState(
-            live: welcomed,
-            working: client.working,
-            phase: phase,
-            title: client.title,
-            lastSeen: Date()
-        )
-        live[id] = welcomed
 
-        if welcomed, !client.title.isEmpty, client.title != "live session",
-           let i = sessions.firstIndex(where: { $0.id == id }),
-           sessions[i].title != client.title {
-            sessions[i].title = client.title
-            save()
-        }
-
+        // Definitive offline: host ended / reconnect exhausted.
         if phase == "ended" {
+            cancelWelcomeTimeout(for: id)
             live[id] = false
             state[id] = SessionState()
             stopWatcher(for: id)
+            return
         }
+
+        // Confirmed live: full snapshot, upgrade liveness.
+        if welcomed {
+            cancelWelcomeTimeout(for: id)
+            state[id] = SessionState(
+                live: true, working: client.working, phase: phase,
+                title: client.title, mode: client.currentMode, lastSeen: Date())
+            live[id] = true
+            if !client.title.isEmpty, client.title != "live session",
+               let i = sessions.firstIndex(where: { $0.id == id }),
+               sessions[i].title != client.title {
+                sessions[i].title = client.title; save()
+            }
+            return
+        }
+
+        // Pre-welcome handshake (connecting/reconnecting/waiting). A fresh client
+        // swapping in must NOT flip a live host offline. Preserve prior liveness;
+        // refresh only the volatile fields. The grace timeout (Step 5) bounds how
+        // long we'll stay optimistic if a welcome never arrives.
+        if var s = state[id] {
+            s.working = client.working
+            s.phase = phase
+            if let m = client.currentMode { s.mode = m }
+            s.lastSeen = Date()
+            state[id] = s
+            // live[id] intentionally untouched — sticky.
+        } else {
+            // No prior state for this session (never confirmed live): show neutral
+            // pre-welcome state. live[id] stays nil/false — a genuinely unknown host
+            // is not "live" until it welcomes.
+            state[id] = SessionState(
+                live: false, working: client.working, phase: phase,
+                title: client.title, mode: client.currentMode, lastSeen: Date())
+        }
+        scheduleWelcomeTimeout(for: id, client: client)
     }
 
     private func statusURL(for link: String) -> URL? {
