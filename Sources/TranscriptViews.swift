@@ -10,7 +10,9 @@ struct TurnRow: View {
     let turn: UITurn
     let t: Theme
     var onImage: (String) -> Void = { _ in }
-    var onAnswer: ((UITurn, Int) -> Void)? = nil
+    var onAnswer: ((UITurn, Int) -> Void)? = nil       // select option index
+    var onAnswerText: ((UITurn, String) -> Void)? = nil // editor text
+    var onCancelAsk: ((UITurn) -> Void)? = nil
     var onRewind: (() -> Void)? = nil
     var onEdit: (() -> Void)? = nil
 
@@ -35,7 +37,10 @@ struct TurnRow: View {
         case .tool: ToolCard(turn: turn, t: t, onImage: onImage)
         case .advisor: advisorNote
         case .sys: SysChip(turn: turn, t: t)
-        case .ask: AskCard(turn: turn, t: t, onSubmit: onAnswer.map { cb in { idx in cb(turn, idx) } })
+        case .ask: AskCard(turn: turn, t: t,
+            onSubmit: onAnswer.map { cb in { idx in cb(turn, idx) } },
+            onSubmitText: onAnswerText.map { cb in { text in cb(turn, text) } },
+            onCancel: onCancelAsk.map { cb in { cb(turn) } })
         case .thinking: ThinkingBlock(turn: turn, t: t)
         }
     }
@@ -249,41 +254,150 @@ struct SysChip: View {
     }
 }
 
+/// Host ask (omp `ask` tool) — the questionnaire surface. Mirrors the PlanStrip
+/// glass aesthetic: an accent panel with a labl header, the prompt, optional help
+/// text, and option rows (radio ◉/○ or checkbox ☑/☐) or a free-form editor.
+/// Selects submit on tap — the host re-prompts multi-select with refreshed
+/// checkedIndices; the editor sends typed text. Read-only guests get a static
+/// preview (no controls). The recommended option (initialIndex) wears an etched
+/// "RECOMMENDED" chip, matching omp's TUI ` (Recommended)` cue.
 struct AskCard: View {
     let turn: UITurn; let t: Theme
-    /// Live host asks pass a submit callback; mock asks leave it nil (display only).
-    var onSubmit: ((Int) -> Void)? = nil
-    @State private var chosen = 0
-    @State private var sent = false
+    var onSubmit: ((Int) -> Void)? = nil        // select: tapped option index
+    var onSubmitText: ((String) -> Void)? = nil // editor: typed text
+    var onCancel: (() -> Void)? = nil
+    @State private var sent = false              // select: locked after a tap
+    @State private var picked: Int? = nil        // select: which option was tapped
+    @State private var text: String = ""         // editor
+    @State private var textSent = false
+
+    private var isEditor: Bool { turn.askKind == "editor" }
+    private var isCheckbox: Bool { turn.selectionMarker == "checkbox" }
+    private var interactive: Bool { onSubmit != nil || onSubmitText != nil }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 7) {
-                Image(systemName: "questionmark.bubble").font(.system(size: 14)).foregroundStyle(t.accent)
-                Text("ASK").font(.labl(9)).foregroundStyle(t.accent)
+        VStack(alignment: .leading, spacing: 10) {
+            header
+            if !turn.helpText.isEmpty {
+                Text(turn.helpText).font(.bodyF(12)).foregroundStyle(t.txtMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if isEditor { editor } else { options }
+            if interactive { actions }
+        }
+        .padding(12)
+        .glass(t, 16, active: true)
+        .onChange(of: turn) { _ in
+            // Checkbox asks re-prompt with a fresh turn; reset the submit lock so the
+            // user can keep toggling options until the host finishes the ask.
+            sent = false; picked = nil; textSent = false
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 7) {
+            Image(systemName: isEditor ? "text.cursor" : "questionmark.bubble")
+                .font(.system(size: 14)).foregroundStyle(t.accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(isEditor ? "INPUT REQUESTED" : "ASK")
+                    .font(.labl(9)).tracking(1.4).foregroundStyle(t.accent)
                 Text(turn.question).font(.bodyF(13.5)).foregroundStyle(t.txt)
-            }
-            ForEach(Array(turn.options.enumerated()), id: \.offset) { i, opt in
-                Button { chosen = i } label: {
-                    HStack {
-                        Text(opt).font(.bodyF(13)).foregroundStyle(chosen == i ? t.accent : t.txtBody)
-                        Spacer()
-                        if chosen == i { Image(systemName: "checkmark").font(.system(size: 13)).foregroundStyle(t.accent) }
-                    }
-                    .padding(.horizontal, 11).padding(.vertical, 9)
-                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(chosen == i ? t.accentLine : t.line))
-                    .background(chosen == i ? t.glassFill2 : .clear)
-                }
-            }
-            if let onSubmit, !turn.options.isEmpty {
-                Button { sent = true; onSubmit(chosen) } label: {
-                    HStack(spacing: 6) { Image(systemName: sent ? "checkmark" : "paperplane.fill"); Text(sent ? "SENT" : "SEND").font(.labl(10.5)) }
-                        .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 10)
-                        .glass(t, 16, active: true)
-                }.disabled(sent).press()
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(11)
-        .glass(t, 16, active: true)
+    }
+
+    private var options: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            ForEach(Array(turn.options.enumerated()), id: \.offset) { i, label in
+                optionRow(i, label)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func optionRow(_ i: Int, _ label: String) -> some View {
+        let checked = turn.checkedIndices.contains(i)
+        let chosen = picked == i
+        let marked = checked || chosen
+        let recommended = turn.initialIndex == i
+        Button { tap(i) } label: {
+            HStack(alignment: .top, spacing: 9) {
+                Image(systemName: marker(marked))
+                    .font(.system(size: 13))
+                    .foregroundStyle(marked ? t.accent : t.txtGhost)
+                    .frame(width: 15)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(label).font(.bodyF(13)).foregroundStyle(marked ? t.accent : t.txtBody)
+                        if recommended {
+                            Text("RECOMMENDED").font(.labl(8)).tracking(1).foregroundStyle(t.accent)
+                                .padding(.horizontal, 5).padding(.vertical, 1)
+                                .etched(t, tint: t.accent.opacity(0.10))
+                        }
+                    }
+                    if i < turn.optionDescriptions.count, !turn.optionDescriptions[i].isEmpty {
+                        Text(turn.optionDescriptions[i]).font(.bodyF(12)).foregroundStyle(t.txtMuted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 11).padding(.vertical, 9)
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(marked ? t.accentLine : t.line))
+            .background(marked ? t.glassFill2 : .clear)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!interactive || sent)
+    }
+
+    private func marker(_ on: Bool) -> String {
+        isCheckbox ? (on ? "checkmark.square.fill" : "square") : (on ? "largecircle.fill" : "circle")
+    }
+
+    private var editor: some View {
+        TextEditor(text: $text)
+            .font(.bodyF(13.5)).foregroundStyle(t.txt)
+            .scrollContentBackground(.hidden)
+            .frame(minHeight: 84, maxHeight: 160)
+            .padding(.horizontal, 11).padding(.vertical, 7)
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(t.line))
+            .background(t.glassFill2)
+            .onAppear { if text.isEmpty && !turn.prefill.isEmpty { text = turn.prefill } }
+    }
+
+    @ViewBuilder
+    private var actions: some View {
+        HStack(spacing: 10) {
+            if isEditor {
+                Button { textSent = true; onSubmitText?(text) } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: textSent ? "checkmark" : "paperplane.fill")
+                        Text(textSent ? "SENT" : "SEND").font(.labl(10.5))
+                    }
+                    .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 10)
+                    .glass(t, 16, active: true)
+                }
+                .disabled(textSent || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .press()
+            }
+            if onCancel != nil {
+                Button { onCancel?() } label: {
+                    Text("SKIP").font(.labl(10.5)).foregroundStyle(t.txtMuted)
+                        .frame(maxWidth: .infinity).padding(.vertical, 10)
+                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(t.line))
+                }
+                .disabled(sent || textSent)
+                .press()
+            }
+        }
+    }
+
+    private func tap(_ i: Int) {
+        guard !sent else { return }
+        sent = true; picked = i
+        onSubmit?(i)
     }
 }
 

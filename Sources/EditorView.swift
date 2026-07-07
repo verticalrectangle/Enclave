@@ -111,6 +111,8 @@ struct EditorView: View {
                         TurnRow(turn: turn, t: t,
                                 onImage: { viewer = $0 },
                                 onAnswer: vm.readOnly ? nil : { vm.answer($0, $1) },
+                                onAnswerText: vm.readOnly ? nil : { vm.answer($0, $1) },
+                                onCancelAsk: vm.readOnly ? nil : { vm.skip($0) },
                                 onRewind: (vm.enhanced && !vm.isRunning && turn.type == .user) ? { vm.rewind(to: turn) } : nil,
                                 onEdit: (vm.enhanced && !vm.isRunning && turn.type == .user) ? { draft = turn.text; vm.rewindBefore(to: turn) } : nil)
                             .id(turn.id)

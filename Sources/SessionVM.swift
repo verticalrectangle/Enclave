@@ -75,10 +75,20 @@ final class SessionVM: ObservableObject {
 
     func stop() { guard !readOnly else { return }; live.sendAbort() }
 
-    /// Answer a live host ask (select). `idx` is the chosen option.
+    /// Answer a live host ask (select). `idx` is the chosen option — send its label.
     func answer(_ turn: UITurn, _ idx: Int) {
         guard !readOnly, let reqId = turn.reqId, idx < turn.options.count else { return }
         live.answer(reqId: reqId, value: turn.options[idx])
+    }
+    /// Answer a live host ask (editor) — send the typed text.
+    func answer(_ turn: UITurn, _ text: String) {
+        guard !readOnly, let reqId = turn.reqId else { return }
+        live.answer(reqId: reqId, value: text)
+    }
+    /// Cancel/skip a live host ask — sends no value (the host aborts the ask).
+    func skip(_ turn: UITurn) {
+        guard !readOnly, let reqId = turn.reqId else { return }
+        live.answer(reqId: reqId, value: nil)
     }
 
     // /enclave control actions (no-ops without the plugin).

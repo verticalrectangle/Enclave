@@ -421,8 +421,10 @@ final class GuestClient: ObservableObject {
         rebuild()
     }
     func sendAbort() { socket.send(["t": "abort"]) }
-    func answer(reqId: Int, value: String) {
-        socket.send(["t": "ui-response", "reqId": reqId, "value": value])
+    func answer(reqId: Int, value: String?) {
+        var frame: [String: Any] = ["t": "ui-response", "reqId": reqId]
+        if let value { frame["value"] = value }
+        socket.send(frame)
         if (uiRequest?["reqId"] as? Int) == reqId { uiRequest = nil; rebuild() }
     }
 
@@ -507,6 +509,11 @@ final class GuestClient: ObservableObject {
             applyAgents(f["agents"] as? [[String: Any]])
             readOnly = f["readOnly"] as? Bool ?? readOnly
             phase = (f["entryCount"] as? Int ?? 0) == 0 ? "live" : "waiting"
+            // Dev seam: inject a canned ui-request so the questionnaire surface can be
+            // exercised in the simulator without a live omp host.
+            if let mode = ProcessInfo.processInfo.environment["ENCLAVE_ASK_MOCK"], !mode.isEmpty {
+                uiRequest = mockAsk(mode); rebuild()
+            }
         case "snapshot-chunk":
             if let list = f["entries"] as? [[String: Any]] { entries.append(contentsOf: list) }
             if f["final"] as? Bool == true { phase = "live" }
@@ -906,16 +913,28 @@ final class GuestClient: ObservableObject {
             }
         }
 
-        // Pending host ask.
+        // Pending host ask (omp `ask`): select (radio/checkbox) or free-form editor.
         if let req = uiRequest, let reqId = req["reqId"] as? Int {
             var turn = UITurn(id: "ui-\(reqId)", type: .ask)
             turn.reqId = reqId
+            turn.askKind = req["kind"] as? String ?? "select"
             turn.question = req["title"] as? String ?? "The host is asking…"
-            turn.options = (req["options"] as? [Any] ?? []).map { opt in
-                if let s = opt as? String { return s }
-                if let d = opt as? [String: Any], let l = d["label"] as? String { return l }
-                return "option"
+            turn.helpText = req["helpText"] as? String ?? ""
+            turn.prefill = req["prefill"] as? String ?? ""
+            turn.initialIndex = req["initialIndex"] as? Int
+            turn.selectionMarker = req["selectionMarker"] as? String ?? "radio"
+            turn.checkedIndices = (req["checkedIndices"] as? [Any] ?? [])
+                .compactMap { ($0 as? Int) ?? ($0 as? NSNumber)?.intValue }
+            var labels: [String] = []; var descs: [String] = []
+            for opt in (req["options"] as? [Any] ?? []) {
+                if let s = opt as? String { labels.append(s); descs.append("") }
+                else if let d = opt as? [String: Any] {
+                    labels.append(d["label"] as? String ?? "option")
+                    descs.append(d["description"] as? String ?? "")
+                } else { labels.append("option"); descs.append("") }
             }
+            turn.options = labels
+            turn.optionDescriptions = descs
             out.append(turn)
         }
 
@@ -1038,6 +1057,48 @@ final class GuestClient: ObservableObject {
         if let data = try? JSONSerialization.data(withJSONObject: dict),
            let s = String(data: data, encoding: .utf8), s.count <= 60 { return s }
         return nil
+    }
+
+    /// Canned ui-request for simulator QA. No-op when the env var is unset.
+    private func mockAsk(_ mode: String) -> [String: Any] {
+        switch mode {
+        case "checkbox":
+            return [
+                "reqId": 1,
+                "kind": "select",
+                "title": "Which files should the refactor touch?",
+                "helpText": "Tap an option to toggle it; the host will re-prompt with the updated selection.",
+                "selectionMarker": "checkbox",
+                "checkedIndices": [1],
+                "options": [
+                    ["label": "src/engine.ts", "description": "Core wire protocol types"],
+                    ["label": "src/client.ts", "description": "Guest client socket handling"],
+                    ["label": "src/views.tsx", "description": "React transcript rendering"]
+                ]
+            ]
+        case "editor":
+            return [
+                "reqId": 1,
+                "kind": "editor",
+                "title": "What should the next task cover?",
+                "helpText": "Type your answer and tap SEND, or SKIP to leave it blank.",
+                "prefill": "Investigate the failing build on CI."
+            ]
+        default:
+            return [
+                "reqId": 1,
+                "kind": "select",
+                "title": "Pick a deployment strategy",
+                "helpText": "Choose the option that best fits the current release.",
+                "selectionMarker": "radio",
+                "initialIndex": 1,
+                "options": [
+                    "Canary",
+                    ["label": "Rolling", "description": "Gradual rollout with automatic rollback on error."],
+                    "Blue/green"
+                ]
+            ]
+        }
     }
 
     private func isAssistantMessage(_ entry: [String: Any]) -> Bool {

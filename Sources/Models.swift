@@ -28,6 +28,13 @@ struct UITurn: Identifiable, Equatable {
     var options: [String] = []
     var pending = false
     var reqId: Int? = nil          // live host ui-request id (answered via GuestClient)
+    var askKind: String = "select"            // "select" | "editor"
+    var selectionMarker: String = "radio"     // "radio" | "checkbox"
+    var checkedIndices: [Int] = []
+    var initialIndex: Int? = nil              // recommended option (0-based)
+    var optionDescriptions: [String] = []     // parallel to options; "" when absent
+    var helpText: String = ""
+    var prefill: String = ""
 
     // thinking
     var thoughtSeconds: Int? = nil // set once thinking finishes → "thought for Xs"
@@ -36,6 +43,10 @@ struct UITurn: Identifiable, Equatable {
     static func == (a: UITurn, b: UITurn) -> Bool {
         a.id == b.id && a.text == b.text && a.streaming == b.streaming && a.pending == b.pending
             && a.meta == b.meta && a.lines == b.lines && a.thoughtSeconds == b.thoughtSeconds && a.model == b.model
+            && a.askKind == b.askKind && a.question == b.question && a.options == b.options
+            && a.optionDescriptions == b.optionDescriptions && a.selectionMarker == b.selectionMarker
+            && a.checkedIndices == b.checkedIndices && a.helpText == b.helpText && a.prefill == b.prefill
+            && a.initialIndex == b.initialIndex
     }
 
     static func sys(_ kind: String, _ text: String) -> UITurn {
