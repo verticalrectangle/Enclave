@@ -13,33 +13,39 @@ struct SessionsView: View {
     private var t: Theme { theme.t }
 
     var body: some View {
-        List {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("ENCLAVE").font(.labl(10)).tracking(2.5).foregroundStyle(t.txtLabel).padding(.bottom, 2)
-                Text("Sessions").font(.disp(40)).foregroundStyle(t.txt).textCase(.uppercase)
-            }.plainRow(top: 6, bottom: 10)
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("ENCLAVE").font(.labl(10)).tracking(2.5).foregroundStyle(t.txtLabel).padding(.bottom, 2)
+                    Text("Sessions").font(.disp(40)).foregroundStyle(t.txt).textCase(.uppercase)
+                }
+                .padding(.top, 6).padding(.bottom, 10)
+                .padding(.horizontal, 16)
 
-            if app.sessions.isEmpty {
-                emptyState.plainRow(leading: 0, trailing: 0)
-            } else {
-                ForEach(liveSessions) { s in sessionRow(s) }
-                if !offlineSessions.isEmpty {
-                    Section {
-                        ForEach(offlineSessions) { s in sessionRow(s) }
-                    } header: {
-                        HStack(spacing: 8) {
-                            Text("OFFLINE").font(.labl(9)).tracking(2).foregroundStyle(t.txtMuted)
-                            Rectangle().frame(height: 0.5).foregroundStyle(t.lineFaint)
-                            Button { withAnimation { app.clearOffline() } } label: {
-                                Text("CLEAR ALL").font(.labl(9)).tracking(1).foregroundStyle(t.cAdvisor)
+                if app.sessions.isEmpty {
+                    emptyState
+                        .padding(.horizontal, 0)
+                } else {
+                    ForEach(liveSessions) { s in sessionRow(s) }
+                    if !offlineSessions.isEmpty {
+                        VStack(alignment: .leading, spacing: 0) {
+                            HStack(spacing: 8) {
+                                Text("OFFLINE").font(.labl(9)).tracking(2).foregroundStyle(t.txtMuted)
+                                Rectangle().frame(height: 0.5).foregroundStyle(t.lineFaint)
+                                Button { withAnimation { app.clearOffline() } } label: {
+                                    Text("CLEAR ALL").font(.labl(9)).tracking(1).foregroundStyle(t.cAdvisor)
+                                }
                             }
+                            .padding(.horizontal, 16)
+                            .padding(.top, 16).padding(.bottom, 8)
+                            ForEach(offlineSessions) { s in sessionRow(s) }
                         }
                     }
+                    pairButton
+                        .padding(.top, 10).padding(.bottom, 16)
                 }
-                pairButton.plainRow(top: 10, bottom: 16)
             }
         }
-        .listStyle(.plain)
         .background(t.bg.ignoresSafeArea())
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
@@ -61,16 +67,15 @@ struct SessionsView: View {
             JoinedCard(session: s, t: t, state: app.state[s.id] ?? SessionState())
                 .opacity(app.live[s.id] == true ? 1 : 0.6)
                 .frame(maxWidth: sessionCardMaxWidth)
+                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .contextMenu {
+                    ColorMenu(session: s, t: t)
+                    Button(role: .destructive) { app.remove(s) } label: { Label("Remove", systemImage: "trash") }
+                }
                 .frame(maxWidth: .infinity)
         }
-        .plainRow(top: 8, bottom: 8, leading: 0, trailing: 0)
-        .contextMenu {
-            ColorMenu(session: s, t: t)
-            Button(role: .destructive) { app.remove(s) } label: { Label("Remove", systemImage: "trash") }
-        }
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            Button(role: .destructive) { app.remove(s) } label: { Label("Delete", systemImage: "trash") }
-        }
+        .padding(.vertical, 8)
     }
 
     // MARK: - pair button
