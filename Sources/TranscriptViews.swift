@@ -611,7 +611,7 @@ struct ImageViewer: View {
             Rectangle().fill(.ultraThinMaterial).ignoresSafeArea().onTapGesture(perform: onClose)
             VStack(spacing: 14) {
                 GeometryReader { g in
-                    let natural = SrcImage.naturalSize(src)?.height ?? .infinity
+                    let natural = SrcImage<AnyView, AnyView>.naturalSize(src)?.height ?? .infinity
                     let cap = min(natural, g.size.height * 0.75)
                     SrcImage(src: src) { $0.resizable().scaledToFit() } placeholder: { t.line }
                         .frame(maxHeight: cap)
