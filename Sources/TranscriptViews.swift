@@ -89,15 +89,21 @@ struct TurnRow: View {
     }
 
     private var advisorNote: some View {
-        HStack(alignment: .top, spacing: 0) {
-            Rectangle().fill(t.cAdvisor).frame(width: 2)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("ADVISOR").font(.labl(9)).tracking(1).foregroundStyle(t.cAdvisor)
-                Text(inlineMarkdown(turn.text)).font(.bodyF(13.5)).foregroundStyle(t.txt)
-            }.padding(.leading, 11).padding(.vertical, 2)
-            Spacer(minLength: 0)
+        VStack(alignment: .leading, spacing: 9) {
+            ForEach(Array(markdownBlocks(turn.text).enumerated()), id: \.offset) { _, seg in
+                switch seg {
+                case .prose(let p):
+                    if !p.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(inlineMarkdown(p)).font(.bodyF(13.5)).foregroundStyle(t.txt)
+                    }
+                case .advisory(let severity, let guidance, let body):
+                    AdvisoryCard(severity: severity, guidance: guidance, advisoryBody: body, t: t)
+                case .code(let lang, let body):
+                    CodeBlock(lang: lang, code: body, t: t)
+                }
+            }
         }
-        .background(t.glassFill2)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
