@@ -905,18 +905,38 @@ final class GuestClient: ObservableObject {
                     let imagePath = isInspect ? (details?["imagePath"] as? String) : nil
                     if let idx = toolIndex[id] {
                         fillResult(&out[idx], content: msg["content"], isError: isError)
-                        if isInspect, !isError, out[idx].image == nil, let p = imagePath, !p.isEmpty, !p.hasPrefix("attachment://"), !p.hasPrefix("Image #") {
-                            if let cached = fetchedImages[p] { out[idx].image = cached }
-                            let mime = details?["mimeType"] as? String
-                            inspectImages.append((id: id, path: p, mime: mime))
+                        if isInspect, !isError, out[idx].image == nil, let p = imagePath, !p.isEmpty {
+                            if let cached = fetchedImages[p] {
+                                out[idx].image = cached
+                            } else if p.hasPrefix("attachment://") || p.hasPrefix("Image #") {
+                                for prev in out.reversed() {
+                                    if prev.type == .user, let img = prev.image {
+                                        out[idx].image = img
+                                        break
+                                    }
+                                }
+                            } else {
+                                let mime = details?["mimeType"] as? String
+                                inspectImages.append((id: id, path: p, mime: mime))
+                            }
                         }
                     } else {
                         var turn = toolTurn(id: id, name: msg["toolName"] as? String ?? "tool", args: nil, intent: nil)
                         fillResult(&turn, content: msg["content"], isError: isError)
-                        if isInspect, !isError, turn.image == nil, let p = imagePath, !p.isEmpty, !p.hasPrefix("attachment://"), !p.hasPrefix("Image #") {
-                            if let cached = fetchedImages[p] { turn.image = cached }
-                            let mime = details?["mimeType"] as? String
-                            inspectImages.append((id: id, path: p, mime: mime))
+                        if isInspect, !isError, turn.image == nil, let p = imagePath, !p.isEmpty {
+                            if let cached = fetchedImages[p] {
+                                turn.image = cached
+                            } else if p.hasPrefix("attachment://") || p.hasPrefix("Image #") {
+                                for prev in out.reversed() {
+                                    if prev.type == .user, let img = prev.image {
+                                        turn.image = img
+                                        break
+                                    }
+                                }
+                            } else {
+                                let mime = details?["mimeType"] as? String
+                                inspectImages.append((id: id, path: p, mime: mime))
+                            }
                         }
                         out.append(turn)
                     }
