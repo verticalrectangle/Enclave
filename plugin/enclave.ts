@@ -20,6 +20,8 @@
  */
 
 import { QrCode, renderQrHalfBlocks } from "./qrcode";
+import { readFileSync, statSync } from "node:fs";
+import { extname, resolve } from "node:path";
 
 const COLLAB_PROTO = 3;
 const ROOM_ID_BYTES = 16;
@@ -260,7 +262,7 @@ function buildCaps(ctx: any) {
 
 // ── control dispatch ──────────────────────────────────────────────────────────
 
-async function handleControl(ctx: any, method: string, params: any): Promise<{ ok: boolean; message?: string }> {
+async function handleControl(ctx: any, method: string, params: any): Promise<{ ok: boolean; message?: string; data?: string; mimeType?: string }> {
   try {
     switch (method) {
       case "set-model": {
@@ -288,6 +290,29 @@ async function handleControl(ctx: any, method: string, params: any): Promise<{ o
       }
       case "register-push":
         return { ok: true }; // TODO(push): persist token; APNs on asks
+      case "fetch-image": {
+        // Read a host image file and return its bytes so the guest can render it.
+        // Non-mutating: allowed for read-only guests too. Only an /enclave host
+        // runs this plugin, so this is the scope boundary for the feature.
+        const cwd = ctx.cwd ?? ctx.sessionManager?.getCwd?.() ?? ".";
+        const abs = resolve(cwd, String(params.path ?? ""));
+        const st = statSync(abs);                       // throws → caught → {ok:false}
+        const MAX = 20 * 1024 * 1024;                    // mirror inspect_image's cap
+        if (st.size > MAX) return { ok: false, message: "image too large (>20MB)" };
+        const data = readFileSync(abs);
+        const ext = extname(abs).toLowerCase();
+        const mimeMap: Record<string, string> = {
+          ".png": "image/png",
+          ".jpg": "image/jpeg",
+          ".jpeg": "image/jpeg",
+          ".gif": "image/gif",
+          ".webp": "image/webp",
+        };
+        const mime = typeof params.mimeType === "string" && params.mimeType
+          ? params.mimeType
+          : (mimeMap[ext] ?? "image/png");
+        return { ok: true, data: Buffer.from(data).toString("base64"), mimeType: mime };
+      }
       default:
         return { ok: false, message: `unknown method ${method}` };
     }

@@ -291,6 +291,9 @@ final class GuestClient: ObservableObject {
     private var reqSeq = 0
     private var pendingTranscripts: [Int: CheckedContinuation<(text: String, newSize: Int)?, Never>] = [:]
     private var pendingControl: [Int: CheckedContinuation<String?, Never>] = [:]
+    private var pendingImageFetches: [Int: CheckedContinuation<(data: String, mimeType: String)?, Never>] = [:]
+    private var fetchedImages: [String: String] = [:]     // imagePath → "data:<mime>;base64,<data>"
+    private var imageFetchAttempted: Set<String> = []     // imagePath; suppress retry storms
     private var progressMap: [String: SubagentProgress] = [:]
 
     // Replica state.
@@ -481,6 +484,22 @@ final class GuestClient: ObservableObject {
         }
     }
 
+    func fetchImage(path: String, mimeType: String?) async -> (data: String, mimeType: String)? {
+        guard enhanced else { return nil }
+        reqSeq += 1
+        let reqId = reqSeq
+        return await withCheckedContinuation { cont in
+            pendingImageFetches[reqId] = cont
+            var params: [String: Any] = ["path": path]
+            if let mimeType { params["mimeType"] = mimeType }
+            socket.send(["t": "enclave-cmd", "reqId": reqId, "method": "fetch-image", "params": params])
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 8_000_000_000)
+                if let c = self?.pendingImageFetches.removeValue(forKey: reqId) { c.resume(returning: nil) }
+            }
+        }
+    }
+
     // ── frame handling (mirrors client.ts #applyFrame) ────────────────────────
 
     private func handleOpen() {
@@ -563,6 +582,15 @@ final class GuestClient: ObservableObject {
             if let levels = f["thinking"] as? [String] { thinkingLevels = levels }
             if let cur = f["current"] as? [String: Any], let th = cur["thinking"] as? String { thinkingLevel = th }
         case "enclave-result":          // reply to a control command
+            if let reqId = f["reqId"] as? Int,
+               let cont = pendingImageFetches.removeValue(forKey: reqId) {
+                if (f["ok"] as? Bool ?? true), let data = f["data"] as? String {
+                    cont.resume(returning: (data, f["mimeType"] as? String ?? "image/png"))
+                } else {
+                    cont.resume(returning: nil)
+                }
+                break
+            }
             if let reqId = f["reqId"] as? Int, let cont = pendingControl.removeValue(forKey: reqId) {
                 cont.resume(returning: (f["ok"] as? Bool ?? true) ? nil : (f["message"] as? String ?? "failed"))
             }
@@ -746,6 +774,7 @@ final class GuestClient: ObservableObject {
         let plan: [PlanPhase]
         let mode: String?
         let sawModeChange: Bool
+        let inspectImages: [(id: String, path: String, mime: String?)]
     }
 
     private func rebuild() {
@@ -758,17 +787,20 @@ final class GuestClient: ObservableObject {
         let latestPlan: [PlanPhase]?
         let latestMode: String?
         let sawModeChange: Bool
+        let inspectImages: [(id: String, path: String, mime: String?)]
         if entriesUnchanged {
             staticTurns = cachedStaticTurns
             latestPlan = nil
             latestMode = nil
             sawModeChange = false
+            inspectImages = []
         } else {
             let result = buildStaticTurns()
             staticTurns = result.turns
             latestPlan = result.plan
             latestMode = result.mode
             sawModeChange = result.sawModeChange
+            inspectImages = result.inspectImages
             cachedStaticTurns = staticTurns
             cachedEntryCount = entries.count
         }
@@ -799,6 +831,18 @@ final class GuestClient: ObservableObject {
         if sawModeChange, currentMode != latestMode { currentMode = latestMode }
 
         onChange?()
+
+        for img in inspectImages where fetchedImages[img.path] == nil && !imageFetchAttempted.contains(img.path) {
+            imageFetchAttempted.insert(img.path)
+            Task { [weak self] in
+                guard let self else { return }
+                if let r = await self.fetchImage(path: img.path, mimeType: img.mime) {
+                    self.fetchedImages[img.path] = "data:\(r.mimeType);base64,\(r.data)"
+                    self.cachedStaticTurns = []; self.cachedEntryCount = 0
+                    self.rebuild()
+                }
+            }
+        }
     }
 
     private func buildStaticTurns() -> StaticRebuild {
@@ -807,6 +851,7 @@ final class GuestClient: ObservableObject {
         var latestPlan: [PlanPhase] = []
         var latestMode: String? = nil
         var sawModeChange = false
+        var inspectImages: [(id: String, path: String, mime: String?)] = []
 
         // Confirm a fresh QR pair at the top of the scroll, once the host welcomes us.
         if welcomed && justPaired { out.append(UITurn.sys("paired", "SUCCESSFULLY PAIRED THIS SESSION")) }
@@ -853,8 +898,16 @@ final class GuestClient: ObservableObject {
                         break
                     }
                     let isError = msg["isError"] as? Bool ?? false
+                    let isInspect = (msg["toolName"] as? String) == "inspect_image"
+                    let details = msg["details"] as? [String: Any]
+                    let imagePath = isInspect ? (details?["imagePath"] as? String) : nil
                     if let idx = toolIndex[id] {
                         fillResult(&out[idx], content: msg["content"], isError: isError)
+                        if isInspect, !isError, out[idx].image == nil, let p = imagePath, !p.isEmpty, !p.hasPrefix("attachment://"), !p.hasPrefix("Image #") {
+                            if let cached = fetchedImages[p] { out[idx].image = cached }
+                            let mime = details?["mimeType"] as? String
+                            inspectImages.append((id: id, path: p, mime: mime))
+                        }
                     } else {
                         var turn = toolTurn(id: id, name: msg["toolName"] as? String ?? "tool", args: nil, intent: nil)
                         fillResult(&turn, content: msg["content"], isError: isError)
@@ -890,7 +943,7 @@ final class GuestClient: ObservableObject {
             }
         }
 
-        return StaticRebuild(turns: out, plan: latestPlan, mode: latestMode, sawModeChange: sawModeChange)
+        return StaticRebuild(turns: out, plan: latestPlan, mode: latestMode, sawModeChange: sawModeChange, inspectImages: inspectImages)
     }
 
     private func buildTail(staticTurns: [UITurn]) -> [UITurn] {
