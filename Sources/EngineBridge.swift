@@ -994,7 +994,7 @@ final class GuestClient: ObservableObject {
                 if let l = entry["thinkingLevel"] as? String { out.append(UITurn.sys("model", "THINKING → " + l.uppercased())) }
             case "service_tier_change":
                 out.append(UITurn.sys("model", "SERVICE TIER CHANGED"))
-            case "custom_message" where ct == "system-notice":
+            case "custom_message" where (entry["customType"] as? String) == "system-notice":
                 let raw = contentString(entry["content"])
                 if !raw.isEmpty {
                     let (pre, id, agent, status, dur, summary, footer) = parseSystemNotice(raw)

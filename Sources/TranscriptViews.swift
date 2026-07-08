@@ -36,6 +36,7 @@ struct TurnRow: View {
         case .agent: agentLine
         case .tool: ToolCard(turn: turn, t: t, onImage: onImage)
         case .advisor: advisorNote
+        case .sys where turn.kind == "system-notice": SystemNoticeCard(turn: turn, t: t)
         case .sys: SysChip(turn: turn, t: t)
         case .ask: AskCard(turn: turn, t: t,
             onSubmit: onAnswer.map { cb in { idx in cb(turn, idx) } },
@@ -453,6 +454,52 @@ struct SysChip: View {
             Text(turn.text).font(.labl(9)).tracking(1.4).foregroundStyle(c)
         }
         .frame(maxWidth: .infinity, alignment: .center)
+    }
+}
+
+/// Harness background-job completion notice — a glass card showing the task name,
+/// status, optional output summary, and follow-up footer.
+struct SystemNoticeCard: View {
+    let turn: UITurn
+    let t: Theme
+
+    private var statusColor: Color {
+        let s = turn.meta.lowercased()
+        if s.contains("completed") || s.contains("success") { return t.cOk }
+        if s.contains("failed") || s.contains("error") { return t.cAdvisor }
+        return t.accent
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "gearshape.2").font(.system(size: 13)).foregroundStyle(t.accent)
+                Text(turn.head).font(.bodyF(13)).fontWeight(.semibold).foregroundStyle(t.txtBody)
+                Spacer(minLength: 0)
+                HStack(spacing: 4) {
+                    Circle().fill(statusColor).frame(width: 6, height: 6)
+                    Text(turn.meta).font(.labl(9)).tracking(0.5).foregroundStyle(t.txtMuted)
+                }
+            }
+            if !turn.caption.isEmpty {
+                Text(turn.caption).font(.bodyF(12)).foregroundStyle(t.txtMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !turn.text.isEmpty {
+                Text(turn.text).font(.term(12)).foregroundStyle(t.txtBody)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(t.bg2).clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            if !turn.lines.isEmpty {
+                ForEach(turn.lines, id: \.self) { line in
+                    Text(line).font(.bodyF(11)).foregroundStyle(t.txtMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(12)
+        .glass(t, 16, active: true)
     }
 }
 
