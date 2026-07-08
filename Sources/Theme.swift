@@ -72,6 +72,20 @@ struct Theme {
 
     var lockFg: Color { dark ? .white : Color(hex: 0x575279) }
 
+    // syntax coloring (Rosé Pine dark / dawn) — the palette the whole theme draws from
+    var synKeyword:  Color { dark ? Color(hex: 0xC4A7E7) : Color(hex: 0x907AA9) }  // iris — control/keywords
+    var synString:   Color { dark ? Color(hex: 0x9CCFD8) : Color(hex: 0x56949F) }  // foam — strings
+    var synNumber:   Color { dark ? Color(hex: 0xF6C177) : Color(hex: 0xEA9D34) }  // gold — numbers/consts
+    var synType:     Color { dark ? Color(hex: 0x3E8FB0) : Color(hex: 0x286983) }  // pine — types/builtins
+    var synFunction: Color { dark ? Color(hex: 0xEBBCBA) : Color(hex: 0xD7827E) }  // rose — function calls
+    var synComment:  Color { dark ? Color(hex: 0x6E6A86) : Color(hex: 0x9893A5) }  // muted — comments
+    // diff line tints
+    var diffAdd:   Color { dark ? Color(hex: 0x86E0B0) : Color(hex: 0x56949F) }
+    var diffAddBG: Color { diffAdd.opacity(0.14) }
+    var diffDel:   Color { dark ? Color(hex: 0xE8919F) : Color(hex: 0xB4637A) }
+    var diffDelBG: Color { diffDel.opacity(0.14) }
+    // ==highlight== marker background (accent-tinted, switches with mode)
+    var highlightBG: Color { accent.opacity(dark ? 0.22 : 0.18) }
     // radii — sharp-ish
     let r: CGFloat = 16
     let rLg: CGFloat = 22

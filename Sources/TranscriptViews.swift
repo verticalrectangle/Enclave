@@ -55,7 +55,7 @@ struct TurnRow: View {
                 }
             }
             if !turn.text.isEmpty {
-                Text(turn.text).font(.bodyF(14)).foregroundStyle(t.txt)
+                Text(inlineMarkdown(turn.text, t: t)).font(.bodyF(14)).foregroundStyle(t.txt)
                     .padding(.horizontal, 13).padding(.vertical, 10)
                     .glass(t, 16)
                     .contextMenu { messageMenu }
@@ -72,7 +72,7 @@ struct TurnRow: View {
                 switch seg {
                 case .prose(let p):
                     if !p.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text(inlineMarkdown(p)).font(.serif(16)).foregroundStyle(t.txt)
+                        Text(inlineMarkdown(p, t: t)).font(.serif(16)).foregroundStyle(t.txt)
                             .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
                     }
                 case .advisory(let severity, let guidance, let body):
@@ -94,7 +94,7 @@ struct TurnRow: View {
                 switch seg {
                 case .prose(let p):
                     if !p.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text(inlineMarkdown(p)).font(.bodyF(13.5)).foregroundStyle(t.txt)
+                        Text(inlineMarkdown(p, t: t)).font(.bodyF(13.5)).foregroundStyle(t.txt)
                     }
                 case .advisory(let severity, let guidance, let body):
                     AdvisoryCard(severity: severity, guidance: guidance, advisoryBody: body, t: t)
@@ -241,7 +241,8 @@ struct CodeBlock: View {
             .padding(.horizontal, 12).padding(.vertical, 7)
             .overlay(Rectangle().frame(height: 0.5).foregroundStyle(t.lineFaint), alignment: .bottom)
             ScrollView(.horizontal, showsIndicators: false) {
-                Text(code).font(.system(size: 12.5, design: .monospaced)).foregroundStyle(t.txtBody)
+                Text(SyntaxHighlighter.attributed(code, language: lang, theme: t))
+                    .font(.system(size: 12.5, design: .monospaced))
                     .textSelection(.enabled).padding(12)
             }
             .frame(maxWidth: .infinity)
@@ -287,7 +288,7 @@ struct AdvisoryCard: View {
                     Text(guidance).font(.bodyF(12)).foregroundStyle(t.txtMuted).fixedSize(horizontal: false, vertical: true)
                 }
                 if !advisoryBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text(inlineMarkdown(advisoryBody)).font(.serif(16)).foregroundStyle(t.txt).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                    Text(inlineMarkdown(advisoryBody, t: t)).font(.serif(16)).foregroundStyle(t.txt).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                 }
             }
             .padding(.leading, 11).padding(.trailing, 12).padding(.vertical, 8)
@@ -299,16 +300,48 @@ struct AdvisoryCard: View {
     }
 }
 
-/// Inline-only markdown so bold/code/italics render but line breaks are kept and
-/// partial (still-streaming) text never fails to show.
-func inlineMarkdown(_ s: String) -> AttributedString {
-    (try? AttributedString(
+/// Inline markdown (bold/code/italics, line breaks preserved, streaming-safe)
+/// plus two enrichments layered on after parsing:
+///   1. bare URLs → clickable .link (accent color + underline), via NSDataDetector.
+///      Markdown links [t](url) / <url> are already attributed and skipped.
+///   2. ==highlight== spans → themed background tint; the == markers are stripped.
+func inlineMarkdown(_ s: String, t: Theme) -> AttributedString {
+    let mut = NSMutableAttributedString(
         markdown: s,
         options: AttributedString.MarkdownParsingOptions(
             interpretedSyntax: .inlineOnlyPreservingWhitespace,
-            failurePolicy: .returnPartiallyParsedIfPossible)))
-    ?? AttributedString(s)
+            failurePolicy: .returnPartiallyParsedIfPossible),
+        base: nil)
+    if mut.string.isEmpty && !s.isEmpty { return AttributedString(s) }
+
+    let body = NSRange(location: 0, length: mut.length)
+
+    // 1 — bare URLs not already turned into a markdown link.
+    inlineLinkDetector.enumerateMatches(in: mut.string, options: [], range: body) { result, _, _ in
+        guard let result, let url = result.url, result.range.location != NSNotFound else { return }
+        if mut.attribute(.link, at: result.range.location, effectiveRange: nil) != nil { return }
+        mut.addAttribute(.link, value: url, range: result.range)
+        mut.addAttribute(.foregroundColor, value: UIColor(t.accent), range: result.range)
+        mut.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: result.range)
+    }
+
+    // 2 — ==highlight== spans (strip markers back-to-front so earlier ranges hold).
+    var spans: [NSRange] = []
+    inlineHighlightRegex.enumerateMatches(in: mut.string, options: [], range: body) { result, _, _ in
+        guard let result, result.numberOfRanges >= 2, result.range(at: 1).location != NSNotFound else { return }
+        spans.append(result.range)
+    }
+    for full in spans.sorted(by: { $0.location > $1.location }) {
+        mut.addAttribute(.backgroundColor, value: UIColor(t.highlightBG), range: full)
+        mut.deleteCharacters(in: NSRange(location: full.location + full.length - 2, length: 2))
+        mut.deleteCharacters(in: NSRange(location: full.location, length: 2))
+    }
+
+    return AttributedString(mut)
 }
+
+private let inlineLinkDetector: NSDataDetector = { try! NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) }()
+private let inlineHighlightRegex: NSRegularExpression = { try! NSRegularExpression(pattern: #"==([^=\n]+)=="#) }()
 
 // MARK: - Tool card
 
@@ -592,7 +625,7 @@ struct ThinkingBlock: View {
             }
             .buttonStyle(.plain)
             if expanded {
-                Text(inlineMarkdown(turn.text)).font(.serif(13.5)).italic().foregroundStyle(t.txtMuted)
+                Text(inlineMarkdown(turn.text, t: t)).font(.serif(13.5)).italic().foregroundStyle(t.txtMuted)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 8).padding(.leading, 2)
