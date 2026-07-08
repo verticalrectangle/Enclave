@@ -5,7 +5,6 @@
 //  unknown languages get a light comment/string/number pass.
 
 import Foundation
-import UIKit
 import SwiftUI
 
 enum SyntaxToken { case comment, string, number, keyword, type, function, attribute }
@@ -30,26 +29,29 @@ enum SyntaxHighlighter {
     // MARK: - tokenized coloring
 
     private static func color(_ code: String, spec: LangSpec, theme t: Theme) -> AttributedString {
-        let base: [NSAttributedString.Key: Any] = [
-            .foregroundColor: UIColor(t.txtBody),
-            .font: UIFont.monospacedSystemFont(ofSize: 12.5, weight: .regular)
-        ]
-        let mut = NSMutableAttributedString(string: code, attributes: base)
+        var attr = AttributedString(code)
+        attr.foregroundColor = t.txtBody                  // base (SwiftUI scope) — whole string
         let regex = compiled(spec)
         let full = NSRange(location: 0, length: (code as NSString).length)
+        var hits: [(Range<String.Index>, SyntaxToken)] = []
         regex.enumerateMatches(in: code, options: [], range: full) { m, _, _ in
             guard let m else { return }
             for i in 0..<spec.rules.count {
                 let r = m.range(at: i + 1)
-                if r.location != NSNotFound {                       // first matching group wins
-                    mut.addAttribute(.foregroundColor,
-                                     value: UIColor(tokenColor(spec.rules[i].0, t)),
-                                     range: r)
+                if r.location != NSNotFound, let sr = Range(r, in: code) {   // first matching group wins
+                    hits.append((sr, spec.rules[i].0))
                     break
                 }
             }
         }
-        return AttributedString(mut)
+        for (sr, kind) in hits {
+            let startOff = code.distance(from: code.startIndex, to: sr.lowerBound)
+            let len = code.distance(from: sr.lowerBound, to: sr.upperBound)
+            let lo = attr.index(attr.startIndex, offsetByCharacters: startOff)
+            let hi = attr.index(lo, offsetByCharacters: len)
+            attr[lo..<hi].foregroundColor = tokenColor(kind, t)
+        }
+        return attr
     }
 
     private static func tokenColor(_ kind: SyntaxToken, _ t: Theme) -> Color {
@@ -67,25 +69,22 @@ enum SyntaxHighlighter {
     // MARK: - diff (+/- line tinting)
 
     private static func diff(_ code: String, theme t: Theme) -> AttributedString {
-        let mut = NSMutableAttributedString()
+        var result = AttributedString()
         let lines = code.components(separatedBy: "\n")
         for (i, body) in lines.enumerated() {
             var fg: Color = t.txtBody
-            var bg: UIColor?
-            if body.hasPrefix("+") && !body.hasPrefix("+++") { fg = t.diffAdd;   bg = UIColor(t.diffAddBG) }
-            else if body.hasPrefix("-") && !body.hasPrefix("---") { fg = t.diffDel; bg = UIColor(t.diffDelBG) }
+            var bg: Color?
+            if body.hasPrefix("+") && !body.hasPrefix("+++") { fg = t.diffAdd;   bg = t.diffAddBG }
+            else if body.hasPrefix("-") && !body.hasPrefix("---") { fg = t.diffDel; bg = t.diffDelBG }
             else if body.hasPrefix("@@") { fg = t.synKeyword }
             else if body.hasPrefix("diff ") || body.hasPrefix("Index:") { fg = t.txtMuted }
-            let attrs: [NSAttributedString.Key: Any] = [
-                .foregroundColor: UIColor(fg),
-                .font: UIFont.monospacedSystemFont(ofSize: 12.5, weight: .regular)
-            ]
-            let lineRange = NSRange(location: mut.length, length: (body as NSString).length)
-            mut.append(NSAttributedString(string: body, attributes: attrs))
-            if let bg { mut.addAttribute(.backgroundColor, value: bg, range: lineRange) }
-            if i != lines.count - 1 { mut.append(NSAttributedString(string: "\n", attributes: attrs)) }
+            var line = AttributedString(body)
+            line.foregroundColor = fg
+            if let bg { line.backgroundColor = bg }
+            result += line
+            if i != lines.count - 1 { result += AttributedString("\n") }
         }
-        return AttributedString(mut)
+        return result
     }
 
     // MARK: - compiled-regex cache
