@@ -518,7 +518,7 @@ final class GuestClient: ObservableObject {
                 note = "type=\((f["event"] as? [String: Any])?["type"] as? String ?? "?")"
             case "state":
                 let streaming = (f["state"] as? [String: Any])?["isStreaming"]
-                note = "isStreaming=\(streaming as? Bool ?? "?")"
+                note = "isStreaming=\((streaming as? Bool).map { $0 ? "true" : "false" } ?? "?")"
             case "entry":
                 let entry = f["entry"] as? [String: Any]
                 note = "type=\(entry?["type"] as? String ?? "?") role=\(entry?["role"] as? String ?? "?")"
