@@ -10,7 +10,9 @@ VARIANTS="${VARIANTS:-aurora-bloom aurora-dusk aurora-veil aurora-prism \
           frost-clear pearl-opal liquid-aero \
           gold-amber copper-bloom copper-veil copper-lens copper-ember copper-gold \
           copper-rose copper-prism copper-deep copper-glow copper-frost \
-          prism-caustic gem-cut}"
+          prism-caustic gem-cut \
+          aero-aqua aero-aurora aero-moonlit aero-bloom aero-twilight \
+          rpd-foam rpd-iris rpd-gold rpd-rose rpd-love}"
 QA_PICKS="${QA_PICKS:-copper-lens copper-prism copper-bloom copper-veil copper-glow}"
 
 xcodegen generate
