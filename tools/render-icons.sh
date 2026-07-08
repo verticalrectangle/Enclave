@@ -17,8 +17,8 @@ scp "$MAC:$REMOTE/out/enclave-icon-"*"-1024.png" Marketing/icon/
 echo ">> flatten to opaque sRGB + build grid"
 python3 tools/grid.py
 
-echo ">> swap app icon (frost-clear baseline)"
-cp Marketing/icon/enclave-icon-frost-clear-1024.png \
+echo ">> swap app icon (ui-muted-dark baseline)"
+cp Marketing/icon/enclave-icon-ui-muted-dark-1024.png \
    Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
 
 echo "done. inspect Marketing/icon/icon-grid.png"
