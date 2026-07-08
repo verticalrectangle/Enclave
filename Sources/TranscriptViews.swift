@@ -306,12 +306,14 @@ struct AdvisoryCard: View {
 ///      Markdown links [t](url) / <url> are already attributed and skipped.
 ///   2. ==highlight== spans → themed background tint; the == markers are stripped.
 func inlineMarkdown(_ s: String, t: Theme) -> AttributedString {
-    let mut = NSMutableAttributedString(
+    guard let parsed = try? NSAttributedString(
         markdown: s,
-        options: AttributedString.MarkdownParsingOptions(
+        options: NSAttributedString.MarkdownParsingOptions(
             interpretedSyntax: .inlineOnlyPreservingWhitespace,
             failurePolicy: .returnPartiallyParsedIfPossible),
-        base: nil)
+        baseURL: nil)
+    else { return AttributedString(s) }
+    let mut = NSMutableAttributedString(attributedString: parsed)
     if mut.string.isEmpty && !s.isEmpty { return AttributedString(s) }
 
     let body = NSRange(location: 0, length: mut.length)
@@ -319,10 +321,10 @@ func inlineMarkdown(_ s: String, t: Theme) -> AttributedString {
     // 1 — bare URLs not already turned into a markdown link.
     inlineLinkDetector.enumerateMatches(in: mut.string, options: [], range: body) { result, _, _ in
         guard let result, let url = result.url, result.range.location != NSNotFound else { return }
-        if mut.attribute(.link, at: result.range.location, effectiveRange: nil) != nil { return }
-        mut.addAttribute(.link, value: url, range: result.range)
-        mut.addAttribute(.foregroundColor, value: UIColor(t.accent), range: result.range)
-        mut.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: result.range)
+        if mut.attribute(NSAttributedString.Key.link, at: result.range.location, effectiveRange: nil) != nil { return }
+        mut.addAttribute(NSAttributedString.Key.link, value: url, range: result.range)
+        mut.addAttribute(NSAttributedString.Key.foregroundColor, value: UIColor(t.accent), range: result.range)
+        mut.addAttribute(NSAttributedString.Key.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: result.range)
     }
 
     // 2 — ==highlight== spans (strip markers back-to-front so earlier ranges hold).
@@ -332,7 +334,7 @@ func inlineMarkdown(_ s: String, t: Theme) -> AttributedString {
         spans.append(result.range)
     }
     for full in spans.sorted(by: { $0.location > $1.location }) {
-        mut.addAttribute(.backgroundColor, value: UIColor(t.highlightBG), range: full)
+        mut.addAttribute(NSAttributedString.Key.backgroundColor, value: UIColor(t.highlightBG), range: full)
         mut.deleteCharacters(in: NSRange(location: full.location + full.length - 2, length: 2))
         mut.deleteCharacters(in: NSRange(location: full.location, length: 2))
     }
