@@ -241,9 +241,8 @@ struct CodeBlock: View {
             .padding(.horizontal, 12).padding(.vertical, 7)
             .overlay(Rectangle().frame(height: 0.5).foregroundStyle(t.lineFaint), alignment: .bottom)
             ScrollView(.horizontal, showsIndicators: false) {
-                Text(SyntaxHighlighter.attributed(code, language: lang, theme: t))
-                    .font(.system(size: 12.5, design: .monospaced))
-                    .textSelection(.enabled).padding(12)
+                CodeTextView(attributedText: SyntaxHighlighter.attributed(code, language: lang, theme: t))
+                    .padding(12)
             }
             .frame(maxWidth: .infinity)
         }
