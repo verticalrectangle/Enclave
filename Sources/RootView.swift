@@ -312,6 +312,7 @@ struct RootView: View {
     @EnvironmentObject var app: AppModel
     @Environment(\.colorScheme) private var colorScheme
     @State private var showPair = ProcessInfo.processInfo.environment["ENCLAVE_SHOW_PAIR"] == "1"
+    @State private var searchText = ""
     private var t: Theme { theme.t }
 
     var body: some View {
@@ -321,16 +322,14 @@ struct RootView: View {
                     Tab("Sessions", systemImage: "square.stack.3d.up", value: 0) {
                         SessionsView(showPair: $showPair)
                     }
-                    Tab("Activity", systemImage: "waveform.path.ecg", value: 1) {
-                        ActivityView()
-                    }
-                    Tab("Trust", systemImage: "checkmark.shield", value: 2) {
-                        TrustView()
-                    }
-                    Tab("Search", systemImage: "magnifyingglass", value: 3, role: .search) {
-                        SearchView()
+                    Tab("Search", systemImage: "magnifyingglass", role: .search) {
+                        NavigationStack {
+                            SearchView(query: $searchText)
+                        }
                     }
                 }
+                .searchable(text: $searchText, placement: .automatic, prompt: "Search sessions")
+                .tabBarMinimizeBehavior(.minimizeOnScroll)
             }
             .background(t.bg.ignoresSafeArea())
             .toolbar {

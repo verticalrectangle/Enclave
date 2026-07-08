@@ -113,7 +113,7 @@ struct SearchView: View {
     @EnvironmentObject var theme: ThemeStore
     @EnvironmentObject var app: AppModel
     @FocusState private var focused: Bool
-    @State private var query = ""
+    @Binding var query: String
     private var t: Theme { theme.t }
 
     private var results: [JoinedSession] {
