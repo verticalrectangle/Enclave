@@ -605,24 +605,55 @@ struct ThinkingBlock: View {
 struct ImageViewer: View {
     @EnvironmentObject var theme: ThemeStore
     let src: String; let label: String; let onClose: () -> Void
+    @State private var shareURL: URL? = nil
     private var t: Theme { theme.t }
+
+    private func prepareShareURL() {
+        guard shareURL == nil,
+              let ui = SrcImage<AnyView, AnyView>.decode(src),
+              let data = ui.pngData() else { return }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".png")
+        do {
+            try data.write(to: url)
+            shareURL = url
+        } catch {
+            shareURL = nil
+        }
+    }
+
     var body: some View {
         ZStack {
             Rectangle().fill(.ultraThinMaterial).ignoresSafeArea().onTapGesture(perform: onClose)
-            VStack(spacing: 14) {
-                GeometryReader { g in
-                    let natural = SrcImage<AnyView, AnyView>.naturalSize(src)?.height ?? .infinity
-                    let cap = min(natural, g.size.height * 0.75)
-                    SrcImage(src: src) { $0.resizable().scaledToFit() } placeholder: { t.line }
-                        .frame(maxHeight: cap)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(t.lineStrong))
-                }
-                .frame(maxHeight: 480)
+
+            SrcImage(src: src) { $0.resizable().scaledToFit() } placeholder: { t.line }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(22)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(t.lineStrong))
+
+            VStack(spacing: 6) {
                 Text(label).font(.term(14)).foregroundStyle(t.lockFg)
                 Text("TAP ANYWHERE TO CLOSE").font(.labl(9)).foregroundStyle(t.lockFg.opacity(0.5))
-            }.padding(22)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            .glass(t, 16, flat: true)
+            .frame(maxHeight: .infinity, alignment: .bottom)
+            .padding(.bottom, 34)
+
+            if let url = shareURL {
+                ShareLink(item: url) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(t.txt)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.glass)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .padding(22)
+            }
         }
+        .onAppear(perform: prepareShareURL)
     }
 }
 
