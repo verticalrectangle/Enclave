@@ -665,9 +665,11 @@ final class GuestClient: ObservableObject {
         guard let e, let type = e["type"] as? String else { return }
         switch type {
         case "message_start", "message_update":
-            if let m = e["message"] as? [String: Any], m["role"] as? String == "assistant" { stream = m; streamDone = false; measureThinking(m) }
+            let m = (e["message"] as? [String: Any]) ?? e
+            if m["role"] as? String == "assistant" { stream = m; streamDone = false; measureThinking(m) }
         case "message_end":
-            if let m = e["message"] as? [String: Any], m["role"] as? String == "assistant" { stream = m; streamDone = true; measureThinking(m) }
+            let m = (e["message"] as? [String: Any]) ?? e
+            if m["role"] as? String == "assistant" { stream = m; streamDone = true; measureThinking(m) }
         case "tool_execution_start", "tool_execution_update":
             if let id = e["toolCallId"] as? String {
                 activeTools.removeAll { $0.id == id }
@@ -720,7 +722,7 @@ final class GuestClient: ObservableObject {
     /// when the answer text starts — that span is what "thought for Xs" reports.
     private func measureThinking(_ m: [String: Any]) {
         let blocks = m["content"] as? [[String: Any]] ?? []
-        let hasThinking = blocks.contains { ($0["type"] as? String == "thinking" || $0["type"] as? String == "redactedThinking") && !(($0["thinking"] as? String ?? "").isEmpty) }
+        let hasThinking = blocks.contains { thinkingContent(from: $0) != nil }
         // Thinking ends when the model starts acting — a text answer OR a tool call.
         let hasAction = blocks.contains {
             let ty = $0["type"] as? String
@@ -732,7 +734,22 @@ final class GuestClient: ObservableObject {
 
     private func entryHasThinking(_ e: [String: Any]) -> Bool {
         guard let msg = e["message"] as? [String: Any], let blocks = msg["content"] as? [[String: Any]] else { return false }
-        return blocks.contains { $0["type"] as? String == "thinking" || $0["type"] as? String == "redactedThinking" }
+        return blocks.contains { thinkingContent(from: $0) != nil }
+    }
+
+    // MARK: - thinking block helpers
+
+    private func isThinkingBlock(_ b: [String: Any]) -> Bool {
+        switch b["type"] as? String {
+        case "thinking", "redactedThinking", "reasoning": return true
+        default: return false
+        }
+    }
+
+    private func thinkingContent(from b: [String: Any]) -> String? {
+        guard isThinkingBlock(b) else { return nil }
+        let text = b["thinking"] as? String ?? b["text"] as? String ?? b["data"] as? String ?? b["content"] as? String ?? b["reasoning"] as? String
+        return text?.isEmpty == false ? text : nil
     }
 
     private func applyState(_ s: [String: Any]?) {
@@ -882,9 +899,10 @@ final class GuestClient: ObservableObject {
                             let id = block["id"] as? String ?? "\(eid)#\(i)"
                             out.append(toolTurn(id: id, name: name, args: block["arguments"], intent: block["intent"] as? String))
                             toolIndex[id] = out.count - 1
-                        case "thinking", "redactedThinking":
-                            let think = block["thinking"] as? String ?? block["text"] as? String ?? ""
-                            if !think.isEmpty { out.append(thinkingTurn(id: "\(eid)#\(i)", text: think, seconds: thoughtForEntry[eid], model: msgModel)) }
+                        case "thinking", "redactedThinking", "reasoning":
+                            if let think = thinkingContent(from: block) {
+                                out.append(thinkingTurn(id: "\(eid)#\(i)", text: think, seconds: thoughtForEntry[eid], model: msgModel))
+                            }
                         default: break
                         }
                     }
@@ -1004,10 +1022,7 @@ final class GuestClient: ObservableObject {
         // Streaming assistant ghost, until its entry lands.
         if let s = stream {
             let blocks = s["content"] as? [[String: Any]] ?? []
-            let thinking = blocks.compactMap { b -> String? in
-                let ty = b["type"] as? String
-                return (ty == "thinking" || ty == "redactedThinking") ? b["thinking"] as? String : nil
-            }.joined(separator: "\n")
+            let thinking = blocks.compactMap { thinkingContent(from: $0) }.joined(separator: "\n")
             if !thinking.isEmpty { out.append(thinkingTurn(id: "stream-think", text: thinking, seconds: nil)) }
             let text = blocks.compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }.joined(separator: "\n")
             if !text.isEmpty {
