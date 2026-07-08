@@ -19,3 +19,6 @@ __pycache__/
 # Vendored upstream reference — the oh-my-pi monorepo the app is a client for.
 # Not part of the Enclave app; keep it out of this repo.
 oh-my-pi-main/
+
+# Local machine-specific remote build script
+build-mac.sh
