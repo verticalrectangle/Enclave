@@ -351,10 +351,10 @@ func inlineMarkdown(_ s: String, t: Theme) -> AttributedString {
         mut.deleteCharacters(in: NSRange(location: full.location, length: 2))
     }
 
-    // 3 — inline `code` spans → themed foreground color
+    // 3 — inline `code` spans → themed background tint (foregroundColor is dropped by Text's .foregroundStyle)
     mut.enumerateAttribute(.inlinePresentationIntent, in: body, options: []) { value, range, _ in
         guard let intent = value as? InlinePresentationIntent, intent.contains(.code) else { return }
-        mut.addAttribute(.foregroundColor, value: UIColor(t.accent), range: range)
+        mut.addAttribute(.backgroundColor, value: UIColor(t.accent.opacity(0.14)), range: range)
     }
 
     return AttributedString(mut)
