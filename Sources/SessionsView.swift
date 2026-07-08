@@ -10,6 +10,7 @@ struct SessionsView: View {
     @EnvironmentObject var theme: ThemeStore
     @EnvironmentObject var app: AppModel
     @Binding var showPair: Bool
+    @Binding var query: String
     private var t: Theme { theme.t }
 
     var body: some View {
@@ -54,10 +55,17 @@ struct SessionsView: View {
     // MARK: - derived lists
 
     private var liveSessions: [JoinedSession] {
-        app.sessions.filter { app.live[$0.id] == true }.sorted { $0.savedAt > $1.savedAt }
+        app.sessions.filter {
+            app.live[$0.id] == true && matchesQuery($0)
+        }.sorted { $0.savedAt > $1.savedAt }
     }
     private var offlineSessions: [JoinedSession] {
-        app.sessions.filter { app.live[$0.id] != true }.sorted { $0.savedAt > $1.savedAt }
+        app.sessions.filter {
+            app.live[$0.id] != true && matchesQuery($0)
+        }.sorted { $0.savedAt > $1.savedAt }
+    }
+    private func matchesQuery(_ s: JoinedSession) -> Bool {
+        query.isEmpty || s.title.localizedCaseInsensitiveContains(query) || s.relay.localizedCaseInsensitiveContains(query)
     }
 
     // MARK: - rows

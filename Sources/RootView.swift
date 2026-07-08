@@ -317,62 +317,52 @@ struct RootView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                TabView(selection: $app.tab) {
-                    Tab("Sessions", systemImage: "square.stack.3d.up", value: 0) {
-                        SessionsView(showPair: $showPair)
-                    }
-                    Tab("Search", systemImage: "magnifyingglass", role: .search) {
-                        NavigationStack {
-                            SearchView(query: $searchText)
+            SessionsView(showPair: $showPair, query: $searchText)
+                .background(t.bg.ignoresSafeArea())
+                .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search sessions")
+                .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+                .toolbarBackground(.visible, for: .navigationBar)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { app.tab = 0 } label: {
+                            LogoMark(t: t, size: 18, color: t.txt)
+                                .frame(width: 38, height: 38)
                         }
+                        .press()
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { theme.toggle() } label: {
+                            Image(systemName: theme.effective == .dark ? "sun.max" : "moon")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(t.txt)
+                                .frame(width: 38, height: 38)
+                        }
+                        .press()
                     }
                 }
-                .searchable(text: $searchText, placement: .automatic, prompt: "Search sessions")
-                .tabBarMinimizeBehavior(.minimizeOnScroll)
-            }
-            .background(t.bg.ignoresSafeArea())
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { app.tab = 0 } label: {
-                        LogoMark(t: t, size: 18, color: t.txt)
-                            .frame(width: 38, height: 38)
-                    }
-                    .press()
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { theme.toggle() } label: {
-                        Image(systemName: theme.effective == .dark ? "sun.max" : "moon")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(t.txt)
-                            .frame(width: 38, height: 38)
-                    }
-                    .press()
-                }
-            }
-            // Native push: tapping a session (→ showEditor) slides the editor in from
-            // the right; Leave / back-swipe pops it left.
-            .navigationDestination(isPresented: $app.showEditor) {
-                if let client = app.active {
-                    EditorView(client: client)
-                        .environmentObject(theme)
-                        .navigationBarBackButtonHidden(true)
-                        .toolbar {
-                            ToolbarItem(placement: .topBarLeading) {
-                                Button { app.leave() } label: {
-                                    HStack(spacing: 5) { Image(systemName: "chevron.left"); Text("Leave") }.foregroundStyle(t.accent)
+                // Native push: tapping a session (→ showEditor) slides the editor in from
+                // the right; Leave / back-swipe pops it left.
+                .navigationDestination(isPresented: $app.showEditor) {
+                    if let client = app.active {
+                        EditorView(client: client)
+                            .environmentObject(theme)
+                            .navigationBarBackButtonHidden(true)
+                            .toolbar {
+                                ToolbarItem(placement: .topBarLeading) {
+                                    Button { app.leave() } label: {
+                                        HStack(spacing: 5) { Image(systemName: "chevron.left"); Text("Leave") }.foregroundStyle(t.accent)
+                                    }
                                 }
                             }
-                        }
-                        .onDisappear { app.leave() }   // covers the native back-swipe
+                            .onDisappear { app.leave() }   // covers the native back-swipe
+                    }
                 }
-            }
-            .navigationDestination(isPresented: $showPair) {
-                PairView(onClose: { showPair = false },
-                         onConnect: { link in showPair = false; app.connect(link: link, name: UIDevice.current.name, paired: true) })
-                    .environmentObject(theme)
-                    .toolbar(.hidden, for: .navigationBar)
-            }
+                .navigationDestination(isPresented: $showPair) {
+                    PairView(onClose: { showPair = false },
+                             onConnect: { link in showPair = false; app.connect(link: link, name: UIDevice.current.name, paired: true) })
+                        .environmentObject(theme)
+                        .toolbar(.hidden, for: .navigationBar)
+                }
         }
         .tint(t.accent)
         .onChange(of: colorScheme, initial: true) { _, new in theme.systemDark = (new == .dark) }
