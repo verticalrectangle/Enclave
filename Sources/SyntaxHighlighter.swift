@@ -10,7 +10,7 @@ import SwiftUI
 
 enum SyntaxToken { case comment, string, number, keyword, type, function, attribute }
 
-private struct LangSpec {
+fileprivate struct LangSpec {
     /// (kind, regex fragment). Order = match priority (comments & strings first).
     let rules: [(SyntaxToken, String)]
     var signature: String { rules.map { $0.1 }.joined(separator: "|") }
