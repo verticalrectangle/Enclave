@@ -5,6 +5,7 @@
 //  unknown languages get a light comment/string/number pass.
 
 import Foundation
+import UIKit
 import SwiftUI
 
 enum SyntaxToken { case comment, string, number, keyword, type, function, attribute }
@@ -20,7 +21,7 @@ enum SyntaxHighlighter {
 
     // MARK: - public
 
-    static func attributed(_ code: String, language rawLang: String, theme t: Theme) -> Text {
+    static func attributed(_ code: String, language rawLang: String, theme t: Theme) -> NSAttributedString {
         let lang = rawLang.lowercased().trimmingCharacters(in: .whitespaces)
         if lang == "diff" || lang == "patch" { return diff(code, theme: t) }
         return color(code, spec: spec(for: lang), theme: t)
@@ -28,32 +29,25 @@ enum SyntaxHighlighter {
 
     // MARK: - tokenized coloring
 
-    private static func color(_ code: String, spec: LangSpec, theme t: Theme) -> Text {
+    private static func color(_ code: String, spec: LangSpec, theme t: Theme) -> NSAttributedString {
+        let base: [NSAttributedString.Key: Any] = [
+            .foregroundColor: UIColor(t.txtBody),
+            .font: UIFont.monospacedSystemFont(ofSize: 12.5, weight: .regular)
+        ]
+        let mut = NSMutableAttributedString(string: code, attributes: base)
         let regex = compiled(spec)
         let full = NSRange(location: 0, length: (code as NSString).length)
-        var spans: [(NSRange, SyntaxToken)] = []
         regex.enumerateMatches(in: code, options: [], range: full) { m, _, _ in
             guard let m else { return }
             for i in 0..<spec.rules.count {
                 let r = m.range(at: i + 1)
-                if r.location != NSNotFound { spans.append((r, spec.rules[i].0)); break }
+                if r.location != NSNotFound {
+                    mut.addAttribute(.foregroundColor, value: UIColor(tokenColor(spec.rules[i].0, t)), range: r)
+                    break
+                }
             }
         }
-        spans.sort { $0.0.location < $1.0.location }
-        let ns = code as NSString
-        var cursor = 0
-        var out: Text?
-        func add(_ slice: String, _ c: Color) {
-            let seg = Text(slice).foregroundStyle(c)
-            out = out == nil ? seg : out! + seg
-        }
-        for (r, kind) in spans {
-            if r.location > cursor { add(ns.substring(with: NSRange(location: cursor, length: r.location - cursor)), t.txtBody) }
-            add(ns.substring(with: r), tokenColor(kind, t))
-            cursor = r.location + r.length
-        }
-        if cursor < ns.length { add(ns.substring(from: cursor), t.txtBody) }
-        return out ?? Text(code).foregroundStyle(t.txtBody)
+        return NSAttributedString(attributedString: mut)
     }
 
     private static func tokenColor(_ kind: SyntaxToken, _ t: Theme) -> Color {
@@ -70,20 +64,26 @@ enum SyntaxHighlighter {
 
     // MARK: - diff (+/- line tinting)
 
-    private static func diff(_ code: String, theme t: Theme) -> Text {
+    private static func diff(_ code: String, theme t: Theme) -> NSAttributedString {
+        let mut = NSMutableAttributedString()
         let lines = code.components(separatedBy: "\n")
-        var out: Text?
         for (i, body) in lines.enumerated() {
             var fg: Color = t.txtBody
-            if body.hasPrefix("+") && !body.hasPrefix("+++") { fg = t.diffAdd }
-            else if body.hasPrefix("-") && !body.hasPrefix("---") { fg = t.diffDel }
+            var bg: UIColor?
+            if body.hasPrefix("+") && !body.hasPrefix("+++") { fg = t.diffAdd;   bg = UIColor(t.diffAddBG) }
+            else if body.hasPrefix("-") && !body.hasPrefix("---") { fg = t.diffDel; bg = UIColor(t.diffDelBG) }
             else if body.hasPrefix("@@") { fg = t.synKeyword }
             else if body.hasPrefix("diff ") || body.hasPrefix("Index:") { fg = t.txtMuted }
-            let seg = Text(body).foregroundStyle(fg)
-            out = out == nil ? seg : out! + seg
-            if i != lines.count - 1 { out = out! + Text("\n") }
+            let attrs: [NSAttributedString.Key: Any] = [
+                .foregroundColor: UIColor(fg),
+                .font: UIFont.monospacedSystemFont(ofSize: 12.5, weight: .regular)
+            ]
+            let lineRange = NSRange(location: mut.length, length: (body as NSString).length)
+            mut.append(NSAttributedString(string: body, attributes: attrs))
+            if let bg { mut.addAttribute(.backgroundColor, value: bg, range: lineRange) }
+            if i != lines.count - 1 { mut.append(NSAttributedString(string: "\n", attributes: attrs)) }
         }
-        return out ?? Text(code).foregroundStyle(t.txtBody)
+        return NSAttributedString(attributedString: mut)
     }
 
     // MARK: - compiled-regex cache
