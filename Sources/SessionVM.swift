@@ -53,14 +53,19 @@ final class SessionVM: ObservableObject {
     private func syncLive() {
         turns = live.turns
         if live.working { sawWorking = true } else if sawWorking { awaitingVision = false; sawWorking = false }
+        let waiting = turns.contains { $0.type == .ask }
+        let status = EnclaveStatus.from(phase: live.phase, working: live.working, waiting: waiting)
         let action: String
-        switch live.phase {
-        case "connecting", "waiting", "reconnecting": action = live.phase.uppercased() + "…"
-        case "ended": action = "ENDED · \(live.endedReason ?? "session closed")"
-        default:
-            action = live.activity                                        // retrying / compacting / falling back
-                ?? (awaitingVision && live.working ? "READING YOUR IMAGE VIA VISION…"
-                : (live.working ? "STREAMING" : (turns.contains { $0.type == .ask } ? "WAITING · ANSWER" : "LIVE")))
+        if let a = live.activity {                       // retrying / compacting / falling back
+            action = a
+        } else if awaitingVision && live.working {
+            action = "READING YOUR IMAGE VIA VISION…"
+        } else if status == .ended {
+            action = "Ended · \(live.endedReason ?? "session closed")"
+        } else if status == .connecting || status == .working {
+            action = status.label + "…"                  // in-progress ellipsis kept (animated feel)
+        } else {
+            action = status.label                        // Live / Needs you
         }
         session = Session(id: seed.id, repo: live.title, branch: live.readOnly ? "watch" : "control",
                           dir: live.cwd, model: live.modelName,

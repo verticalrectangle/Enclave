@@ -19,10 +19,8 @@ final class AppModel: ObservableObject {
 
     private let key = "enclave.sessions"
     private let liveActivity = LiveActivityController()
+    private let notify = NotificationPolicy()
     private var cancellable: AnyCancellable?
-    private var wasWorking = false
-    private var notifiedAsks: Set<String> = []
-    private var lastDoneTurnCount = -1
     private var clients: [String: GuestClient] = [:]    // background watchers
     private var watchers: [String: AnyCancellable] = [:]  // objectWillChange subscriptions
     private var welcomeTimeouts: [String: Task<Void, Never>] = [:]
@@ -49,7 +47,7 @@ final class AppModel: ObservableObject {
                              relay: client.relay, readOnly: client.readOnly, savedAt: Date()))
         // Drive the Live Activity + ask notifications from live frames.
         if ProcessInfo.processInfo.environment["ENCLAVE_SCREENSHOT"] != "1" { Notifier.requestAuth() }
-        wasWorking = false; lastDoneTurnCount = -1
+        notify.reset()
         cancellable = client.objectWillChange.receive(on: RunLoop.main).sink { [weak self] in self?.onClientChanged() }
         return true
     }
@@ -74,32 +72,7 @@ final class AppModel: ObservableObject {
         // Only notify while you're AWAY (locked / another app). Foreground banners
         // fired while you're watching the transcript — that's the "random" one.
         let away = UIApplication.shared.applicationState != .active
-
-        // Agent finished a turn. Fire on the working true→false edge, deduped by the
-        // turn count so a flickering state frame or a reconnect can't repeat it.
-        if wasWorking && !c.working, c.turns.count != lastDoneTurnCount {
-            lastDoneTurnCount = c.turns.count
-            if away {
-                let last = c.turns.last(where: { $0.type == .agent })?.text ?? ""
-                Notifier.post(title: c.title.isEmpty ? "session" : c.title,
-                              body: last.isEmpty ? "The agent finished." : String(last.prefix(140)),
-                              id: "done-\(c.sessionId)-\(c.turns.count)")
-            }
-        }
-        wasWorking = c.working
-
-        // A host ask is waiting on you — once per (session, reqId), never on replay.
-        if let ask = c.turns.last(where: { $0.type == .ask }), let rq = ask.reqId {
-            let key = "\(c.sessionId)-\(rq)"
-            if !notifiedAsks.contains(key) {
-                notifiedAsks.insert(key)
-                if away {
-                    Notifier.post(title: c.title.isEmpty ? "session" : c.title,
-                                  body: ask.question.isEmpty ? "The host is asking for your input." : ask.question,
-                                  id: "ask-\(rq)")
-                }
-            }
-        }
+        notify.update(c, away: away)
     }
 
     func leave() {
@@ -112,7 +85,7 @@ final class AppModel: ObservableObject {
             save()
         }
         cancellable?.cancel(); cancellable = nil
-        wasWorking = false; lastDoneTurnCount = -1
+        notify.reset()
         liveActivity.end()
         active?.close()
         active = nil

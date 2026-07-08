@@ -13,14 +13,10 @@ final class LiveActivityController {
 
     static func state(from c: GuestClient) -> EnclaveActivityAttributes.ContentState {
         let waiting = c.turns.contains { $0.type == .ask }
-        let action: String
-        switch c.phase {
-        case "connecting", "waiting", "reconnecting": action = c.phase.uppercased()
-        case "ended": action = "ENDED"
-        default: action = waiting ? "WAITING · ANSWER" : (c.working ? "STREAMING" : "LIVE")
-        }
-        return .init(title: c.title, action: action, phase: c.phase, working: c.working,
-                     waiting: waiting, tokens: c.tokensLabel, model: c.modelName)
+        let status = EnclaveStatus.from(phase: c.phase, working: c.working, waiting: waiting)
+        let prompt = c.turns.last(where: { $0.type == .ask })?.question ?? ""
+        return .init(title: c.title, action: status.label, phase: c.phase, working: c.working,
+                     waiting: waiting, tokens: c.tokensLabel, model: c.modelName, prompt: prompt)
     }
 
     /// Start (once) or update the activity to the given state.
