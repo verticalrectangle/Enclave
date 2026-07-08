@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Enclave · Notification & Island Design Study</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+:root{
+  --bg:#000; --bg2:#060606; --txt:#fff;
+  --body:rgba(255,255,255,.80); --muted:rgba(255,255,255,.58); --label:rgba(255,255,255,.40); --ghost:rgba(255,255,255,.25);
+  --line:rgba(255,255,255,.15); --lineFaint:rgba(255,255,255,.06);
+  --accent:#C8D6E5; --accentDim:rgba(200,214,229,.16); --accentLine:rgba(200,214,229,.45);
+  --glass:rgba(255,255,255,.05); --glassB:rgba(255,255,255,.16); --panel:rgba(12,12,14,.92);
+  --amber:#FFB850; --love:#E8919F; --foam:#7FD6C8; --iris:#B9A3E3;
+  --ink:#fff; --r:16px; --rLg:22px;
+  --term:'VT323',ui-monospace,Menlo,monospace;
+  --ui:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+}
+[data-theme="light"]{
+  --bg:#FAF4ED; --bg2:#FFFAF3; --txt:#575279;
+  --body:#6E6A8A; --muted:#797593; --label:#9893A5; --ghost:#B6B1C0;
+  --line:#DFDAD9; --lineFaint:#F4EDE8;
+  --accent:#EA9D34; --accentDim:rgba(234,157,52,.14); --accentLine:rgba(234,157,52,.50);
+  --glass:rgba(255,255,255,.42); --glassB:rgba(255,255,255,.75); --panel:rgba(255,251,243,.93);
+  --amber:#EA9D34; --foam:#56949F; --iris:#907AA9; --ink:#575279;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg2);color:var(--txt);font-family:var(--ui);-webkit-font-smoothing:antialiased}
+body{padding:28px 20px 80px}
+header{max-width:1180px;margin:0 auto 22px}
+.kicker{font-size:11px;letter-spacing:2.4px;text-transform:uppercase;color:var(--label);font-weight:700}
+h1{margin:6px 0 4px;font-size:30px;font-weight:900;letter-spacing:.5px;text-transform:uppercase}
+.lede{margin:0;color:var(--body);font-size:14px;max-width:70ch}
+.controls{max-width:1180px;margin:18px auto 26px;display:flex;flex-wrap:wrap;gap:18px;align-items:center;
+  background:var(--glass);border:1px solid var(--glassB);border-radius:var(--rLg);padding:12px 16px}
+.group{display:flex;align-items:center;gap:8px}
+.group > span{font-size:10px;letter-spacing:1.6px;text-transform:uppercase;color:var(--label);font-weight:700}
+.seg{display:flex;background:var(--lineFaint);border:1px solid var(--line);border-radius:11px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:12px;font-weight:700;
+  padding:6px 11px;border-radius:8px;cursor:pointer;letter-spacing:.3px}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#000}
+[data-theme="light"] .seg button[aria-pressed="true"]{color:#fff}
+main{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+.section-h{display:flex;align-items:baseline;gap:12px;margin:0 0 14px}
+.section-h h2{margin:0;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-weight:800}
+.section-h .hint{font-size:12px;color:var(--label)}
+
+/* phone */
+.stage{display:flex;gap:36px;flex-wrap:wrap;align-items:flex-start}
+.phone{width:300px;background:#000;border-radius:46px;padding:9px;position:relative;
+  box-shadow:0 1px 0 rgba(255,255,255,.08) inset,0 30px 70px -25px rgba(0,0,0,.7);
+  border:1px solid #1c1c1e}
+.screen{border-radius:38px;height:618px;overflow:hidden;position:relative;background:
+  radial-gradient(120% 60% at 50% 0%, rgba(255,255,255,.06), transparent 60%),var(--bg)}
+[data-theme="light"] .screen{background:radial-gradient(120% 60% at 50% 0%, rgba(255,255,255,.9), transparent 60%),var(--bg)}
+.clock{position:absolute;top:16px;left:0;right:0;text-align:center;font-size:15px;font-weight:600;color:var(--ink);letter-spacing:.5px}
+.bigtime{position:absolute;top:62px;left:0;right:0;text-align:center;font-size:64px;font-weight:300;color:var(--ink);letter-spacing:-1px}
+.locklabel{position:absolute;top:140px;left:0;right:0;text-align:center;font-size:12px;color:var(--muted);font-weight:600}
+/* compact island pill */
+.pill{position:absolute;top:12px;left:50%;transform:translateX(-50%);height:37px;background:#000;border-radius:20px;
+  display:flex;align-items:center;gap:0;padding:0;min-width:126px;border:1px solid rgba(255,255,255,.05)}
+.pill .lead,.pill .trail{display:flex;align-items:center}
+.pill .lead{padding-left:12px}
+.pill .trail{padding-right:12px;margin-left:auto;gap:5px}
+.pill .lens{width:0;height:0} /* camera sits as part of pill visual */
+/* expanded island */
+.island-x{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:284px;background:#000;border-radius:26px;
+  padding:10px 14px 12px;border:1px solid rgba(255,255,255,.06)}
+.ix-top{display:flex;align-items:center;justify-content:space-between;height:26px}
+.ix-top .lens{width:96px;height:30px;background:#000;border-radius:16px;margin:0 auto}
+.ix-bot{margin-top:8px}
+
+/* lock banner card */
+.lockcard{position:absolute;left:12px;right:12px;top:212px;border-radius:var(--rLg);
+  background:var(--panel);border:1px solid var(--glassB);backdrop-filter:blur(20px);padding:14px}
+
+/* shared bits */
+.row{display:flex;align-items:center;gap:8px}
+.dot{width:7px;height:7px;border-radius:50%;flex:none}
+.term{font-family:var(--term);font-size:16px;letter-spacing:.5px}
+.labl{font-size:9px;letter-spacing:1.6px;text-transform:uppercase;font-weight:700;color:var(--label)}
+.title{font-size:13px;font-weight:700;color:var(--ink)}
+.muted{color:var(--muted)}
+.ellipsis{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+
+/* compare row */
+.compare{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.card{background:var(--glass);border:1px solid var(--glassB);border-radius:var(--rLg);padding:16px}
+.card .name{font-size:11px;letter-spacing:1.6px;text-transform:uppercase;font-weight:800;color:var(--accent)}
+.card .sub{font-size:12px;color:var(--muted);margin:2px 0 14px;min-height:32px}
+.xwrap{background:#000;border-radius:26px;padding:10px 14px 12px;width:100%;border:1px solid rgba(255,255,255,.06)}
+.xtop{display:flex;align-items:center;height:26px}
+.xbot{margin-top:8px}
+
+/* notif vocabulary */
+.vocab{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.toast{border-radius:18px;background:var(--panel);border:1px solid var(--glassB);backdrop-filter:blur(20px);padding:12px 13px;display:flex;gap:11px;align-items:flex-start}
+.toast .body{min-width:0;flex:1}
+.toast .q{font-size:13.5px;color:var(--ink);line-height:1.32}
+.snippet{font-size:12.5px;color:var(--body);line-height:1.32;margin-top:3px}
+.edge{width:3px;align-self:stretch;border-radius:3px;background:var(--accent);flex:none;margin:-2px 0}
+
+svg.ring{flex:none}
+svg.ring .pulse{transform-origin:center;animation:p 1.8s ease-out infinite}
+@keyframes p{0%{transform:scale(1);opacity:.7}100%{transform:scale(2.2);opacity:0}}
+@media(max-width:820px){.compare,.vocab{grid-template-columns:1fr}.stage{flex-direction:column}}
+.ringtiny{opacity:.9}
+.legend{max-width:1180px;margin:30px auto 0;font-size:12px;color:var(--label);display:flex;gap:18px;flex-wrap:wrap}
+.legend b{color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="kicker">Enclave · Design Study</div>
+  <h1>Notification &amp; Island</h1>
+  <p class="lede">Three directions for the lock-screen Live Activity, Dynamic Island (compact / minimal / expanded) and notification banners, in the app's exact dark + light palette. Pick what to keep — the full system rework follows.</p>
+</header>
+
+<div class="controls">
+  <div class="group"><span>Theme</span>
+    <div class="seg" id="seg-theme">
+      <button data-v="dark" aria-pressed="true">Dark</button>
+      <button data-v="light" aria-pressed="false">Light</button>
+    </div>
+  </div>
+  <div class="group"><span>Variant</span>
+    <div class="seg" id="seg-var">
+      <button data-v="A" aria-pressed="true">A · Sealed</button>
+      <button data-v="B" aria-pressed="false">B · Frost</button>
+      <button data-v="C" aria-pressed="false">C · Breath</button>
+    </div>
+  </div>
+  <div class="group"><span>State</span>
+    <div class="seg" id="seg-state">
+      <button data-v="connecting" aria-pressed="false">Connecting</button>
+      <button data-v="live" aria-pressed="false">Live</button>
+      <button data-v="streaming" aria-pressed="true">Working</button>
+      <button data-v="waiting" aria-pressed="false">Needs you</button>
+      <button data-v="ended" aria-pressed="false">Ended</button>
+    </div>
+  </div>
+  <div class="group"><span>Island</span>
+    <div class="seg" id="seg-exp">
+      <button data-v="compact" aria-pressed="true">Compact</button>
+      <button data-v="expanded" aria-pressed="false">Expanded</button>
+    </div>
+  </div>
+</div>
+
+<main>
+  <section>
+    <div class="section-h"><h2>Live phone</h2><span class="hint">tap Island → Expanded to see the surface that overflows today</span></div>
+    <div class="stage">
+      <div class="phone"><div class="screen" id="screen"></div></div>
+      <div style="min-width:240px;max-width:360px;color:var(--body);font-size:13.5px;line-height:1.6">
+        <div id="fixnote" style="background:var(--accentDim);border:1px solid var(--accentLine);border-radius:14px;padding:12px 14px;margin-bottom:16px"></div>
+        <p style="margin:0 0 10px"><b style="color:var(--ink)">Status color</b> follows the app: <span style="color:var(--amber)">amber/ice = working</span>, <span style="color:var(--love)">rose = needs you</span>, muted = idle.</p>
+        <p style="margin:0;color:var(--muted)">The ring is Enclave's sealed-slit mark (<code>Shared/Marks.swift</code>) — ring + almond + center seam.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-h"><h2>Expanded island · all three side by side</h2><span class="hint">same state + theme — compare directly</span></div>
+    <div class="compare" id="compare"></div>
+  </section>
+
+  <section>
+    <div class="section-h"><h2>Notification vocabulary</h2><span class="hint">ask · done · working — the three things that interrupt you</span></div>
+    <div class="vocab" id="vocab"></div>
+  </section>
+</main>
+
+<div class="legend">
+  <span><b>Bug fixed in all variants:</b> expanded regions height-bounded, ring uses a fixed frame (no greedy layout), text truncates + scales.</span>
+  <span><b>Today's mismatch:</b> widget hardcodes <code style="color:var(--amber)">#FFB850</code> while app accent is <code style="color:var(--accent)">#C8D6E5</code> (dark).</span>
+</div>
+
+<script>
+const model={theme:'dark',variant:'A',state:'streaming',expanded:'compact'};
+const STATES={
+  connecting:{action:'Connecting',working:false,waiting:false,title:'enclave/web',tokens:'—',model:'—',dot:'idle'},
+  live:{action:'Live',working:false,waiting:false,title:'enclave/web',tokens:'12.4k',model:'glm-5.2',dot:'live'},
+  streaming:{action:'Working',working:true,waiting:false,title:'enclave/web',tokens:'48.2k',model:'glm-5.2',dot:'work'},
+  waiting:{action:'Needs you',working:false,waiting:true,title:'enclave/web',tokens:'30.1k',model:'glm-5.2',dot:'wait',
+    question:'Run the migration now, or stage it for the review channel first?'},
+  ended:{action:'Ended',working:false,waiting:false,title:'enclave/web',tokens:'62.0k',model:'glm-5.2',dot:'end'}
+};
+const NOTES={
+  A:'<b style="color:var(--ink)">A · Sealed.</b> Today\'s layout, with the overflow fixed: fixed ring frame, truncation + scale factor, height-bounded regions. Keeps the widget amber working-accent. Smallest diff.',
+  B:'<b style="color:var(--ink)">B · Frost.</b> App-true accent (ice-blue dark / gold light), glass + etched status chip, VT323 terminal tokens, a tokens/model spec row. Closest to the in-app look.',
+  C:'<b style="color:var(--ink)">C · Breath.</b> Minimal: pulsing ring + one word; the ask prompt surfaces in serif only when it needs you. Least noise.'
+};
+const $=s=>document.querySelector(s);
+const el=(t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;};
+
+function statusColor(s){
+  if(s.waiting)return 'var(--love)';
+  if(s.working) return model.variant==='A'?'var(--amber)':'var(--accent)';
+  return 'var(--muted)';
+}
+function ring(color,size,pulse){
+  const p=pulse?`<circle class="pulse" cx="50" cy="50" r="44" fill="none" stroke="${color}" stroke-width="6"/>`:'';
+  return `<svg class="ring" width="${size}" height="${size}" viewBox="0 0 100 100">
+    ${p}<circle cx="50" cy="50" r="42" fill="none" stroke="${color}" stroke-width="8"/>
+    <path d="M50 26 C40 38 40 62 50 74 C60 62 60 38 50 26 Z M44 50 L56 50" fill="none" stroke="${color}" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+/* ---- COMPACT ---- */
+function compact(s){
+  const c=statusColor(s);
+  const trail = s.waiting?`<span style="font:800 11px var(--ui);color:var(--love);letter-spacing:.5px">ask</span>`
+    : s.working?`<span class="dot" style="background:${model.variant==='A'?'var(--amber)':'var(--accent)'}"></span>`
+    : '';
+  if(model.variant==='C'){
+    return `<div class="pill" style="min-width:118px">
+      <span class="lead">${ring(c,20)}</span>
+      <span class="trail">${trail||'<span style="width:4px"></span>'}</span></div>`;
+  }
+  return `<div class="pill">
+    <span class="lead">${ring(c,20)}</span>
+    <span class="trail">${trail}</span></div>`;
+}
+
+/* ---- EXPANDED ---- */
+function expanded(s){
+  const c=statusColor(s);
+  const tokens = s.tokens==='—'?' ':s.tokens;
+  const bot=VARIANT[model.variant](s,c);
+  return `<div class="island-x">
+    <div class="ix-top">
+      <span style="display:flex;align-items:center">${ring(c,24,s.working)}</span>
+      <span class="lens"></span>
+      <span class="term" style="color:var(--muted);min-width:40px;text-align:right">${tokens}</span>
+    </div>
+    <div class="ix-bot">${bot}</div>
+  </div>`;
+}
+const VARIANT={
+  A:(s,c)=>`<div class="title ellipsis">${s.title}</div>
+    <div class="row" style="margin-top:5px">
+      <span class="dot" style="background:${c}"></span>
+      <span style="font-size:12px;color:${c};font-weight:700" class="ellipsis">${s.action}</span>
+      <span style="flex:1"></span>
+      <span class="labl ellipsis" style="letter-spacing:1px">${s.model}</span>
+    </div>`,
+  B:(s,c)=>`<div class="row" style="justify-content:space-between">
+      <span class="title ellipsis">${s.title}</span>
+      <span style="background:var(--accentDim);border-radius:4px;padding:2px 7px;font-size:9px;letter-spacing:1.4px;font-weight:800;color:var(--accent);text-transform:uppercase">${s.action}</span>
+    </div>
+    <div class="row" style="margin-top:9px;gap:0;border-top:1px solid var(--lineFaint);padding-top:8px">
+      <span style="flex:1"><span class="labl">Tokens</span><div class="term" style="color:var(--ink)">${s.tokens}</div></span>
+      <span style="flex:1"><span class="labl">Model</span><div class="term" style="color:var(--muted)">${s.model}</div></span>
+    </div>`,
+  C:(s,c)=> s.waiting
+    ? `<div style="font-family:Georgia,serif;font-size:14px;color:var(--ink);line-height:1.3" class="ellipsis">${s.question||''}</div>
+       <div class="labl" style="color:var(--love);margin-top:6px">Needs your answer</div>`
+    : `<div class="row"><span class="dot" style="background:${c}"></span>
+         <span style="font-size:14px;font-weight:800;letter-spacing:1px;color:${c};text-transform:uppercase">${s.action}</span></div>`
+};
+
+/* ---- LOCK CARD ---- */
+function lockcard(s){
+  const c=statusColor(s);
+  return `<div class="lockcard">
+    <div class="row">
+      ${ring(c,24)}
+      <div style="flex:1;min-width:0">
+        <div class="title ellipsis">${s.title}</div>
+        <div class="row" style="margin-top:4px"><span class="dot" style="background:${c}"></span>
+          <span style="font-size:12px;color:${c};font-weight:700" class="ellipsis">${s.action}</span></div>
+      </div>
+      <div style="text-align:right">
+        <div class="term" style="color:var(--body)">${s.tokens}</div>
+        <div class="labl ellipsis" style="margin-top:2px">${s.model}</div>
+      </div>
+    </div></div>`;
+}
+
+/* ---- NOTIF TOAST (variant) ---- */
+function toast(kind,s){
+  const ask = kind==='ask';
+  const done= kind==='done';
+  const c = ask?'var(--love)':done?'var(--accent)':'var(--amber)';
+  const ring2 = ring(c,22,kind==='work');
+  if(model.variant==='C'){
+    const t = ask?'NEEDS YOU':done?'DONE':'WORKING';
+    return `<div class="toast"><div class="edge" style="background:${c}"></div>
+      <div style="display:flex;align-items:center;gap:8px">${ring2}
+        <span class="labl" style="color:${c};font-size:10px">${t}</span></div>
+      <div class="body"><div class="title">${s.title}</div>
+        <div class="snippet">${ask?(s.question||'The host is asking for your input.'):done?'The agent finished. — migration applied, 14 rows.':'Streaming · '+s.tokens+' tokens'}</div></div></div>`;
+  }
+  if(model.variant==='B'){
+    return `<div class="toast"><div class="edge" style="background:${c}"></div>${ring2}
+      <div class="body">
+        <div class="row" style="gap:7px"><span class="labl" style="color:${c}">${ask?'ASK':done?'DONE':'WORKING'}</span>
+          <span class="title ellipsis">${s.title}</span></div>
+        <div class="snippet" style="margin-top:4px">${ask?(s.question||'The host is asking for your input.'):done?'The agent finished. — migration applied, 14 rows.':'Streaming · '+s.tokens+' tokens'}</div>
+      </div></div>`;
+  }
+  return `<div class="toast">${ring2}
+    <div class="body"><div class="title">${s.title}</div>
+      <div class="snippet">${ask?(s.question||'The host is asking for your input.'):done?'The agent finished. — migration applied, 14 rows.':'Streaming · '+s.tokens+' tokens'}</div></div></div>`;
+}
+
+/* ---- RENDER ---- */
+function render(){
+  document.documentElement.dataset.theme=model.theme;
+  const s=STATES[model.state];
+  const scr=$('#screen'); scr.innerHTML='';
+  scr.append(el('div','clock','12:00'));
+  scr.append(el('div','bigtime','9:41'));
+  scr.append(el('div','locklabel',model.variant+' · '+s.action));
+  // island (compact or expanded)
+  scr.insertAdjacentHTML('beforeend', model.expanded==='expanded'?expanded(s):compact(s));
+  // lock card
+  scr.insertAdjacentHTML('beforeend',lockcard(s));
+  // drop-in notification only on waiting/done-ish for realism
+  if(s.waiting){
+    scr.insertAdjacentHTML('beforeend',
+      `<div style="position:absolute;left:8px;right:8px;top:360px">${toast('ask',s)}</div>`);
+  }
+  $('#fixnote').innerHTML=NOTES[model.variant];
+
+  // compare row
+  const cmp=$('#compare'); cmp.innerHTML='';
+  ['A','B','C'].forEach(v=>{
+    const m={...model,variant:v}; const ss=STATES[model.state];
+    const cc = ss.waiting?'var(--love)':ss.working?(v==='A'?'var(--amber)':'var(--accent)'):'var(--muted)';
+    const wrap=el('div','card');
+    wrap.innerHTML=`<div class="name">${v==='A'?'A · Sealed':v==='B'?'B · Frost':'C · Breath'}</div>
+      <div class="sub">${v==='A'?'fixed current layout':v==='B'?'glass + terminal spec row':'minimal, only speaks when needed'}</div>
+      <div class="xwrap"><div class="xtop">
+          <span style="display:flex;align-items:center">${ring(cc,22,ss.working)}</span>
+          <span class="lens" style="width:80px;height:26px;background:#000;border-radius:14px;margin:0 auto"></span>
+          <span class="term" style="color:var(--muted);min-width:36px;text-align:right">${ss.tokens}</span>
+        </div>
+        <div class="xbot">${VARIANT[v](ss,cc)}</div></div>`;
+    cmp.append(wrap);
+  });
+
+  // vocab row
+  const vb=$('#vocab'); vb.innerHTML='';
+  const ws=STATES.waiting, ds=STATES.ended, ks=STATES.streaming;
+  vb.insertAdjacentHTML('beforeend',
+    `<div class="card"><div class="name">Ask</div><div class="sub">host needs your answer — fires once per question</div>${toast('ask',ws)}</div>`);
+  vb.insertAdjacentHTML('beforeend',
+    `<div class="card"><div class="name">Done</div><div class="sub">agent finished a turn — only while you're away</div>${toast('done',ds)}</div>`);
+  vb.insertAdjacentHTML('beforeend',
+    `<div class="card"><div class="name">Working</div><div class="sub">optional: ambient progress instead of interrupting</div>${toast('work',ks)}</div>`);
+}
+
+/* ---- wire controls ---- */
+function wire(id,key){
+  $('#'+id).addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b)return;
+    model[key]=b.dataset.v;
+    [...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+    render();
+  });
+}
+wire('seg-theme','theme'); wire('seg-var','variant'); wire('seg-state','state'); wire('seg-exp','expanded');
+render();
+</script>
+</body>
+</html>

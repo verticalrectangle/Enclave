@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 extension Color {
     init(hex: UInt, alpha: Double = 1) {
@@ -910,11 +911,22 @@ struct GlassRing: Shape {
 struct IconView: View {
     let variant: IconVariant
     private var p: IconPalette { variant.palette }
+    private let dim: Int = {
+        Int(ProcessInfo.processInfo.environment["ENCLAVE_DIM"] ?? "0") ?? 0
+    }()
+    private let tint: Int = {
+        Int(ProcessInfo.processInfo.environment["ENCLAVE_TINT"] ?? "0") ?? 0
+    }()
+    private let slit: Int = {
+        Int(ProcessInfo.processInfo.environment["ENCLAVE_SLIT"] ?? "0") ?? 0
+    }()
 
     var body: some View {
         GeometryReader { geo in
             let S = min(geo.size.width, geo.size.height)
             let shape = RoundedRectangle(cornerRadius: S * 0.2237, style: .continuous)
+            let tintOps: [Double] = [0.40, 0.55, 0.70]
+            let paneTint: Color? = tint > 0 ? p.blooms.first?.0.opacity(tintOps[tint - 1]) : p.tint
             ZStack {
                 // (A) vivid backdrop — gives the glass real content to refract
                 LinearGradient(colors: p.backdrop, startPoint: .top, endPoint: .bottom)
@@ -928,12 +940,19 @@ struct IconView: View {
                     RadialGradient(colors: [.black.opacity(0.6), .clear],
                                    center: .center, startRadius: 0, endRadius: S * p.coreShadow)
                 }
+                // center dim for glass disc/ring — tames bright blooms so the slit reads (ENCLAVE_DIM axis)
+                if dim > 0 && (p.glyphMode == .flatGlass || p.glyphMode == .flatGlassRing) {
+                    let dr:  [CGFloat] = [0.20, 0.24, 0.28]   // dim radius as fraction of S
+                    let dop: [Double]  = [0.55, 0.65, 0.75]   // dim black opacity
+                    RadialGradient(colors: [.black.opacity(dop[dim - 1]), .clear],
+                                   center: .center, startRadius: 0, endRadius: S * dr[dim - 1])
+                }
 
                 if p.glassMode == .pane {
                     // (B) the system glass + (C) optical overlays + glyph on top
                     Rectangle()
                         .fill(.white.opacity(0.001))
-                        .glassEffect(p.tint.map { p.glass.tint($0) } ?? p.glass, in: shape)
+                        .glassEffect(paneTint.map { p.glass.tint($0) } ?? p.glass, in: shape)
                         .overlay { opticalOverlays(shape: shape, S: S) }
                         .overlay { markLayer(S: S) }
                 } else {
@@ -974,7 +993,7 @@ struct IconView: View {
                     .glassEffect(.regular, in: .circle)
                     .overlay(alignment: .center) {
                         EnclaveSlit(open: 1)
-                            .stroke(Color.white.opacity(0.65),
+                            .stroke(slitStroke(),
                                     style: StrokeStyle(lineWidth: S * 0.06,
                                                         lineCap: .round, lineJoin: .round))
                     }
@@ -996,7 +1015,7 @@ struct IconView: View {
                     .frame(width: S * 0.66, height: S * 0.66)
                     .overlay(alignment: .center) {
                         EnclaveSlit(open: 1)
-                            .stroke(Color.white.opacity(0.65),
+                            .stroke(slitStroke(),
                                     style: StrokeStyle(lineWidth: S * 0.06,
                                                         lineCap: .round, lineJoin: .round))
                     }
@@ -1008,6 +1027,16 @@ struct IconView: View {
             .frame(width: S * 0.82, height: S * 0.82)
             .shadow(color: .black.opacity(0.22), radius: S * 0.010, x: 0, y: S * 0.006)
         }
+    }
+
+    private func slitStroke() -> Color {
+        guard slit > 0, let c = p.blooms.first?.0 else { return .white.opacity(0.65) }
+        return (Self.luminance(of: c) > 0.55 ? Color(hex: 0x141414) : .white).opacity(0.65)
+    }
+    private static func luminance(of color: Color) -> Double {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(color).getRed(&r, green: &g, blue: &b, alpha: &a)
+        return 0.2126 * Double(r) + 0.7152 * Double(g) + 0.0722 * Double(b)
     }
 
     // (C) the explicit optical overlays .glassEffect does not give strongly enough

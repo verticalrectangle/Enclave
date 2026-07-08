@@ -20,17 +20,39 @@ open -a Simulator
 sleep 3
 xcrun simctl install "$CAPTURE_UDID" build/Build/Products/Debug-iphonesimulator/IconRenderer.app
 mkdir -p out
+DIM_LEVELS="${DIM_LEVELS:-0}"
+TINT_LEVELS="${TINT_LEVELS:-0}"
+SLIT_LEVELS="${SLIT_LEVELS:-0}"
 for v in $VARIANTS; do
-  xcrun simctl terminate "$CAPTURE_UDID" "$BUNDLE" 2>/dev/null || true
-  SIMCTL_CHILD_ENCLAVE_VARIANT="$v" xcrun simctl launch "$CAPTURE_UDID" "$BUNDLE" >/dev/null
-  sleep 2.5
-  xcrun simctl io "$CAPTURE_UDID" screenshot "shot-$v.png" >/dev/null
-  xcrun simctl terminate "$CAPTURE_UDID" "$BUNDLE" 2>/dev/null || true
-  W=$(sips -g pixelWidth  "shot-$v.png" | awk '{print $2}')
-  H=$(sips -g pixelHeight "shot-$v.png" | awk '{print $2}')
-  SIDE=$(( W < H ? W : H ))
-  sips -c "$SIDE" "$SIDE" "shot-$v.png" --out "crop-$v.png" >/dev/null
-  sips -z 1024 1024 "crop-$v.png" --out "out/enclave-icon-$v-1024.png" >/dev/null
+  for d in $DIM_LEVELS; do
+    for t in $TINT_LEVELS; do
+      for s in $SLIT_LEVELS; do
+        xcrun simctl terminate "$CAPTURE_UDID" "$BUNDLE" 2>/dev/null || true
+        SIMCTL_CHILD_ENCLAVE_VARIANT="$v" SIMCTL_CHILD_ENCLAVE_DIM="$d" \
+        SIMCTL_CHILD_ENCLAVE_TINT="$t" SIMCTL_CHILD_ENCLAVE_SLIT="$s" \
+        xcrun simctl launch "$CAPTURE_UDID" "$BUNDLE" >/dev/null
+        sleep 2.5
+        tag="$v"
+        [[ "$d" != "0" ]] && tag="$tag-d$d"
+        [[ "$t" != "0" ]] && tag="$tag-t$t"
+        [[ "$s" != "0" ]] && tag="$tag-s$s"
+        out_path="out/enclave-icon-$tag-1024.png"
+        if [[ -f "$out_path" ]]; then
+          echo "skip $tag"
+          rm -f "shot-$tag.png" "crop-$tag.png"
+          continue
+        fi
+        xcrun simctl io "$CAPTURE_UDID" screenshot "shot-$tag.png" >/dev/null
+        xcrun simctl terminate "$CAPTURE_UDID" "$BUNDLE" 2>/dev/null || true
+        W=$(sips -g pixelWidth  "shot-$tag.png" | awk '{print $2}')
+        H=$(sips -g pixelHeight "shot-$tag.png" | awk '{print $2}')
+        SIDE=$(( W < H ? W : H ))
+        sips -c "$SIDE" "$SIDE" "shot-$tag.png" --out "crop-$tag.png" >/dev/null
+        sips -z 1024 1024 "crop-$tag.png" --out "$out_path" >/dev/null
+        rm -f "shot-$tag.png" "crop-$tag.png"
+      done
+    done
+  done
 done
 echo "captured: $(ls out | wc -l) tiles"
 
@@ -40,11 +62,28 @@ if [[ -n "${QA_UDID:-}" ]]; then
   xcrun simctl install "$QA_UDID" build/Build/Products/Debug-iphonesimulator/IconRenderer.app
   mkdir -p out/qa
   for v in $QA_PICKS; do
-    xcrun simctl terminate "$QA_UDID" "$BUNDLE" 2>/dev/null || true
-    SIMCTL_CHILD_ENCLAVE_VARIANT="$v" xcrun simctl launch "$QA_UDID" "$BUNDLE" >/dev/null
-    sleep 2
-    xcrun simctl io "$QA_UDID" screenshot "out/qa/iphone17pro-$v.png" >/dev/null
-    xcrun simctl terminate "$QA_UDID" "$BUNDLE" 2>/dev/null || true
+    for d in $DIM_LEVELS; do
+      for t in $TINT_LEVELS; do
+        for s in $SLIT_LEVELS; do
+          xcrun simctl terminate "$QA_UDID" "$BUNDLE" 2>/dev/null || true
+          SIMCTL_CHILD_ENCLAVE_VARIANT="$v" SIMCTL_CHILD_ENCLAVE_DIM="$d" \
+          SIMCTL_CHILD_ENCLAVE_TINT="$t" SIMCTL_CHILD_ENCLAVE_SLIT="$s" \
+          xcrun simctl launch "$QA_UDID" "$BUNDLE" >/dev/null
+          sleep 2
+          tag="$v"
+          [[ "$d" != "0" ]] && tag="$tag-d$d"
+          [[ "$t" != "0" ]] && tag="$tag-t$t"
+          [[ "$s" != "0" ]] && tag="$tag-s$s"
+          qa_path="out/qa/iphone17pro-$tag.png"
+          if [[ -f "$qa_path" ]]; then
+            echo "skip qa $tag"
+            continue
+          fi
+          xcrun simctl io "$QA_UDID" screenshot "$qa_path" >/dev/null
+          xcrun simctl terminate "$QA_UDID" "$BUNDLE" 2>/dev/null || true
+        done
+      done
+    done
   done
   echo "qa shots: $(ls out/qa)"
 fi
