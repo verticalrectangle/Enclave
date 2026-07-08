@@ -994,6 +994,19 @@ final class GuestClient: ObservableObject {
                 if let l = entry["thinkingLevel"] as? String { out.append(UITurn.sys("model", "THINKING → " + l.uppercased())) }
             case "service_tier_change":
                 out.append(UITurn.sys("model", "SERVICE TIER CHANGED"))
+            case "custom_message" where ct == "system-notice":
+                let raw = contentString(entry["content"])
+                if !raw.isEmpty {
+                    let (pre, id, agent, status, dur, summary, footer) = parseSystemNotice(raw)
+                    var turn = UITurn(id: eid, type: .sys)
+                    turn.kind = "system-notice"
+                    turn.head = id.isEmpty ? agent : id
+                    turn.meta = "\(status) · \(dur)"
+                    turn.caption = pre
+                    turn.text = summary
+                    turn.lines = footer.isEmpty ? [] : [footer]
+                    out.append(turn)
+                }
             case "custom_message":
                 let ct = entry["customType"] as? String ?? ""
                 if ct == "advisor", entry["display"] as? Bool == true {
@@ -1161,6 +1174,68 @@ final class GuestClient: ObservableObject {
         }
         return ""
     }
+
+    // ── system-notice parsing (harness background-job completion) ───────────
+    private func extractXMLAttr(_ s: String, _ name: String) -> String? {
+        let pattern = "\\b\(name)\\s*=\\s*\"([^\"]*)\""
+        guard let range = s.range(of: pattern, options: .regularExpression) else { return nil }
+        let match = String(s[range])
+        let parts = match.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2 else { return nil }
+        return parts[1].trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+    }
+
+    private func extractJSONSummary(_ s: String) -> String? {
+        guard let data = s.data(using: .utf8) else { return nil }
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return json["summary"] as? String
+    }
+
+    private func parseSystemNotice(_ raw: String) -> (
+        preamble: String, id: String, agent: String, status: String, duration: String, summary: String, footer: String
+    ) {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        var preamble = ""
+        var id = ""
+        var agent = ""
+        var status = ""
+        var duration = ""
+        var summary = ""
+        var footer = ""
+
+        guard let tagStart = trimmed.range(of: "<task-result") else {
+            summary = trimmed
+            return (preamble, id, agent, status, duration, summary, footer)
+        }
+
+        preamble = String(trimmed[..<tagStart.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let afterTagStart = trimmed[tagStart.lowerBound...]
+        guard let tagEnd = afterTagStart.range(of: ">") else {
+            summary = trimmed
+            return (preamble, id, agent, status, duration, summary, footer)
+        }
+
+        let tag = String(afterTagStart[..<tagEnd.upperBound])
+        id = extractXMLAttr(tag, "id") ?? ""
+        agent = extractXMLAttr(tag, "agent") ?? ""
+        status = extractXMLAttr(tag, "status") ?? ""
+        duration = extractXMLAttr(tag, "duration") ?? ""
+
+        let afterTag = afterTagStart[tagEnd.upperBound...]
+        if let outputStart = afterTag.range(of: "<output>"),
+           let outputEnd = afterTag.range(of: "</output>") {
+            let output = String(afterTag[outputStart.upperBound..<outputEnd.lowerBound])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            summary = extractJSONSummary(output) ?? output
+        }
+
+        if let resultEnd = afterTag.range(of: "</task-result>") {
+            footer = String(afterTag[resultEnd.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return (preamble, id, agent, status, duration, summary, footer)
+    }
+
     private func firstImage(_ content: Any?) -> String? {
         guard let arr = content as? [[String: Any]] else { return nil }
         for block in arr where block["type"] as? String == "image" {
