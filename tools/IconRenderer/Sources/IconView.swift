@@ -23,6 +23,19 @@ struct IconPalette {
     let glyphMode: GlyphMode
     let ink: Color                                          // mark color (opaque) / caustic shadow tint
     let coreShadow: CGFloat                                 // dark lensing-core radius frac (0 = none; deep-well family)
+    let shimmer: Bool                                       // false = suppress optical overlays (rainbow rim + specular/gloss)
+
+    init(backdrop: [Color], blooms: [(Color, UnitPoint, CGFloat)], glass: Glass, tint: Color?, glassMode: GlassMode, glyphMode: GlyphMode, ink: Color, coreShadow: CGFloat, shimmer: Bool = true) {
+        self.backdrop = backdrop
+        self.blooms = blooms
+        self.glass = glass
+        self.tint = tint
+        self.glassMode = glassMode
+        self.glyphMode = glyphMode
+        self.ink = ink
+        self.coreShadow = coreShadow
+        self.shimmer = shimmer
+    }
 }
 
 enum IconVariant: String, CaseIterable {
@@ -160,17 +173,22 @@ enum IconVariant: String, CaseIterable {
     case glassMonoInkRing = "glass-mono-ink-ring"
     case glassMonoMist = "glass-mono-mist"
     case glassMonoMistRing = "glass-mono-mist-ring"
-    // Aero design-language variants
-    case aeroAqua = "aero-aqua"
-    case aeroAurora = "aero-aurora"
-    case aeroMoonlit = "aero-moonlit"
-    case aeroBloom = "aero-bloom"
-    case aeroTwilight = "aero-twilight"
-    case rpdFoam = "rpd-foam"
-    case rpdIris = "rpd-iris"
-    case rpdGold = "rpd-gold"
-    case rpdRose = "rpd-rose"
-    case rpdLove = "rpd-love"
+    // UI-color variants — solid Rosé Pine backdrop, liquid-glass mark, no shimmer
+    case uiIris       = "ui-iris"
+    case uiFoam       = "ui-foam"
+    case uiGold       = "ui-gold"
+    case uiPine       = "ui-pine"
+    case uiRose       = "ui-rose"
+    case uiLove       = "ui-love"
+    case uiMuted      = "ui-muted"
+    case uiIrisDark   = "ui-iris-dark"
+    case uiFoamDark   = "ui-foam-dark"
+    case uiGoldDark   = "ui-gold-dark"
+    case uiPineDark   = "ui-pine-dark"
+    case uiRoseDark   = "ui-rose-dark"
+    case uiLoveDark   = "ui-love-dark"
+    case uiMutedDark  = "ui-muted-dark"
+    case uiAccent     = "ui-accent"
 
     private static let auroraBloomCols: [(Color, UnitPoint, CGFloat)] = [
         (Color(hex: 0x56B4C9), UnitPoint(x: 0.28, y: 0.30), 0.50),
@@ -902,71 +920,67 @@ enum IconVariant: String, CaseIterable {
                                   (Color(hex: 0xAAAAAA), UnitPoint(x: 0.70, y: 0.66), 0.46)],
                          glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlassRing,
                          ink: .white, coreShadow: 0)
-        // ── Aero design-language variants (goth-frutiger-aero / RPD palettes) ──
-        case .aeroAqua:
-            return .init(backdrop: [Color(hex: 0x0B0F1E), Color(hex: 0x05060A)],
-                         blooms: [(Color(hex: 0x6FE6FF), UnitPoint(x: 0.30, y: 0.26), 0.50),
-                                  (Color(hex: 0xB08BFF), UnitPoint(x: 0.74, y: 0.30), 0.46),
-                                  (Color(hex: 0x46E0B0), UnitPoint(x: 0.50, y: 0.86), 0.40)],
-                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .liquidMark,
-                         ink: .white, coreShadow: 0)
-        case .aeroAurora:
-            return .init(backdrop: [Color(hex: 0x0A0A1E), Color(hex: 0x050510)],
-                         blooms: [(Color(hex: 0x6FE6FF), UnitPoint(x: 0.28, y: 0.24), 0.55),
-                                  (Color(hex: 0xB08BFF), UnitPoint(x: 0.72, y: 0.28), 0.55),
-                                  (Color(hex: 0xC9F6FF), UnitPoint(x: 0.50, y: 0.60), 0.30)],
-                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .liquidMark,
-                         ink: .white, coreShadow: 0)
-        case .aeroMoonlit:
-            return .init(backdrop: [Color(hex: 0x0A0A18), Color(hex: 0x05050C)],
-                         blooms: [(Color(hex: 0x9D7BFF), UnitPoint(x: 0.50, y: 0.18), 0.50),
-                                  (Color(hex: 0x4FB8D8), UnitPoint(x: 0.30, y: 0.72), 0.42)],
-                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .liquidMark,
-                         ink: .white, coreShadow: 0)
-        case .aeroBloom:
-            return .init(backdrop: [Color(hex: 0x0A0712), Color(hex: 0x050208)],
-                         blooms: [(Color(hex: 0xFF2EA3), UnitPoint(x: 0.30, y: 0.30), 0.42),
-                                  (Color(hex: 0xB6FF3C), UnitPoint(x: 0.70, y: 0.34), 0.40),
-                                  (Color(hex: 0x38E3FF), UnitPoint(x: 0.50, y: 0.74), 0.44)],
-                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .liquidMark,
-                         ink: .white, coreShadow: 0)
-        case .aeroTwilight:
-            return .init(backdrop: [Color(hex: 0x120A26), Color(hex: 0x06030F)],
-                         blooms: [(Color(hex: 0xB08BFF), UnitPoint(x: 0.30, y: 0.28), 0.50),
-                                  (Color(hex: 0xFF2EA3), UnitPoint(x: 0.74, y: 0.42), 0.34),
-                                  (Color(hex: 0x6FE6FF), UnitPoint(x: 0.50, y: 0.82), 0.40)],
-                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .liquidMark,
-                         ink: .white, coreShadow: 0)
-        case .rpdFoam:
-            return .init(backdrop: [Color(hex: 0xFAF4ED), Color(hex: 0xFFFAF3)],
-                         blooms: [(Color(hex: 0x56949F), UnitPoint(x: 0.34, y: 0.30), 0.50),
-                                  (Color(hex: 0xEA9D34), UnitPoint(x: 0.74, y: 0.66), 0.30)],
-                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .liquidMark,
-                         ink: Color(hex: 0x575279), coreShadow: 0)
-        case .rpdIris:
-            return .init(backdrop: [Color(hex: 0xFAF4ED), Color(hex: 0xFFF7F1)],
-                         blooms: [(Color(hex: 0x907AA9), UnitPoint(x: 0.40, y: 0.30), 0.52),
-                                  (Color(hex: 0x56949F), UnitPoint(x: 0.72, y: 0.70), 0.34)],
-                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .liquidMark,
-                         ink: Color(hex: 0x575279), coreShadow: 0)
-        case .rpdGold:
-            return .init(backdrop: [Color(hex: 0xFAF4ED), Color(hex: 0xF6EAD8)],
-                         blooms: [(Color(hex: 0xEA9D34), UnitPoint(x: 0.50, y: 0.26), 0.50),
-                                  (Color(hex: 0xD7827E), UnitPoint(x: 0.74, y: 0.72), 0.32)],
-                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .liquidMark,
-                         ink: Color(hex: 0x575279), coreShadow: 0)
-        case .rpdRose:
-            return .init(backdrop: [Color(hex: 0xFAF4ED), Color(hex: 0xFDEEE9)],
-                         blooms: [(Color(hex: 0xD7827E), UnitPoint(x: 0.36, y: 0.32), 0.50),
-                                  (Color(hex: 0xB4637A), UnitPoint(x: 0.70, y: 0.68), 0.34)],
-                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .liquidMark,
-                         ink: Color(hex: 0x575279), coreShadow: 0)
-        case .rpdLove:
-            return .init(backdrop: [Color(hex: 0xFAF4ED), Color(hex: 0xFCEAE8)],
-                         blooms: [(Color(hex: 0xB4637A), UnitPoint(x: 0.38, y: 0.30), 0.50),
-                                  (Color(hex: 0xEA9D34), UnitPoint(x: 0.72, y: 0.68), 0.30)],
-                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .liquidMark,
-                         ink: Color(hex: 0x575279), coreShadow: 0)
+        // ── UI-color variants: solid Rosé Pine backdrop, liquid-glass mark, no shimmer ──
+        case .uiIris:
+            return .init(backdrop: [Color(hex: 0x907AA9), Color(hex: 0x907AA9)],
+                         blooms: [], glass: .clear, tint: nil, glassMode: .lens,
+                         glyphMode: .liquidMark, ink: .white, coreShadow: 0, shimmer: false)
+        case .uiFoam:
+            return .init(backdrop: [Color(hex: 0x56949F), Color(hex: 0x56949F)],
+                         blooms: [], glass: .clear, tint: nil, glassMode: .lens,
+                         glyphMode: .liquidMark, ink: .white, coreShadow: 0, shimmer: false)
+        case .uiGold:
+            return .init(backdrop: [Color(hex: 0xEA9D34), Color(hex: 0xEA9D34)],
+                         blooms: [], glass: .clear, tint: nil, glassMode: .lens,
+                         glyphMode: .liquidMark, ink: .white, coreShadow: 0, shimmer: false)
+        case .uiPine:
+            return .init(backdrop: [Color(hex: 0x286983), Color(hex: 0x286983)],
+                         blooms: [], glass: .clear, tint: nil, glassMode: .lens,
+                         glyphMode: .liquidMark, ink: .white, coreShadow: 0, shimmer: false)
+        case .uiRose:
+            return .init(backdrop: [Color(hex: 0xD7827E), Color(hex: 0xD7827E)],
+                         blooms: [], glass: .clear, tint: nil, glassMode: .lens,
+                         glyphMode: .liquidMark, ink: .white, coreShadow: 0, shimmer: false)
+        case .uiLove:
+            return .init(backdrop: [Color(hex: 0xB4637A), Color(hex: 0xB4637A)],
+                         blooms: [], glass: .clear, tint: nil, glassMode: .lens,
+                         glyphMode: .liquidMark, ink: .white, coreShadow: 0, shimmer: false)
+        case .uiMuted:
+            return .init(backdrop: [Color(hex: 0x9893A5), Color(hex: 0x9893A5)],
+                         blooms: [], glass: .clear, tint: nil, glassMode: .lens,
+                         glyphMode: .liquidMark, ink: .white, coreShadow: 0, shimmer: false)
+        case .uiIrisDark:
+            return .init(backdrop: [Color(hex: 0xC4A7E7), Color(hex: 0xC4A7E7)],
+                         blooms: [], glass: .clear, tint: nil, glassMode: .lens,
+                         glyphMode: .liquidMark, ink: .white, coreShadow: 0, shimmer: false)
+        case .uiFoamDark:
+            return .init(backdrop: [Color(hex: 0x9CCFD8), Color(hex: 0x9CCFD8)],
+                         blooms: [], glass: .clear, tint: nil, glassMode: .lens,
+                         glyphMode: .liquidMark, ink: .white, coreShadow: 0, shimmer: false)
+        case .uiGoldDark:
+            return .init(backdrop: [Color(hex: 0xF6C177), Color(hex: 0xF6C177)],
+                         blooms: [], glass: .clear, tint: nil, glassMode: .lens,
+                         glyphMode: .liquidMark, ink: .white, coreShadow: 0, shimmer: false)
+        case .uiPineDark:
+            return .init(backdrop: [Color(hex: 0x3E8FB0), Color(hex: 0x3E8FB0)],
+                         blooms: [], glass: .clear, tint: nil, glassMode: .lens,
+                         glyphMode: .liquidMark, ink: .white, coreShadow: 0, shimmer: false)
+        case .uiRoseDark:
+            return .init(backdrop: [Color(hex: 0xEBBCBA), Color(hex: 0xEBBCBA)],
+                         blooms: [], glass: .clear, tint: nil, glassMode: .lens,
+                         glyphMode: .liquidMark, ink: .white, coreShadow: 0, shimmer: false)
+        case .uiLoveDark:
+            return .init(backdrop: [Color(hex: 0xE8919F), Color(hex: 0xE8919F)],
+                         blooms: [], glass: .clear, tint: nil, glassMode: .lens,
+                         glyphMode: .liquidMark, ink: .white, coreShadow: 0, shimmer: false)
+        case .uiMutedDark:
+            return .init(backdrop: [Color(hex: 0x6E6A86), Color(hex: 0x6E6A86)],
+                         blooms: [], glass: .clear, tint: nil, glassMode: .lens,
+                         glyphMode: .liquidMark, ink: .white, coreShadow: 0, shimmer: false)
+        case .uiAccent:
+            return .init(backdrop: [Color(hex: 0xC8D6E5), Color(hex: 0xC8D6E5)],
+                         blooms: [], glass: .clear, tint: nil, glassMode: .lens,
+                         glyphMode: .liquidMark, ink: .white, coreShadow: 0, shimmer: false)
         }
     }
 }
@@ -1029,11 +1043,11 @@ struct IconView: View {
                     Rectangle()
                         .fill(.white.opacity(0.001))
                         .glassEffect(paneTint.map { p.glass.tint($0) } ?? p.glass, in: shape)
-                        .overlay { opticalOverlays(shape: shape, S: S) }
+                        .overlay { if p.shimmer { opticalOverlays(shape: shape, S: S) } }
                         .overlay { markLayer(S: S) }
                 } else {
                     // lens mode: no pane; the glyph disc is the only glass element
-                    opticalOverlays(shape: shape, S: S)
+                    if p.shimmer { opticalOverlays(shape: shape, S: S) }
                     markLayer(S: S)
                 }
             }
