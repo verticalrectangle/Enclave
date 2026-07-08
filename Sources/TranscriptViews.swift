@@ -55,10 +55,24 @@ struct TurnRow: View {
                 }
             }
             if !turn.text.isEmpty {
-                Text(inlineMarkdown(turn.text, t: t)).font(.bodyF(14)).foregroundStyle(t.txt)
-                    .padding(.horizontal, 13).padding(.vertical, 10)
-                    .glass(t, 16)
-                    .contextMenu { messageMenu }
+                VStack(alignment: .leading, spacing: 9) {
+                    ForEach(Array(markdownBlocks(turn.text).enumerated()), id: \.offset) { _, seg in
+                        switch seg {
+                        case .prose(let p):
+                            if !p.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Text(inlineMarkdown(p, t: t)).font(.bodyF(14)).foregroundStyle(t.txt)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        case .advisory(let severity, let guidance, let body):
+                            AdvisoryCard(severity: severity, guidance: guidance, advisoryBody: body, t: t)
+                        case .code(let lang, let body):
+                            CodeBlock(lang: lang, code: body, t: t)
+                        }
+                    }
+                }
+                .padding(.horizontal, 13).padding(.vertical, 10)
+                .glass(t, 16)
+                .contextMenu { messageMenu }
             }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
@@ -335,6 +349,12 @@ func inlineMarkdown(_ s: String, t: Theme) -> AttributedString {
         mut.addAttribute(NSAttributedString.Key.backgroundColor, value: UIColor(t.highlightBG), range: full)
         mut.deleteCharacters(in: NSRange(location: full.location + full.length - 2, length: 2))
         mut.deleteCharacters(in: NSRange(location: full.location, length: 2))
+    }
+
+    // 3 — inline `code` spans → themed foreground color
+    mut.enumerateAttribute(.inlinePresentationIntent, in: body, options: []) { value, range, _ in
+        guard let intent = value as? InlinePresentationIntent, intent.contains(.code) else { return }
+        mut.addAttribute(.foregroundColor, value: UIColor(t.accent), range: range)
     }
 
     return AttributedString(mut)
