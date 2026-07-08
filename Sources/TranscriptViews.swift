@@ -306,14 +306,13 @@ struct AdvisoryCard: View {
 ///      Markdown links [t](url) / <url> are already attributed and skipped.
 ///   2. ==highlight== spans → themed background tint; the == markers are stripped.
 func inlineMarkdown(_ s: String, t: Theme) -> AttributedString {
-    guard let parsed = try? NSAttributedString(
+    guard let parsed = try? AttributedString(
         markdown: s,
-        options: NSAttributedString.MarkdownParsingOptions(
+        options: AttributedString.MarkdownParsingOptions(
             interpretedSyntax: .inlineOnlyPreservingWhitespace,
-            failurePolicy: .returnPartiallyParsedIfPossible),
-        baseURL: nil)
-    else { return AttributedString(s) }
-    let mut = NSMutableAttributedString(attributedString: parsed)
+            failurePolicy: .returnPartiallyParsedIfPossible)
+    ) else { return AttributedString(s) }
+    let mut = NSMutableAttributedString(parsed)
     if mut.string.isEmpty && !s.isEmpty { return AttributedString(s) }
 
     let body = NSRange(location: 0, length: mut.length)
