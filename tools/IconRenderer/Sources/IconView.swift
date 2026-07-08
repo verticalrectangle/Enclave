@@ -11,7 +11,7 @@ extension Color {
     }
 }
 
-enum GlyphMode { case opaque, glass, flatGlass, flatGlassRing }     // how the Enclave mark is rendered
+enum GlyphMode { case opaque, glass, flatGlass, flatGlassRing, liquidMark }     // how the Enclave mark is rendered
 enum GlassMode { case pane, lens }        // frosted pane over backdrop, or exposed backdrop with a glass glyph
 
 struct IconPalette {
@@ -908,64 +908,64 @@ enum IconVariant: String, CaseIterable {
                          blooms: [(Color(hex: 0x6FE6FF), UnitPoint(x: 0.30, y: 0.26), 0.50),
                                   (Color(hex: 0xB08BFF), UnitPoint(x: 0.74, y: 0.30), 0.46),
                                   (Color(hex: 0x46E0B0), UnitPoint(x: 0.50, y: 0.86), 0.40)],
-                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .liquidMark,
                          ink: .white, coreShadow: 0)
         case .aeroAurora:
             return .init(backdrop: [Color(hex: 0x0A0A1E), Color(hex: 0x050510)],
                          blooms: [(Color(hex: 0x6FE6FF), UnitPoint(x: 0.28, y: 0.24), 0.55),
                                   (Color(hex: 0xB08BFF), UnitPoint(x: 0.72, y: 0.28), 0.55),
                                   (Color(hex: 0xC9F6FF), UnitPoint(x: 0.50, y: 0.60), 0.30)],
-                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .liquidMark,
                          ink: .white, coreShadow: 0)
         case .aeroMoonlit:
             return .init(backdrop: [Color(hex: 0x0A0A18), Color(hex: 0x05050C)],
                          blooms: [(Color(hex: 0x9D7BFF), UnitPoint(x: 0.50, y: 0.18), 0.50),
                                   (Color(hex: 0x4FB8D8), UnitPoint(x: 0.30, y: 0.72), 0.42)],
-                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .liquidMark,
                          ink: .white, coreShadow: 0)
         case .aeroBloom:
             return .init(backdrop: [Color(hex: 0x0A0712), Color(hex: 0x050208)],
                          blooms: [(Color(hex: 0xFF2EA3), UnitPoint(x: 0.30, y: 0.30), 0.42),
                                   (Color(hex: 0xB6FF3C), UnitPoint(x: 0.70, y: 0.34), 0.40),
                                   (Color(hex: 0x38E3FF), UnitPoint(x: 0.50, y: 0.74), 0.44)],
-                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .liquidMark,
                          ink: .white, coreShadow: 0)
         case .aeroTwilight:
             return .init(backdrop: [Color(hex: 0x120A26), Color(hex: 0x06030F)],
                          blooms: [(Color(hex: 0xB08BFF), UnitPoint(x: 0.30, y: 0.28), 0.50),
                                   (Color(hex: 0xFF2EA3), UnitPoint(x: 0.74, y: 0.42), 0.34),
                                   (Color(hex: 0x6FE6FF), UnitPoint(x: 0.50, y: 0.82), 0.40)],
-                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .liquidMark,
                          ink: .white, coreShadow: 0)
         case .rpdFoam:
             return .init(backdrop: [Color(hex: 0xFAF4ED), Color(hex: 0xFFFAF3)],
                          blooms: [(Color(hex: 0x56949F), UnitPoint(x: 0.34, y: 0.30), 0.50),
                                   (Color(hex: 0xEA9D34), UnitPoint(x: 0.74, y: 0.66), 0.30)],
-                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .liquidMark,
                          ink: Color(hex: 0x575279), coreShadow: 0)
         case .rpdIris:
             return .init(backdrop: [Color(hex: 0xFAF4ED), Color(hex: 0xFFF7F1)],
                          blooms: [(Color(hex: 0x907AA9), UnitPoint(x: 0.40, y: 0.30), 0.52),
                                   (Color(hex: 0x56949F), UnitPoint(x: 0.72, y: 0.70), 0.34)],
-                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .liquidMark,
                          ink: Color(hex: 0x575279), coreShadow: 0)
         case .rpdGold:
             return .init(backdrop: [Color(hex: 0xFAF4ED), Color(hex: 0xF6EAD8)],
                          blooms: [(Color(hex: 0xEA9D34), UnitPoint(x: 0.50, y: 0.26), 0.50),
                                   (Color(hex: 0xD7827E), UnitPoint(x: 0.74, y: 0.72), 0.32)],
-                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .liquidMark,
                          ink: Color(hex: 0x575279), coreShadow: 0)
         case .rpdRose:
             return .init(backdrop: [Color(hex: 0xFAF4ED), Color(hex: 0xFDEEE9)],
                          blooms: [(Color(hex: 0xD7827E), UnitPoint(x: 0.36, y: 0.32), 0.50),
                                   (Color(hex: 0xB4637A), UnitPoint(x: 0.70, y: 0.68), 0.34)],
-                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .liquidMark,
                          ink: Color(hex: 0x575279), coreShadow: 0)
         case .rpdLove:
             return .init(backdrop: [Color(hex: 0xFAF4ED), Color(hex: 0xFCEAE8)],
                          blooms: [(Color(hex: 0xB4637A), UnitPoint(x: 0.38, y: 0.30), 0.50),
                                   (Color(hex: 0xEA9D34), UnitPoint(x: 0.72, y: 0.68), 0.30)],
-                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .flatGlass,
+                         glass: .clear, tint: nil, glassMode: .pane, glyphMode: .liquidMark,
                          ink: Color(hex: 0x575279), coreShadow: 0)
         }
     }
@@ -1099,6 +1099,22 @@ struct IconView: View {
                 Circle().strokeBorder(Color.white.opacity(0.55), lineWidth: S * 0.004)
                 Circle().strokeBorder(Color.white.opacity(0.55), lineWidth: S * 0.004)
                     .frame(width: S * 0.66, height: S * 0.66)
+            }
+            .frame(width: S * 0.82, height: S * 0.82)
+            .shadow(color: .black.opacity(0.22), radius: S * 0.010, x: 0, y: S * 0.006)
+        case .liquidMark:
+            // iOS 26 Liquid Glass: the Enclave form (ring + almond) sculpted from the
+            // same glass material as the disc — no ink, just refracting glass shapes.
+            ZStack {
+                Rectangle()
+                    .fill(.white.opacity(0.001))
+                    .glassEffect(.regular, in: .circle)
+                GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355)
+                    .fill(.white.opacity(0.001))
+                    .glassEffect(.regular, in: GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355))
+                EnclaveSlit(open: 1)
+                    .fill(.white.opacity(0.001))
+                    .glassEffect(.regular, in: EnclaveSlit(open: 1))
             }
             .frame(width: S * 0.82, height: S * 0.82)
             .shadow(color: .black.opacity(0.22), radius: S * 0.010, x: 0, y: S * 0.006)
