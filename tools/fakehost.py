@@ -23,6 +23,7 @@ USAGE (humans):
   ./tools/fakehost.py collab-notice      # notice chips (info/warning/error)
   ./tools/fakehost.py collab-goal        # goal banner
   ./tools/fakehost.py collab-tool        # tool execution card
+  ./tools/fakehost.py collab-system-notice  # system-notice card
 
   # /enclave — sends enclave-caps, enables enhanced UI
   ./tools/fakehost.py enclave-caps       # welcome + caps, idle
@@ -194,6 +195,17 @@ def user_prompt_entry(text: str, eid: str = "prompt-1") -> dict[str, Any]:
 def assistant_entry(thinking: str, text: str, eid: str = "msg-1") -> dict[str, Any]:
     # A finalized assistant message the transcript keeps after the stream ghost clears.
     return {"type": "message", "id": eid, "message": assistant_payload(thinking, text)}
+
+
+def system_notice_entry(content_text: str, eid: str = "sys-notice-1") -> dict[str, Any]:
+    """Harness system-notice custom_message entry — rendered as a SystemNoticeCard."""
+    return {
+        "type": "custom_message",
+        "customType": "system-notice",
+        "display": True,
+        "id": eid,
+        "content": [{"type": "text", "text": content_text}],
+    }
 
 
 # ── enclave / enhanced host frames ───────────────────────────────────────────
@@ -495,6 +507,26 @@ async def _collab_tool(send: Sender, log: Logger, delay: float, q: asyncio.Queue
         details={"command": "uname -a"})))
 
 
+async def _collab_system_notice(send: Sender, log: Logger, delay: float, q: asyncio.Queue) -> None:
+    log("welcomed; sending system-notice entry")
+    output_json = json.dumps({
+        "summary": "Investigated layout of Sources/RootView.swift and Sources/SessionsView.swift."
+    })
+    notice = (
+        "<system-notice>\n"
+        "Background job RootSessionsLayout has completed. Resume your work using the result below.\n"
+        '<task-result id="RootSessionsLayout" agent="task" status="completed" duration="1m">\n'
+        '<meta lines="3" size="418B" />\n'
+        "<output>\n"
+        f"{output_json}\n"
+        "</output>\n"
+        "</task-result>\n"
+        "RootSessionsLayout is now idle — message it via `irc` to follow up; transcript at history://RootSessionsLayout\n"
+        "</system-notice>"
+    )
+    await send(entry_frame(system_notice_entry(notice)))
+
+
 # ── /enclave scenarios (send enclave-caps after welcome) ──────────────────────
 async def _enclave_caps(send: Sender, log: Logger, delay: float, q: asyncio.Queue) -> None:
     log("welcomed; sending enclave-caps")
@@ -673,6 +705,7 @@ SCENARIOS: dict[str, tuple[str, bool, ScenarioDriver]] = {
     "collab-notice": ("/collab: notice chips", True, _collab_notice),
     "collab-goal":   ("/collab: goal banner", True, _collab_goal),
     "collab-tool":   ("/collab: tool execution card", True, _collab_tool),
+    "collab-system-notice": ("/collab: system-notice card (harness background-job)", True, _collab_system_notice),
     "enclave-caps":  ("/enclave: welcome + enclave-caps, then idle", True, _enclave_caps),
     "enclave-ask":   ("/enclave: ui-request select card", True, _enclave_ask),
     "enclave-plan":  ("/enclave: plan mode + editor approval", True, _enclave_plan),
