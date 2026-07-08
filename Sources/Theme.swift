@@ -119,6 +119,7 @@ struct GlassBG: ViewModifier {
     var flat = false
     var active = false
     var panel = false
+    var border = true
     func body(content: Content) -> some View {
         content
             .background(
@@ -133,16 +134,20 @@ struct GlassBG: ViewModifier {
                 }
             )
             .overlay(
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(active ? t.accentLine : t.glassBorder, lineWidth: 1)
+                Group {
+                    if border {
+                        RoundedRectangle(cornerRadius: radius, style: .continuous)
+                            .strokeBorder(active ? t.accentLine : t.glassBorder, lineWidth: 1)
+                    }
+                }
             )
             .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
     }
 }
 
 extension View {
-    func glass(_ t: Theme, _ radius: CGFloat = 22, flat: Bool = false, active: Bool = false, panel: Bool = false) -> some View {
-        modifier(GlassBG(t: t, radius: radius, flat: flat, active: active, panel: panel))
+    func glass(_ t: Theme, _ radius: CGFloat = 22, flat: Bool = false, active: Bool = false, panel: Bool = false, border: Bool = true) -> some View {
+        modifier(GlassBG(t: t, radius: radius, flat: flat, active: active, panel: panel, border: border))
     }
     func press() -> some View { buttonStyle(PressStyle()) }
     func etched(_ t: Theme, tint: Color? = nil, radius: CGFloat = 2) -> some View {

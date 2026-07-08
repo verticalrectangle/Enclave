@@ -87,7 +87,7 @@ struct SessionsView: View {
         Button { showPair = true } label: {
             HStack(spacing: 8) { Image(systemName: "plus"); Text("PAIR A SESSION").font(.labl(11)) }
                 .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 14)
-                .glass(t, 16, active: true)
+                .glass(t, 16, active: true, border: false)
         }.press()
         .frame(maxWidth: sessionCardMaxWidth)
         .frame(maxWidth: .infinity)
