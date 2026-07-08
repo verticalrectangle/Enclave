@@ -255,8 +255,9 @@ struct CodeBlock: View {
             .padding(.horizontal, 12).padding(.vertical, 7)
             .overlay(Rectangle().frame(height: 0.5).foregroundStyle(t.lineFaint), alignment: .bottom)
             ScrollView(.horizontal, showsIndicators: false) {
-                CodeTextView(attributedText: SyntaxHighlighter.attributed(code, language: lang, theme: t))
-                    .padding(12)
+                SyntaxHighlighter.attributed(code, language: lang, theme: t)
+                    .font(.system(size: 12.5, design: .monospaced))
+                    .textSelection(.enabled).padding(12)
             }
             .frame(maxWidth: .infinity)
         }
@@ -369,6 +370,22 @@ struct ToolCard: View {
     let turn: UITurn
     let t: Theme
     var onImage: (String) -> Void = { _ in }
+
+    private var codeLang: String? {
+        let ext = (turn.meta as NSString).pathExtension.lowercased()
+        return ext.isEmpty ? nil : ext
+    }
+    @ViewBuilder private func toolLine(_ l: String) -> some View {
+        if l.hasPrefix("+") && !l.hasPrefix("++") {
+            Text(l).font(.term(13)).foregroundStyle(t.cOk)
+        } else if l.hasPrefix("-") && !l.hasPrefix("--") {
+            Text(l).font(.term(13)).foregroundStyle(t.cAdvisor)
+        } else if let lang = codeLang {
+            SyntaxHighlighter.attributed(l, language: lang, theme: t).font(.term(13))
+        } else {
+            Text(l).font(.term(13)).foregroundStyle(t.txtMuted)
+        }
+    }
     private var c: Color { toolColor(turn.kind, t) }
 
     var body: some View {
@@ -413,7 +430,7 @@ struct ToolCard: View {
                 if !turn.lines.isEmpty {
                     VStack(alignment: .leading, spacing: 1) {
                         ForEach(Array(turn.lines.enumerated()), id: \.offset) { _, l in
-                            Text(l).font(.term(13)).foregroundStyle(l.hasPrefix("+") ? t.cOk : (l.hasPrefix("−") || l.hasPrefix("-")) ? t.cAdvisor : t.txtMuted)
+                            toolLine(l)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
