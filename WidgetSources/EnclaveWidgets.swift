@@ -62,7 +62,7 @@ struct EnclaveLiveActivity: Widget {
                             Text("NEEDS YOUR ANSWER")
                                 .font(.system(size: 9, weight: .bold))
                                 .tracking(1.6)
-                                .foregroundStyle(.enclaveLove)
+                                .foregroundStyle(Color.enclaveLove)
                         }
                     } else {
                         Text(statusWord(s))
@@ -81,7 +81,7 @@ struct EnclaveLiveActivity: Widget {
                 if status == .needsYou {
                     Text("ask")
                         .font(.caption2).bold()
-                        .foregroundStyle(.enclaveLove)
+                        .foregroundStyle(Color.enclaveLove)
                 } else {
                     EmptyView()
                 }
