@@ -103,7 +103,7 @@ enum SyntaxHighlighter {
 
     // MARK: - language specs
 
-    static func spec(for lang: String) -> LangSpec {
+    fileprivate static func spec(for lang: String) -> LangSpec {
         switch lang {
         case "swift":                       return .swift
         case "javascript", "js", "mjs", "cjs",
