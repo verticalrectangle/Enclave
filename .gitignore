@@ -18,6 +18,9 @@ __pycache__/
 
 # Vendored upstream reference — the oh-my-pi monorepo the app is a client for.
 # Not part of the Enclave app; keep it out of this repo.
+
+# Generated contact sheet (rebuilt by tools/grid.py; exceeds GitHub file-size limit)
+Marketing/icon/icon-grid.png
 oh-my-pi-main/
 
 # Local machine-specific remote build script
