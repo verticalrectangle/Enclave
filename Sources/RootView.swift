@@ -131,7 +131,14 @@ final class AppModel: ObservableObject {
                 syncWatchers()
                 continue
             }
-            guard let url = statusURL(for: s.link) else { live[s.id] = false; state[s.id] = SessionState(); syncWatchers(); continue }
+            guard let url = statusURL(for: s.link) else {
+                if clients[s.id]?.welcomed != true {
+                    live[s.id] = false
+                    state[s.id] = SessionState()
+                }
+                syncWatchers()
+                continue
+            }
             Task { [weak self] in
                 var req = URLRequest(url: url)
                 req.timeoutInterval = 6
@@ -143,8 +150,12 @@ final class AppModel: ObservableObject {
                     isLive = obj["live"] as? Bool ?? false
                 }
                 await MainActor.run {
-                    self?.live[s.id] = isLive
-                    if !isLive { self?.state[s.id] = SessionState() }
+                    if isLive {
+                        self?.live[s.id] = true
+                    } else if self?.clients[s.id]?.welcomed != true {
+                        self?.live[s.id] = false
+                        self?.state[s.id] = SessionState()
+                    }
                     self?.syncWatchers()
                 }
             }

@@ -511,6 +511,22 @@ final class GuestClient: ObservableObject {
 
     private func applyFrame(_ f: [String: Any]) {
         guard let t = f["t"] as? String else { return }
+        if ProcessInfo.processInfo.environment["ENCLAVE_DEBUG"] != nil {
+            let note: String
+            switch t {
+            case "event":
+                note = "type=\((f["event"] as? [String: Any])?["type"] as? String ?? "?")"
+            case "state":
+                let streaming = (f["state"] as? [String: Any])?["isStreaming"]
+                note = "isStreaming=\(streaming as? Bool ?? "?")"
+            case "entry":
+                let entry = f["entry"] as? [String: Any]
+                note = "type=\(entry?["type"] as? String ?? "?") role=\(entry?["role"] as? String ?? "?")"
+            default:
+                note = ""
+            }
+            NSLog("eb:frame t=%@ %@", t, note)
+        }
         switch t {
         case "welcome":
             welcomed = true
@@ -663,6 +679,9 @@ final class GuestClient: ObservableObject {
 
     private func applyEvent(_ e: [String: Any]?) {
         guard let e, let type = e["type"] as? String else { return }
+        if ProcessInfo.processInfo.environment["ENCLAVE_DEBUG"] != nil {
+            NSLog("eb:event type=%@ working=%d", type, working ? 1 : 0)
+        }
         switch type {
         case "message_start", "message_update":
             let m = (e["message"] as? [String: Any]) ?? e
