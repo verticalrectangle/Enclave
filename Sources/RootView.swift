@@ -24,6 +24,7 @@ final class AppModel: ObservableObject {
     private var clients: [String: GuestClient] = [:]    // background watchers
     private var watchers: [String: AnyCancellable] = [:]  // objectWillChange subscriptions
     private var welcomeTimeouts: [String: Task<Void, Never>] = [:]
+    private var activeWelcomeTimeout: Task<Void, Never>?
     private let welcomeGrace: TimeInterval = 8
 
     init() {
@@ -49,6 +50,7 @@ final class AppModel: ObservableObject {
         if ProcessInfo.processInfo.environment["ENCLAVE_SCREENSHOT"] != "1" { Notifier.requestAuth() }
         notify.reset()
         cancellable = client.objectWillChange.receive(on: RunLoop.main).sink { [weak self] in self?.onClientChanged() }
+        scheduleActiveWelcomeTimeout(client)
         return true
     }
 
@@ -65,6 +67,7 @@ final class AppModel: ObservableObject {
         if let link = connectedLink, let i = sessions.firstIndex(where: { $0.link == link }) {
             if c.welcomed { live[sessions[i].id] = true }
             if c.welcomed {
+                activeWelcomeTimeout?.cancel(); activeWelcomeTimeout = nil
                 if !c.title.isEmpty, c.title != "live session", sessions[i].title != c.title { sessions[i].title = c.title; save() }
                 if c.enhanced, sessions[i].enhanced != true { sessions[i].enhanced = true; save() }
             }
@@ -85,6 +88,7 @@ final class AppModel: ObservableObject {
             save()
         }
         cancellable?.cancel(); cancellable = nil
+        activeWelcomeTimeout?.cancel(); activeWelcomeTimeout = nil
         notify.reset()
         liveActivity.end()
         active?.close()
@@ -199,6 +203,20 @@ final class AppModel: ObservableObject {
                 self.live[id] = false
                 self.state[id] = SessionState()
                 self.stopWatcher(for: id)
+            }
+        }
+    }
+    private func scheduleActiveWelcomeTimeout(_ client: GuestClient) {
+        activeWelcomeTimeout?.cancel()
+        activeWelcomeTimeout = Task { [weak self, weak client] in
+            try? await Task.sleep(nanoseconds: UInt64((self?.welcomeGrace ?? 8) * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self, let client,
+                      self.active === client,
+                      !client.welcomed,
+                      client.phase != "ended" else { return }
+                self.leave()
             }
         }
     }
@@ -320,7 +338,6 @@ struct RootView: View {
                     Button { app.tab = 0 } label: {
                         LogoMark(t: t, size: 18, color: t.txt)
                             .frame(width: 38, height: 38)
-                            .glass(t, 16)
                     }
                     .press()
                 }
@@ -330,7 +347,6 @@ struct RootView: View {
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(t.txt)
                             .frame(width: 38, height: 38)
-                            .glass(t, 16)
                     }
                     .press()
                 }
