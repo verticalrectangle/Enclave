@@ -9,20 +9,12 @@ import UIKit
 struct SessionsView: View {
     @EnvironmentObject var theme: ThemeStore
     @EnvironmentObject var app: AppModel
-    @Binding var showPair: Bool
     @Binding var query: String
     private var t: Theme { theme.t }
 
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("ENCLAVE").font(.labl(10)).tracking(2.5).foregroundStyle(t.txtLabel).padding(.bottom, 2)
-                    Text("Sessions").font(.disp(40)).foregroundStyle(t.txt).textCase(.uppercase)
-                }
-                .padding(.top, 6).padding(.bottom, 10)
-                .padding(.horizontal, 16)
-
                 if app.sessions.isEmpty {
                     emptyState
                         .padding(.horizontal, 0)
@@ -42,8 +34,6 @@ struct SessionsView: View {
                             ForEach(offlineSessions) { s in sessionRow(s) }
                         }
                     }
-                    pairButton
-                        .padding(.top, 10).padding(.bottom, 16)
                 }
             }
         }
@@ -89,18 +79,6 @@ struct SessionsView: View {
             .padding(.vertical, 8)
     }
 
-    // MARK: - pair button
-
-    private var pairButton: some View {
-        Button { showPair = true } label: {
-            HStack(spacing: 8) { Image(systemName: "plus"); Text("PAIR A SESSION").font(.labl(11)) }
-                .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 14)
-                .glass(t, 16, active: true, border: false)
-        }.press()
-        .frame(maxWidth: sessionCardMaxWidth)
-        .frame(maxWidth: .infinity)
-    }
-
     // MARK: - empty state
 
     private var emptyState: some View {
@@ -109,64 +87,9 @@ struct SessionsView: View {
             Text("NO SESSIONS YET").font(.labl(10)).tracking(2).foregroundStyle(t.txtMuted)
             (Text("Share a session from your coding agent — run ").foregroundStyle(t.txtMuted) + Text("omp /collab").font(.term(15)).foregroundStyle(t.accent) + Text(" on the box — then pair with the link.").foregroundStyle(t.txtMuted))
                 .font(.bodyF(13.5)).multilineTextAlignment(.center)
-            pairButton.padding(.top, 6)
+            Spacer().frame(height: 16)
         }
         .padding(.horizontal, 24).padding(.vertical, 48)
-    }
-}
-
-// MARK: - Search
-
-struct SearchView: View {
-    @EnvironmentObject var theme: ThemeStore
-    @EnvironmentObject var app: AppModel
-    @FocusState private var focused: Bool
-    @Binding var query: String
-    private var t: Theme { theme.t }
-
-    private var results: [JoinedSession] {
-        app.sessions.filter {
-            query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) || $0.relay.localizedCaseInsensitiveContains(query)
-        }
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").font(.system(size: 14)).foregroundStyle(t.txtGhost)
-                TextField("Search sessions", text: $query)
-                    .font(.bodyF(15))
-                    .foregroundStyle(t.txt)
-                    .focused($focused)
-                if !query.isEmpty {
-                    Button { query = "" } label: {
-                        Image(systemName: "xmark.circle.fill").font(.system(size: 16)).foregroundStyle(t.txtGhost)
-                    }
-                }
-            }
-            .padding(.horizontal, 12).padding(.vertical, 10).glass(t, 14, flat: true)
-            .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 10)
-
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 11) {
-                    ForEach(results) { s in
-                        Button { app.connect(link: s.link, name: UIDevice.current.name) } label: {
-                            JoinedCard(session: s, t: t, state: app.state[s.id] ?? SessionState())
-                                .opacity(app.live[s.id] == true ? 1 : 0.6)
-                        }
-                        .plainRow(leading: 0, trailing: 0)
-                        .contextMenu {
-                            ColorMenu(session: s, t: t)
-                            Button(role: .destructive) { app.remove(s) } label: { Label("Remove", systemImage: "trash") }
-                        }
-                    }
-                }
-                .padding(.horizontal, 16).padding(.bottom, 20)
-            }
-        }
-        .background(t.bg.ignoresSafeArea())
-        .tint(t.accent)
-        .onAppear { focused = true }
     }
 }
 

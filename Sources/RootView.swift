@@ -317,15 +317,16 @@ struct RootView: View {
 
     var body: some View {
         NavigationStack {
-            SessionsView(showPair: $showPair, query: $searchText)
+            SessionsView(query: $searchText)
                 .background(t.bg.ignoresSafeArea())
-                .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search sessions")
-                .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-                .toolbarBackground(.visible, for: .navigationBar)
+                .searchable(text: $searchText, prompt: "Search sessions")
+                .searchToolbarBehavior(.minimize)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button { app.tab = 0 } label: {
-                            LogoMark(t: t, size: 18, color: t.txt)
+                        Button { showPair = true } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(t.accent)
                                 .frame(width: 38, height: 38)
                         }
                         .press()
@@ -339,6 +340,7 @@ struct RootView: View {
                         }
                         .press()
                     }
+                    DefaultToolbarItem(kind: .search, placement: .bottomBar)
                 }
                 // Native push: tapping a session (→ showEditor) slides the editor in from
                 // the right; Leave / back-swipe pops it left.

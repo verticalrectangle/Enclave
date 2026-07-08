@@ -481,8 +481,8 @@ struct SystemNoticeCard: View {
                     Text(turn.meta).font(.labl(9)).tracking(0.5).foregroundStyle(t.txtMuted)
                 }
             }
-            if !turn.caption.isEmpty {
-                Text(turn.caption).font(.bodyF(12)).foregroundStyle(t.txtMuted)
+            if let caption = turn.caption, !caption.isEmpty {
+                Text(caption).font(.bodyF(12)).foregroundStyle(t.txtMuted)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if !turn.text.isEmpty {
