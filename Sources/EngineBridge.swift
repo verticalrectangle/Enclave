@@ -326,6 +326,14 @@ final class GuestClient: ObservableObject {
     private var cachedStaticTurns: [UITurn] = []
     private var cachedTail: [UITurn] = []
     private var cachedEntryCount: Int = 0
+    // Streaming rebuild coalescing: message_update frames arrive faster than the
+    // display can render. Instead of rebuilding + publishing on every token, flush
+    // at most once per ~33ms (30fps). The last stream state wins; intermediate
+    // tokens are never rendered — smooth streaming instead of a slideshow.
+    private var streamRebuildPending = false
+    private var lastStreamRebuild: Date = .distantPast
+    private let streamCoalesceInterval: TimeInterval = 1.0 / 30.0
+    private var skipRebuild = false   // set by applyEvent to suppress applyFrame's immediate rebuild
 
     init?(link: String, name: String) {
         switch CollabLink.parse(link) {
@@ -527,6 +535,7 @@ final class GuestClient: ObservableObject {
             }
             NSLog("eb:frame t=%@ %@", t, note)
         }
+        skipRebuild = false
         switch t {
         case "welcome":
             welcomed = true
@@ -623,7 +632,11 @@ final class GuestClient: ObservableObject {
         default:
             break
         }
-        rebuild()
+        if skipRebuild {
+            skipRebuild = false
+        } else {
+            rebuild()
+        }
     }
 
     private var fromByteFallback: Int { 0 }
@@ -686,6 +699,8 @@ final class GuestClient: ObservableObject {
         case "message_start", "message_update":
             let m = (e["message"] as? [String: Any]) ?? e
             if m["role"] as? String == "assistant" { stream = m; streamDone = false; measureThinking(m) }
+            scheduleStreamRebuild()
+            skipRebuild = true   // applyFrame's rebuild() is replaced by the coalesced one
         case "message_end":
             let m = (e["message"] as? [String: Any]) ?? e
             if m["role"] as? String == "assistant" { stream = m; streamDone = true; measureThinking(m) }
@@ -815,7 +830,29 @@ final class GuestClient: ObservableObject {
         let inspectImages: [(id: String, path: String, mime: String?)]
     }
 
+    /// Throttle streaming rebuilds to ~30fps. If enough time has elapsed since the
+    /// last flush, rebuild immediately. Otherwise schedule a deferred rebuild that
+    /// picks up the latest `stream` state — intermediate frames are silently dropped.
+    private func scheduleStreamRebuild() {
+        let elapsed = Date().timeIntervalSince(lastStreamRebuild)
+        if elapsed >= streamCoalesceInterval {
+            lastStreamRebuild = Date()
+            rebuild()
+        } else if !streamRebuildPending {
+            streamRebuildPending = true
+            let delay = streamCoalesceInterval - elapsed
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                guard let self, self.streamRebuildPending else { return }
+                self.streamRebuildPending = false
+                self.lastStreamRebuild = Date()
+                self.rebuild()
+            }
+        }
+        // If a rebuild is already pending, do nothing — it will pick up the latest stream.
+    }
     private func rebuild() {
+        streamRebuildPending = false  // any explicit rebuild supersedes a pending coalesced one
         // If no new entries arrived and we already have a cached static projection,
         // only the dynamic tail (stream, pending send, active tools, ui-request, notices)
         // may have changed. Rebuild just that tail instead of reprocessing all history.
@@ -854,7 +891,9 @@ final class GuestClient: ObservableObject {
         let tailCount = newTail.count
         cachedStaticTurns = Array(combined.prefix(combined.count - tailCount))
         cachedTail = Array(combined.suffix(tailCount))
-        turns = combined
+        if turns != combined {
+            turns = combined
+        }
 
         // Only adopt a live plan once one actually arrives, so the cached plan shown on
         // reconnect isn't wiped to empty while the snapshot is still streaming in.

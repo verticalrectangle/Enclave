@@ -449,6 +449,38 @@ async def _collab_chat(send: Sender, log: Logger, delay: float, q: asyncio.Queue
     await send(state_frame(isStreaming=False, queuedMessageCount=0))
     log("agent_end — turn complete")
 
+async def _collab_stream(send: Sender, log: Logger, delay: float, q: asyncio.Queue) -> None:
+    """Rapid token streaming: 120 message_update frames at ~8ms spacing (≈125fps).
+    Without coalescing this is a slideshow; with coalescing it renders at 30fps."""
+    await send(entry_frame(user_prompt_entry("Write a long essay about performance.")))
+    await asyncio.sleep(delay)
+    await send(event({"type": "agent_start"}))
+    await send(state_frame(isStreaming=True, queuedMessageCount=0))
+    log("agent_start — rapid stream")
+    await asyncio.sleep(delay)
+
+    # Stream 120+ tokens at ~8ms each (well above display refresh rate).
+    base = ("The quick brown fox jumps over the lazy dog. "
+            "Lorem ipsum dolor sit amet consectetur adipiscing elit. "
+            "Sed do eiusmod tempor incididunt ut labore et dolore magna. "
+            "Ut enim ad minim veniam quis nostrud exercitation ullamco. "
+            "Duis aute irure dolor in reprehenderit in voluptate velit. "
+            "Excepteur sint occaecat cupidatat non proident sunt in culpa. ")
+    words = base.split() * 3  # ~160 tokens
+    text = ""
+    for i, w in enumerate(words[:120]):
+        text += (" " if i > 0 else "") + w
+        await send(event({"type": "message_update",
+                          "message": assistant_payload("", text)}))
+        await asyncio.sleep(0.008)  # 8ms ≈ 125fps
+    log(f"streamed {min(len(words), 120)} tokens")
+
+    await send(event({"type": "message_end",
+                      "message": assistant_payload("", text)}))
+    await send(entry_frame(assistant_entry("", text, eid="msg-1")))
+    await send(event({"type": "agent_end"}))
+    await send(state_frame(isStreaming=False, queuedMessageCount=0))
+    log("agent_end — rapid stream complete")
 
 async def _collab_retry(send: Sender, log: Logger, delay: float, q: asyncio.Queue) -> None:
     log("welcomed; simulating retry/fallback")
@@ -748,6 +780,7 @@ SCENARIOS: dict[str, tuple[str, bool, ScenarioDriver]] = {
     "bye":           ("welcome, then host hangs up — session ends → OFFLINE", True, _bye),
     "error":         ("never welcome; send an error frame", False, _error),
     "collab-chat":   ("/collab: welcome + a simulated reasoning turn", True, _collab_chat),
+    "collab-stream": ("/collab: rapid 120-token stream — exercises coalescing", True, _collab_stream),
     "collab-retry":  ("/collab: retry/fallback activity events", True, _collab_retry),
     "collab-compaction": ("/collab: compaction activity + entry", True, _collab_compaction),
     "collab-notice": ("/collab: notice chips", True, _collab_notice),
