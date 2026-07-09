@@ -424,7 +424,7 @@ struct ToolCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Rectangle().fill(c).frame(width: 2).cornerRadius(2)
-            VStack(alignment: .leading, spacing: turn.lines.isEmpty && turn.image == nil && turn.caption == nil ? 0 : 7) {
+            VStack(alignment: .leading, spacing: turn.diff.isEmpty && turn.perFileDiffs.isEmpty && turn.lines.isEmpty && turn.image == nil && turn.caption == nil ? 0 : 7) {
                 HStack(spacing: 8) {
                     Image(systemName: toolGlyph(turn.kind)).font(.system(size: 13)).foregroundStyle(c)
                     Text(turn.head.uppercased()).font(.labl(10.5)).tracking(0.4).foregroundStyle(c)
@@ -460,7 +460,29 @@ struct ToolCard: View {
                     }
                 }
                 if let cap = turn.caption { Text(cap).font(.bodyF(13)).foregroundStyle(t.txtBody).textSelection(.enabled) }
-                if !turn.lines.isEmpty {
+                if !turn.diff.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        CodeTextView(attributedText: SyntaxHighlighter.diff(turn.diff, theme: t, codeLanguage: turn.diffLang.isEmpty ? nil : turn.diffLang, fontSize: 13))
+                            .padding(.horizontal, 10).padding(.vertical, 8)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(t.bg2).clipShape(RoundedRectangle(cornerRadius: 16))
+                } else if !turn.perFileDiffs.isEmpty {
+                    VStack(alignment: .leading, spacing: 1) {
+                        ForEach(Array(turn.perFileDiffs.enumerated()), id: \.offset) { _, file in
+                            if !file.path.isEmpty {
+                                Text(file.path).font(.term(12)).foregroundStyle(t.txtMuted).padding(.bottom, 2)
+                            }
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                CodeTextView(attributedText: SyntaxHighlighter.diff(file.diff, theme: t, codeLanguage: file.lang.isEmpty ? nil : file.lang, fontSize: 13))
+                                    .padding(.horizontal, 10).padding(.vertical, 8)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .padding(.horizontal, 10).padding(.vertical, 8)
+                    .background(t.bg2).clipShape(RoundedRectangle(cornerRadius: 16))
+                } else if !turn.lines.isEmpty {
                     VStack(alignment: .leading, spacing: 1) {
                         ForEach(Array(turn.lines.enumerated()), id: \.offset) { _, l in
                             Text(l).font(.term(13)).foregroundStyle(l.hasPrefix("+") ? t.cOk : (l.hasPrefix("\u{2212}") || l.hasPrefix("-")) ? t.cAdvisor : t.txtMuted).textSelection(.enabled)

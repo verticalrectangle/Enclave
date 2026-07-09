@@ -980,7 +980,7 @@ final class GuestClient: ObservableObject {
                     let details = msg["details"] as? [String: Any]
                     let imagePath = isInspect ? (details?["imagePath"] as? String) : nil
                     if let idx = toolIndex[id] {
-                        fillResult(&out[idx], content: msg["content"], isError: isError)
+                        fillResult(&out[idx], content: msg["content"], isError: isError, details: details, kind: out[idx].kind)
                         if isInspect, !isError, out[idx].image == nil, let p = imagePath, !p.isEmpty {
                             if let cached = fetchedImages[p] {
                                 out[idx].image = cached
@@ -998,7 +998,7 @@ final class GuestClient: ObservableObject {
                         }
                     } else {
                         var turn = toolTurn(id: id, name: msg["toolName"] as? String ?? "tool", args: nil, intent: nil)
-                        fillResult(&turn, content: msg["content"], isError: isError)
+                        fillResult(&turn, content: msg["content"], isError: isError, details: details, kind: turn.kind)
                         if isInspect, !isError, turn.image == nil, let p = imagePath, !p.isEmpty {
                             if let cached = fetchedImages[p] {
                                 turn.image = cached
@@ -1177,7 +1177,7 @@ final class GuestClient: ObservableObject {
         t.meta = argSummary(args) ?? intent ?? ""
         return t
     }
-    private func fillResult(_ turn: inout UITurn, content: Any?, isError: Bool) {
+    private func fillResult(_ turn: inout UITurn, content: Any?, isError: Bool, details: [String: Any]? = nil, kind: String = "") {
         turn.pending = false
         if let img = firstImage(content) { turn.image = img }
         let text = contentString(content)
@@ -1187,6 +1187,30 @@ final class GuestClient: ObservableObject {
             else { turn.lines = Array(lines.prefix(14)) }
         }
         if isError && turn.meta.isEmpty { turn.meta = "error" }
+
+        if let details = details, (kind == "edit" || kind == "ast_edit") {
+            if let diff = details["diff"] as? String, !diff.isEmpty {
+                turn.diff = diff
+                turn.diffLang = SyntaxHighlighter.languageFromPath(details["path"] as? String ?? "") ?? ""
+            } else if let displayContent = details["displayContent"] as? String, !displayContent.isEmpty {
+                turn.diff = displayContent
+                let displayPath = details["path"] as? String
+                    ?? (details["fileReplacements"] as? [[String: Any]])?.first?["path"] as? String
+                    ?? details["scopePath"] as? String
+                turn.diffLang = SyntaxHighlighter.languageFromPath(displayPath ?? "") ?? ""
+            }
+            if let perFileResults = details["perFileResults"] as? [[String: Any]] {
+                turn.perFileDiffs = perFileResults.compactMap { entry in
+                    let path = entry["path"] as? String ?? ""
+                    let diff = entry["diff"] as? String ?? ""
+                    guard !path.isEmpty || !diff.isEmpty else { return nil }
+                    let isErr = entry["isError"] as? Bool ?? false
+                    let errorText = entry["errorText"] as? String
+                    let lang = SyntaxHighlighter.languageFromPath(path) ?? ""
+                    return UIToolFileDiff(path: path, diff: diff, lang: lang, isError: isErr, errorText: errorText)
+                }
+            }
+        }
     }
 
     private func hostHasEchoedUserText(_ text: String?) -> Bool {

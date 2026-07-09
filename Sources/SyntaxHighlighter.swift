@@ -27,6 +27,25 @@ enum SyntaxHighlighter {
         return color(code, spec: spec(for: lang), theme: t, baseColor: baseColor, fontSize: fontSize)
     }
 
+    /// Map a file path to the `language` string accepted by `spec(for:)`.
+    static func languageFromPath(_ path: String) -> String? {
+        let base = (path as NSString).lastPathComponent
+        if base.lowercased() == "dockerfile" { return "dockerfile" }
+        let ext = (base as NSString).pathExtension.lowercased()
+        let map: [String: String] = [
+            "swift": "swift", "ts": "typescript", "tsx": "typescript", "mts": "typescript", "cts": "typescript",
+            "js": "javascript", "jsx": "javascript", "mjs": "javascript", "cjs": "javascript",
+            "py": "python", "rb": "ruby", "rs": "rust", "go": "go",
+            "java": "java", "kt": "kotlin", "c": "c", "h": "c", "cpp": "cpp", "cc": "cpp", "hpp": "cpp",
+            "cs": "csharp", "php": "php", "sh": "bash", "bash": "bash", "zsh": "bash", "fish": "bash",
+            "sql": "sql", "html": "html", "htm": "html", "xml": "html", "svg": "html", "vue": "html", "svelte": "html",
+            "css": "css", "scss": "css", "less": "css", "json": "json", "jsonc": "json", "json5": "json",
+            "yaml": "yaml", "yml": "yaml", "toml": "ini", "ini": "ini", "md": "markdown", "mdx": "markdown",
+            "dockerfile": "dockerfile", "lua": "lua", "zig": "zig", "diff": "diff", "patch": "diff"
+        ]
+        return map[ext]
+    }
+
     // MARK: - tokenized coloring
 
     private static func color(_ code: String, spec: LangSpec, theme t: Theme, baseColor: Color? = nil, fontSize: CGFloat? = 12.5) -> NSAttributedString {
@@ -64,27 +83,91 @@ enum SyntaxHighlighter {
         }
     }
 
-    private static func diff(_ code: String, theme t: Theme, baseColor: Color? = nil, fontSize: CGFloat? = 12.5) -> NSAttributedString {
+    static func diff(_ code: String, theme t: Theme, codeLanguage: String? = nil, baseColor: Color? = nil, fontSize: CGFloat? = 12.5) -> NSAttributedString {
         let mut = NSMutableAttributedString()
         let defaultFG = baseColor ?? t.txtBody
         let lines = code.components(separatedBy: "\n")
+        let codeFrameSep = "│"
+        let numberedRegex = try! NSRegularExpression(pattern: "^([+\\- ])(\\d+)\\|(.*)$", options: [])
+
         for (i, body) in lines.enumerated() {
             var fg: Color = defaultFG
             var bg: UIColor?
-            if body.hasPrefix("+") && !body.hasPrefix("+++") { fg = t.diffAdd;   bg = UIColor(t.diffAddBG) }
-            else if body.hasPrefix("-") && !body.hasPrefix("---") { fg = t.diffDel; bg = UIColor(t.diffDelBG) }
-            else if body.hasPrefix("@@") { fg = t.synKeyword }
-            else if body.hasPrefix("diff ") || body.hasPrefix("Index:") { fg = t.txtMuted }
-            var attrs: [NSAttributedString.Key: Any] = [
+            var gutter: String
+            var content: String
+            var isHunk = false
+
+            if body.trimmingCharacters(in: .whitespaces).isEmpty {
+                gutter = "…"
+                content = ""
+            } else if let match = numberedRegex.firstMatch(in: body, options: [], range: NSRange(location: 0, length: (body as NSString).length)) {
+                let prefix = (body as NSString).substring(with: match.range(at: 1))
+                let lineNum = (body as NSString).substring(with: match.range(at: 2))
+                content = (body as NSString).substring(with: match.range(at: 3))
+                gutter = "\(prefix)\(lineNum)|"
+                if prefix == "+" { fg = t.diffAdd; bg = UIColor(t.diffAddBG) }
+                else if prefix == "-" { fg = t.diffDel; bg = UIColor(t.diffDelBG) }
+            } else if let sepIdx = body.firstIndex(of: Character(codeFrameSep)) {
+                let g = String(body[..<sepIdx])
+                gutter = g + codeFrameSep
+                content = String(body[body.index(after: sepIdx)...])
+                let marker = g.trimmingCharacters(in: .whitespaces).first
+                if marker == "+" { fg = t.diffAdd; bg = UIColor(t.diffAddBG) }
+                else if marker == "-" { fg = t.diffDel; bg = UIColor(t.diffDelBG) }
+                else if marker == "*" { fg = t.synKeyword; bg = nil }
+            } else if body.hasPrefix("@@") {
+                gutter = body
+                content = ""
+                isHunk = true
+                fg = t.synKeyword
+            } else if body.hasPrefix("+") && !body.hasPrefix("+++") {
+                gutter = "+"
+                content = String(body.dropFirst())
+                if content.hasPrefix(" ") { content = String(content.dropFirst()) }
+                fg = t.diffAdd; bg = UIColor(t.diffAddBG)
+            } else if body.hasPrefix("-") && !body.hasPrefix("---") {
+                gutter = "-"
+                content = String(body.dropFirst())
+                if content.hasPrefix(" ") { content = String(content.dropFirst()) }
+                fg = t.diffDel; bg = UIColor(t.diffDelBG)
+            } else if body.hasPrefix(" ") {
+                gutter = " "
+                content = String(body.dropFirst())
+                if content.hasPrefix(" ") { content = String(content.dropFirst()) }
+            } else {
+                gutter = ""
+                content = body
+            }
+
+            let lineStart = mut.length
+            var gutterAttrs: [NSAttributedString.Key: Any] = [
                 .foregroundColor: UIColor(fg)
             ]
             if let fontSize {
-                attrs[.font] = UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+                gutterAttrs[.font] = UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
             }
-            let lineRange = NSRange(location: mut.length, length: (body as NSString).length)
-            mut.append(NSAttributedString(string: body, attributes: attrs))
+            mut.append(NSAttributedString(string: gutter, attributes: gutterAttrs))
+
+            if !content.isEmpty {
+                if let codeLanguage, !isHunk {
+                    let lang = codeLanguage.lowercased().trimmingCharacters(in: .whitespaces)
+                    let highlighted = color(content, spec: spec(for: lang), theme: t, baseColor: fg, fontSize: fontSize)
+                    mut.append(highlighted)
+                } else {
+                    var contentAttrs: [NSAttributedString.Key: Any] = [
+                        .foregroundColor: UIColor(fg)
+                    ]
+                    if let fontSize {
+                        contentAttrs[.font] = UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+                    }
+                    mut.append(NSAttributedString(string: content, attributes: contentAttrs))
+                }
+            }
+
+            let lineEnd = mut.length
+            let lineRange = NSRange(location: lineStart, length: lineEnd - lineStart)
             if let bg { mut.addAttribute(.backgroundColor, value: bg, range: lineRange) }
-            if i != lines.count - 1 { mut.append(NSAttributedString(string: "\n", attributes: attrs)) }
+            if i != lines.count - 1 { mut.append(NSAttributedString(string: "\n", attributes: gutterAttrs)) }
         }
         return NSAttributedString(attributedString: mut)
     }

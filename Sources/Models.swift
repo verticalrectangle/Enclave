@@ -7,6 +7,14 @@ import SwiftUI
 
 // MARK: - Turn (one rendered transcript row)
 
+struct UIToolFileDiff: Equatable {
+    let path: String
+    let diff: String
+    let lang: String
+    let isError: Bool
+    let errorText: String?
+}
+
 struct UITurn: Identifiable, Equatable {
     let id: String
     var type: TurnType
@@ -22,6 +30,11 @@ struct UITurn: Identifiable, Equatable {
     var del: Int? = nil
     var lines: [String] = []
     var caption: String? = nil
+
+    // diff
+    var diff: String = ""
+    var diffLang: String = ""
+    var perFileDiffs: [UIToolFileDiff] = []
 
     // ask
     var question: String = ""
@@ -42,7 +55,8 @@ struct UITurn: Identifiable, Equatable {
 
     static func == (a: UITurn, b: UITurn) -> Bool {
         a.id == b.id && a.text == b.text && a.streaming == b.streaming && a.pending == b.pending
-            && a.meta == b.meta && a.lines == b.lines && a.thoughtSeconds == b.thoughtSeconds && a.model == b.model
+            && a.meta == b.meta && a.lines == b.lines && a.diff == b.diff && a.diffLang == b.diffLang
+            && a.perFileDiffs == b.perFileDiffs && a.thoughtSeconds == b.thoughtSeconds && a.model == b.model
             && a.askKind == b.askKind && a.question == b.question && a.options == b.options
             && a.optionDescriptions == b.optionDescriptions && a.selectionMarker == b.selectionMarker
             && a.checkedIndices == b.checkedIndices && a.helpText == b.helpText && a.prefill == b.prefill
