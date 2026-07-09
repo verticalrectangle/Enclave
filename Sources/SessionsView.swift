@@ -85,7 +85,7 @@ struct SessionsView: View {
         VStack(spacing: 12) {
             LogoMark(t: t, size: 44, color: t.txtGhost)
             Text("NO SESSIONS YET").font(.labl(10)).tracking(2).foregroundStyle(t.txtMuted)
-            (Text("Share a session from your coding agent — run ").foregroundStyle(t.txtMuted) + Text("omp /collab").font(.term(15)).foregroundStyle(t.accent) + Text(" on the box — then pair with the link.").foregroundStyle(t.txtMuted))
+            (Text("Share a session from your coding agent — run ").foregroundStyle(t.txtMuted) + Text("omp /enclave").font(.term(15)).foregroundStyle(t.accent) + Text(" or ").foregroundStyle(t.txtMuted) + Text("omp /collab").font(.term(15)).foregroundStyle(t.accent) + Text(" on the box — then pair with the link.").foregroundStyle(t.txtMuted))
                 .font(.bodyF(13.5)).multilineTextAlignment(.center)
             Spacer().frame(height: 16)
         }
