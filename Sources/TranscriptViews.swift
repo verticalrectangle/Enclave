@@ -90,7 +90,7 @@ struct TurnRow: View {
     private var agentLine: some View {
         // Serif prose with fenced code rendered as scrollable monospace boxes.
         let segs = markdownBlocksWithLanguage(turn.text)
-        VStack(alignment: .leading, spacing: 9) {
+        return VStack(alignment: .leading, spacing: 9) {
             ForEach(0..<segs.count, id: \.self) { i in
                 switch segs[i].block {
                 case .prose(let p):
@@ -115,7 +115,7 @@ struct TurnRow: View {
 
     private var advisorNote: some View {
         let segs = markdownBlocksWithLanguage(turn.text)
-        VStack(alignment: .leading, spacing: 9) {
+        return VStack(alignment: .leading, spacing: 9) {
             ForEach(0..<segs.count, id: \.self) { i in
                 switch segs[i].block {
                 case .prose(let p):
@@ -350,7 +350,7 @@ struct AdvisoryCard: View {
 ///   1. bare URLs → clickable .link (accent + underline) via NSDataDetector.
 ///   2. ==highlight== spans → themed background tint; markers stripped.
 ///   3. inline `code` spans → themed background + optional syntax highlighting.
-func inlineMarkdown(_ s: String, t: Theme, baseColor: Color = t.txt, defaultLanguage: String? = nil) -> AttributedString {
+func inlineMarkdown(_ s: String, t: Theme, baseColor: Color? = nil, defaultLanguage: String? = nil) -> AttributedString {
     guard let parsed = try? AttributedString(
         markdown: s,
         options: AttributedString.MarkdownParsingOptions(
@@ -363,7 +363,7 @@ func inlineMarkdown(_ s: String, t: Theme, baseColor: Color = t.txt, defaultLang
     let body = NSRange(location: 0, length: mut.length)
 
     // Base text color — baked in so per-token syntax colors can survive.
-    mut.addAttribute(.foregroundColor, value: UIColor(baseColor), range: body)
+    mut.addAttribute(.foregroundColor, value: UIColor(baseColor ?? t.txt), range: body)
 
     // 1 — bare URLs not already turned into a markdown link.
     inlineLinkDetector.enumerateMatches(in: mut.string, options: [], range: body) { result, _, _ in
