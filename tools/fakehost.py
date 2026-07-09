@@ -527,6 +527,54 @@ async def _collab_system_notice(send: Sender, log: Logger, delay: float, q: asyn
     await send(entry_frame(system_notice_entry(notice)))
 
 
+async def _syntax_highlight(send: Sender, log: Logger, delay: float, q: asyncio.Queue) -> None:
+    """Exercise fenced code blocks: swift, diff, inline backticks, and tool +/- lines."""
+    await send(entry_frame(user_prompt_entry("Show me syntax highlighting.")))
+    await asyncio.sleep(delay)
+
+    swift_block = """Here is a Swift block:
+```swift
+import SwiftUI
+
+struct CounterView: View {
+    @State var count = 0
+    let title = "Hello"
+
+    var body: some View {
+        // button increments the count
+        Button(title) {
+            count += 1
+        }
+        .font(.title)
+    }
+}
+```
+And a diff:
+```diff
++ added line
+- removed line
+ context line
+@@ -1,2 +1,2 @@
+```
+Inline `backtick code` should keep its tint."""
+
+    await send(entry_frame(assistant_entry("", swift_block, eid="msg-syntax")))
+
+    # Tool card with +/- lines.
+    await send(entry_frame(user_prompt_entry("Apply this patch.")))
+    await asyncio.sleep(delay)
+    tool_call_id = "patch-tool-1"
+    await send(tool_event("tool_execution_start", tool_call_id, {"name": "apply_patch"}))
+    await send(tool_event("tool_execution_update", tool_call_id, {"name": "apply_patch", "content": [{"type": "text", "text": "+ added line\n- removed line"}]}))
+    await send(tool_event("tool_execution_end", tool_call_id, {"name": "apply_patch"}))
+    await send(entry_frame(tool_result_entry(
+        tool_call_id=tool_call_id,
+        tool_name="apply_patch",
+        content=[{"type": "text", "text": "+ added line\n- removed line\ncontext line"}],
+        details={"command": "apply patch"})))
+    log("sent syntax-highlight exercise")
+
+
 # ── /enclave scenarios (send enclave-caps after welcome) ──────────────────────
 async def _enclave_caps(send: Sender, log: Logger, delay: float, q: asyncio.Queue) -> None:
     log("welcomed; sending enclave-caps")
@@ -706,6 +754,7 @@ SCENARIOS: dict[str, tuple[str, bool, ScenarioDriver]] = {
     "collab-goal":   ("/collab: goal banner", True, _collab_goal),
     "collab-tool":   ("/collab: tool execution card", True, _collab_tool),
     "collab-system-notice": ("/collab: system-notice card (harness background-job)", True, _collab_system_notice),
+    "syntax-highlight": ("/collab: fenced code blocks + diff + tool +/- coloring", True, _syntax_highlight),
     "enclave-caps":  ("/enclave: welcome + enclave-caps, then idle", True, _enclave_caps),
     "enclave-ask":   ("/enclave: ui-request select card", True, _enclave_ask),
     "enclave-plan":  ("/enclave: plan mode + editor approval", True, _enclave_plan),
