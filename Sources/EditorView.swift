@@ -16,6 +16,20 @@ struct Attachment: Identifiable {
     let mime: String
 }
 
+private struct BottomOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = .infinity
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = min(value, nextValue())
+    }
+}
+
+private struct ScrollHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 struct EditorView: View {
     @EnvironmentObject var theme: ThemeStore
     @Environment(\.scenePhase) private var scenePhase
@@ -30,6 +44,8 @@ struct EditorView: View {
     @State private var showVisionHelp = false
     @State private var planExpanded = false
     @FocusState private var composerFocused: Bool
+    @State private var stickToBottom = true
+    @State private var scrollVisibleHeight: CGFloat = 0
 
     init(client: GuestClient) {
         let seed = Session(id: "live", repo: client.title, branch: client.readOnly ? "watch" : "control",
@@ -104,10 +120,8 @@ struct EditorView: View {
     private var transcript: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical) {
-                // LazyVStack: only rows on/near screen are rendered, which keeps
-                // scrolling smooth and per-frame streaming updates cheap in long sessions.
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(vm.turns.enumerated()), id: \.element.id) { _, turn in
+                    ForEach(vm.turns, id: \.id) { turn in
                         TurnRow(turn: turn, t: t,
                                 onImage: { viewer = $0 },
                                 onAnswer: vm.readOnly ? nil : { vm.answer($0, $1) },
@@ -118,18 +132,43 @@ struct EditorView: View {
                             .id(turn.id)
                     }
                     if vm.isRunning { ThinkingLine(t: t).id("think") }
-                    Color.clear.frame(height: 8).id("bottom")
+                    Color.clear.frame(height: 8)
+                        .id("bottom")
+                        .background(
+                            GeometryReader { geo in
+                                Color.clear
+                                    .preference(key: BottomOffsetKey.self,
+                                                value: geo.frame(in: .named("scroll")).maxY)
+                            }
+                        )
                 }
                 .padding(16)
             }
-            // Start at — and stay pinned to — the newest message. As the snapshot loads
-            // and the agent streams, content grows against the bottom edge instead of
-            // triggering an animated jump per chunk (the source of the jitter).
-            .defaultScrollAnchor(.bottom)
+            .coordinateSpace(name: "scroll")
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .preference(key: ScrollHeightKey.self, value: geo.size.height)
+                }
+            )
+            .onPreferenceChange(ScrollHeightKey.self) { scrollVisibleHeight = $0 }
+            .onPreferenceChange(BottomOffsetKey.self) { bottomY in
+                // bottomY is the bottom spacer's maxY in the scroll coordinate space.
+                // If it's within (or just below) the visible area, we're at the bottom.
+                stickToBottom = bottomY <= scrollVisibleHeight + 50
+            }
+            .onAppear { proxy.scrollTo("bottom", anchor: .bottom) }
+            .onChange(of: vm.turns) { _, _ in
+                if stickToBottom {
+                    proxy.scrollTo("bottom", anchor: .bottom)
+                }
+            }
             .onChange(of: composerFocused) { _, focused in
-                guard focused else { return }   // on dismiss, let defaultScrollAnchor handle it natively
-                withAnimation(.easeInOut(duration: 0.2)) { planExpanded = false }   // collapse the plan while typing
-                withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("bottom", anchor: .bottom) }
+                guard focused else { return }
+                withAnimation(.easeInOut(duration: 0.2)) { planExpanded = false }
+                if stickToBottom {
+                    proxy.scrollTo("bottom", anchor: .bottom)
+                }
             }
             .scrollDismissesKeyboard(.interactively)
             .simultaneousGesture(TapGesture().onEnded { hideKeyboard() })

@@ -51,7 +51,7 @@ final class SessionVM: ObservableObject {
     }
 
     private func syncLive() {
-        turns = live.turns
+        if turns != live.turns { turns = live.turns }
         if live.working { sawWorking = true } else if sawWorking { awaitingVision = false; sawWorking = false }
         let waiting = turns.contains { $0.type == .ask }
         let status = EnclaveStatus.from(phase: live.phase, working: live.working, waiting: waiting)
