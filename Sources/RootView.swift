@@ -322,15 +322,6 @@ struct RootView: View {
                 .searchable(text: $searchText, prompt: "Search sessions")
                 .searchToolbarBehavior(.minimize)
                 .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button { showPair = true } label: {
-                            Image(systemName: "plus")
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundStyle(t.accent)
-                                .frame(width: 38, height: 38)
-                        }
-                        .press()
-                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         Button { theme.toggle() } label: {
                             Image(systemName: theme.effective == .dark ? "sun.max" : "moon")
@@ -341,6 +332,16 @@ struct RootView: View {
                         .press()
                     }
                     DefaultToolbarItem(kind: .search, placement: .bottomBar)
+                    ToolbarSpacer(.flexible, placement: .bottomBar)
+                    ToolbarItem(placement: .bottomBar) {
+                        Button { showPair = true } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 17, weight: .semibold))
+                        }
+                        .buttonStyle(.glassProminent)
+                        .tint(t.accent)
+                        .accessibilityLabel("Pair a session")
+                    }
                 }
                 // Native push: tapping a session (→ showEditor) slides the editor in from
                 // the right; Leave / back-swipe pops it left.
