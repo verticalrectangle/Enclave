@@ -197,28 +197,30 @@ struct EditorView: View {
     // MARK: composer
 
     private var composerStack: some View {
-        VStack(spacing: 8) {
-            if let g = vm.goal { goalBanner(g) }
-            if !vm.plan.isEmpty {
-                PlanStrip(phases: vm.plan, t: t, expanded: $planExpanded)
-            }
-            if vm.isRunning {
-                HStack(spacing: 8) {
-                    if vm.awaitingVision { Image(systemName: "eye").font(.system(size: 13)).foregroundStyle(t.accent) } else { LiveDot(t: t) }
-                    Text(vm.session.action).font(.term(14)).foregroundStyle(t.accent).lineLimit(1)
-                    Spacer()
-                    Text("\(vm.session.tokens) · \(vm.session.model)").font(.term(13)).foregroundStyle(t.txtMuted).lineLimit(1)
+        GlassEffectContainer(spacing: 8) {
+            VStack(spacing: 8) {
+                if let g = vm.goal { goalBanner(g) }
+                if !vm.plan.isEmpty {
+                    PlanStrip(phases: vm.plan, t: t, expanded: $planExpanded)
                 }
-                .padding(.horizontal, 12).padding(.vertical, 7)
-                .glass(t, 16, flat: true)
+                if vm.isRunning {
+                    HStack(spacing: 8) {
+                        if vm.awaitingVision { Image(systemName: "eye").font(.system(size: 13)).foregroundStyle(t.accent) } else { LiveDot(t: t) }
+                        Text(vm.session.action).font(.term(14)).foregroundStyle(t.accent).lineLimit(1)
+                        Spacer()
+                        Text("\(vm.session.tokens) · \(vm.session.model)").font(.term(13)).foregroundStyle(t.txtMuted).lineLimit(1)
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .glass(t, 16, flat: true)
+                }
+                if vm.currentMode == "plan" && !vm.isRunning {
+                    planReviewBanner
+                }
+                if showPalette {
+                    SlashPalette(t: t, commands: vm.commands) { name in vm.runCommand(name); showPalette = false }
+                }
+                if vm.readOnly { readOnlyBar } else { composer }
             }
-            if vm.currentMode == "plan" && !vm.isRunning {
-                planReviewBanner
-            }
-            if showPalette {
-                SlashPalette(t: t, commands: vm.commands) { name in vm.runCommand(name); showPalette = false }
-            }
-            if vm.readOnly { readOnlyBar } else { composer }
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 6)
@@ -336,13 +338,16 @@ struct EditorView: View {
         if vm.isRunning {
             Button { vm.stop() } label: {
                 Image(systemName: "stop.fill").font(.system(size: 15)).foregroundStyle(t.txt)
-                    .frame(width: 38, height: 38).glass(t, 16)
-            }.press()
+            }
+            .buttonStyle(.glass)
+            .frame(width: 38, height: 38)
         } else {
             Button(action: doSend) {
-                Image(systemName: "arrow.right").font(.system(size: 17, weight: .semibold)).foregroundStyle(t.accent)
-                    .frame(width: 38, height: 38).glass(t, 16, active: true)
-            }.press()
+                Image(systemName: "arrow.right").font(.system(size: 17, weight: .semibold)).foregroundStyle(.white)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(t.accent)
+            .frame(width: 38, height: 38)
         }
     }
 

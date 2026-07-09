@@ -54,6 +54,13 @@ struct TurnRow: View {
                         .frame(width: 180, height: 120).clipped()
                         .clipShape(RoundedRectangle(cornerRadius: 16)).glass(t, 16)
                 }
+                .contextMenu {
+                    if let ui = SrcImage<AnyView, AnyView>.decode(img) {
+                        Button { UIPasteboard.general.image = ui } label: { Label("Copy", systemImage: "doc.on.doc") }
+                        Button { UIImageWriteToSavedPhotosAlbum(ui, nil, nil, nil) } label: { Label("Save", systemImage: "square.and.arrow.down") }
+                    }
+                    Button { UIPasteboard.general.string = img } label: { Label("Copy Link", systemImage: "link") }
+                }
             }
             if !turn.text.isEmpty {
                 VStack(alignment: .leading, spacing: 9) {
@@ -61,7 +68,7 @@ struct TurnRow: View {
                         switch seg {
                         case .prose(let p):
                             if !p.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                Text(inlineMarkdown(p, t: t)).font(.bodyF(14)).foregroundStyle(t.txt)
+                                Text(inlineMarkdown(p, t: t)).font(.bodyF(14))
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         case .advisory(let severity, let guidance, let body):
@@ -82,16 +89,19 @@ struct TurnRow: View {
 
     private var agentLine: some View {
         // Serif prose with fenced code rendered as scrollable monospace boxes.
+        let segs = markdownBlocksWithLanguage(turn.text)
         VStack(alignment: .leading, spacing: 9) {
-            ForEach(Array(markdownBlocks(turn.text).enumerated()), id: \.offset) { _, seg in
-                switch seg {
+            ForEach(0..<segs.count, id: \.self) { i in
+                switch segs[i].block {
                 case .prose(let p):
                     if !p.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text(inlineMarkdown(p, t: t)).font(.serif(16)).foregroundStyle(t.txt)
-                            .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                        Text(inlineMarkdown(p, t: t, defaultLanguage: segs[i].language))
+                            .font(.serif(16))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 case .advisory(let severity, let guidance, let body):
-                    AdvisoryCard(severity: severity, guidance: guidance, advisoryBody: body, t: t)
+                    AdvisoryCard(severity: severity, guidance: guidance, advisoryBody: body, t: t, defaultLanguage: segs[i].language)
                 case .code(let lang, let body):
                     CodeBlock(lang: lang, code: body, t: t)
                 }
@@ -104,15 +114,18 @@ struct TurnRow: View {
     }
 
     private var advisorNote: some View {
+        let segs = markdownBlocksWithLanguage(turn.text)
         VStack(alignment: .leading, spacing: 9) {
-            ForEach(Array(markdownBlocks(turn.text).enumerated()), id: \.offset) { _, seg in
-                switch seg {
+            ForEach(0..<segs.count, id: \.self) { i in
+                switch segs[i].block {
                 case .prose(let p):
                     if !p.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text(inlineMarkdown(p, t: t)).font(.bodyF(13.5)).foregroundStyle(t.txt)
+                        Text(inlineMarkdown(p, t: t, defaultLanguage: segs[i].language))
+                            .font(.bodyF(13.5))
+                            .textSelection(.enabled)
                     }
                 case .advisory(let severity, let guidance, let body):
-                    AdvisoryCard(severity: severity, guidance: guidance, advisoryBody: body, t: t)
+                    AdvisoryCard(severity: severity, guidance: guidance, advisoryBody: body, t: t, defaultLanguage: segs[i].language)
                 case .code(let lang, let body):
                     CodeBlock(lang: lang, code: body, t: t)
                 }
@@ -233,6 +246,22 @@ func markdownBlocks(_ s: String) -> [MDBlock] {
     return out
 }
 
+/// Same markdown split, but with an inferred inline-code language for each prose/advisory block.
+/// The language is the `lang` of the nearest preceding fenced code block; `generic` for none.
+func markdownBlocksWithLanguage(_ s: String) -> [(block: MDBlock, language: String)] {
+    var lastLang = ""
+    return markdownBlocks(s).map { block in
+        switch block {
+        case .code(let lang, _):
+            lastLang = lang
+            return (block, lang)
+        case .prose, .advisory:
+            return (block, lastLang)
+        }
+    }
+}
+
+
 /// A fenced code block: language label + copy button over a scrollable monospace body.
 struct CodeBlock: View {
     let lang: String; let code: String; let t: Theme
@@ -273,6 +302,7 @@ struct AdvisoryCard: View {
     let guidance: String?
     let advisoryBody: String
     let t: Theme
+    var defaultLanguage: String = ""
 
     private var color: Color {
         switch severity {
@@ -299,10 +329,11 @@ struct AdvisoryCard: View {
                     Spacer(minLength: 0)
                 }
                 if let guidance = guidance, !guidance.isEmpty {
-                    Text(guidance).font(.bodyF(12)).foregroundStyle(t.txtMuted).fixedSize(horizontal: false, vertical: true)
+                    Text(guidance).font(.bodyF(12)).foregroundStyle(t.txtMuted).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 }
                 if !advisoryBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text(inlineMarkdown(advisoryBody, t: t)).font(.serif(16)).foregroundStyle(t.txt).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                    Text(inlineMarkdown(advisoryBody, t: t, defaultLanguage: defaultLanguage)).font(.serif(16))
+                        .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                 }
             }
             .padding(.leading, 11).padding(.trailing, 12).padding(.vertical, 8)
@@ -315,11 +346,11 @@ struct AdvisoryCard: View {
 }
 
 /// Inline markdown (bold/code/italics, line breaks preserved, streaming-safe)
-/// plus two enrichments layered on after parsing:
-///   1. bare URLs → clickable .link (accent color + underline), via NSDataDetector.
-///      Markdown links [t](url) / <url> are already attributed and skipped.
-///   2. ==highlight== spans → themed background tint; the == markers are stripped.
-func inlineMarkdown(_ s: String, t: Theme) -> AttributedString {
+/// plus three enrichments:
+///   1. bare URLs → clickable .link (accent + underline) via NSDataDetector.
+///   2. ==highlight== spans → themed background tint; markers stripped.
+///   3. inline `code` spans → themed background + optional syntax highlighting.
+func inlineMarkdown(_ s: String, t: Theme, baseColor: Color = t.txt, defaultLanguage: String? = nil) -> AttributedString {
     guard let parsed = try? AttributedString(
         markdown: s,
         options: AttributedString.MarkdownParsingOptions(
@@ -330,6 +361,9 @@ func inlineMarkdown(_ s: String, t: Theme) -> AttributedString {
     if mut.string.isEmpty && !s.isEmpty { return AttributedString(s) }
 
     let body = NSRange(location: 0, length: mut.length)
+
+    // Base text color — baked in so per-token syntax colors can survive.
+    mut.addAttribute(.foregroundColor, value: UIColor(baseColor), range: body)
 
     // 1 — bare URLs not already turned into a markdown link.
     inlineLinkDetector.enumerateMatches(in: mut.string, options: [], range: body) { result, _, _ in
@@ -352,10 +386,24 @@ func inlineMarkdown(_ s: String, t: Theme) -> AttributedString {
         mut.deleteCharacters(in: NSRange(location: full.location, length: 2))
     }
 
-    // 3 — inline `code` spans → themed background tint (foregroundColor is dropped by Text's .foregroundStyle)
+    // 3 — inline `code` spans: background, optional syntax highlight, and monospace intent.
+    var codeRanges: [NSRange] = []
     mut.enumerateAttribute(.inlinePresentationIntent, in: body, options: []) { value, range, _ in
         guard let intent = value as? InlinePresentationIntent, intent.contains(.code) else { return }
-        mut.addAttribute(.backgroundColor, value: UIColor(t.accent.opacity(0.14)), range: range)
+        codeRanges.append(range)
+    }
+    for range in codeRanges.sorted(by: { $0.location > $1.location }) {
+        if let defaultLanguage {
+            let code = mut.attributedSubstring(from: range).string
+            let highlighted = SyntaxHighlighter.attributed(code, language: defaultLanguage, theme: t, baseColor: baseColor, fontSize: nil)
+            let wrapped = NSMutableAttributedString(attributedString: highlighted)
+            let full = NSRange(location: 0, length: wrapped.length)
+            wrapped.addAttribute(.backgroundColor, value: UIColor(t.accent.opacity(0.14)), range: full)
+            wrapped.addAttribute(.inlinePresentationIntent, value: InlinePresentationIntent.code, range: full)
+            mut.replaceCharacters(in: range, with: wrapped)
+        } else {
+            mut.addAttribute(.backgroundColor, value: UIColor(t.accent.opacity(0.14)), range: range)
+        }
     }
 
     return AttributedString(mut)
@@ -411,11 +459,11 @@ struct ToolCard: View {
                         }
                     }
                 }
-                if let cap = turn.caption { Text(cap).font(.bodyF(13)).foregroundStyle(t.txtBody) }
+                if let cap = turn.caption { Text(cap).font(.bodyF(13)).foregroundStyle(t.txtBody).textSelection(.enabled) }
                 if !turn.lines.isEmpty {
                     VStack(alignment: .leading, spacing: 1) {
                         ForEach(Array(turn.lines.enumerated()), id: \.offset) { _, l in
-                            Text(l).font(.term(13)).foregroundStyle(l.hasPrefix("+") ? t.cOk : (l.hasPrefix("\u{2212}") || l.hasPrefix("-")) ? t.cAdvisor : t.txtMuted)
+                            Text(l).font(.term(13)).foregroundStyle(l.hasPrefix("+") ? t.cOk : (l.hasPrefix("\u{2212}") || l.hasPrefix("-")) ? t.cAdvisor : t.txtMuted).textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
@@ -451,7 +499,7 @@ struct SysChip: View {
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: glyph).font(.system(size: 11)).foregroundStyle(c)
-            Text(turn.text).font(.labl(9)).tracking(1.4).foregroundStyle(c)
+            Text(turn.text).font(.labl(9)).tracking(1.4).foregroundStyle(c).textSelection(.enabled)
         }
         .frame(maxWidth: .infinity, alignment: .center)
     }
@@ -482,18 +530,18 @@ struct SystemNoticeCard: View {
                 }
             }
             if let caption = turn.caption, !caption.isEmpty {
-                Text(caption).font(.bodyF(12)).foregroundStyle(t.txtMuted)
+                    Text(caption).font(.bodyF(12)).foregroundStyle(t.txtMuted).textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if !turn.text.isEmpty {
-                Text(turn.text).font(.term(12)).foregroundStyle(t.txtBody)
+                    Text(turn.text).font(.term(12)).foregroundStyle(t.txtBody).textSelection(.enabled)
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(t.bg2).clipShape(RoundedRectangle(cornerRadius: 12))
             }
             if !turn.lines.isEmpty {
                 ForEach(turn.lines, id: \.self) { line in
-                    Text(line).font(.bodyF(11)).foregroundStyle(t.txtMuted)
+                    Text(line).font(.bodyF(11)).foregroundStyle(t.txtMuted).textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -528,7 +576,7 @@ struct AskCard: View {
         VStack(alignment: .leading, spacing: 10) {
             header
             if !turn.helpText.isEmpty {
-                Text(turn.helpText).font(.bodyF(12)).foregroundStyle(t.txtMuted)
+                    Text(turn.helpText).font(.bodyF(12)).foregroundStyle(t.txtMuted).textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if isEditor { editor } else { options }
@@ -550,7 +598,7 @@ struct AskCard: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(isEditor ? "INPUT REQUESTED" : "ASK")
                     .font(.labl(9)).tracking(1.4).foregroundStyle(t.accent)
-                Text(turn.question).font(.bodyF(13.5)).foregroundStyle(t.txt)
+                    Text(turn.question).font(.bodyF(13.5)).foregroundStyle(t.txt).textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -625,20 +673,20 @@ struct AskCard: View {
                         Image(systemName: textSent ? "checkmark" : "paperplane.fill")
                         Text(textSent ? "SENT" : "SEND").font(.labl(10.5))
                     }
-                    .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 10)
-                    .glass(t, 16, active: true)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity).padding(.vertical, 10)
                 }
+                .buttonStyle(.glassProminent)
+                .tint(t.accent)
                 .disabled(textSent || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .press()
             }
             if onCancel != nil {
                 Button { onCancel?() } label: {
                     Text("SKIP").font(.labl(10.5)).foregroundStyle(t.txtMuted)
                         .frame(maxWidth: .infinity).padding(.vertical, 10)
-                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(t.line))
                 }
+                .buttonStyle(.glass)
                 .disabled(sent || textSent)
-                .press()
             }
         }
     }
@@ -693,8 +741,8 @@ struct ThinkingBlock: View {
             }
             .buttonStyle(.plain)
             if expanded {
-                Text(inlineMarkdown(turn.text, t: t)).font(.serif(13.5)).italic().foregroundStyle(t.txtMuted)
-                    .textSelection(.enabled)
+                Text(inlineMarkdown(turn.text, t: t, baseColor: t.txtMuted, defaultLanguage: ""))
+                    .font(.serif(13.5)).italic().textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 8).padding(.leading, 2)
             }
@@ -734,7 +782,7 @@ struct ImageViewer: View {
                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(t.lineStrong))
 
             VStack(spacing: 6) {
-                Text(label).font(.term(14)).foregroundStyle(t.lockFg)
+                Text(label).font(.term(14)).foregroundStyle(t.lockFg).textSelection(.enabled)
                 Text("TAP ANYWHERE TO CLOSE").font(.labl(9)).foregroundStyle(t.lockFg.opacity(0.5))
             }
             .padding(.horizontal, 16).padding(.vertical, 10)

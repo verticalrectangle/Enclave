@@ -121,27 +121,13 @@ struct GlassBG: ViewModifier {
     var panel = false
     var border = true
     func body(content: Content) -> some View {
+        // flat/panel/border are kept for backward compatibility; native Liquid Glass
+        // does not expose equivalent variants and renders its own edge.
+        let glass: Glass = active
+            ? .regular.tint(t.accent.opacity(0.15)).interactive()
+            : .regular
         content
-            .background(
-                ZStack {
-                    RoundedRectangle(cornerRadius: radius, style: .continuous)
-                        .fill(panel ? AnyShapeStyle(t.panel) : AnyShapeStyle(.ultraThinMaterial))
-                        .opacity(panel ? 1 : (flat ? 0.6 : 1))
-                    RoundedRectangle(cornerRadius: radius, style: .continuous)
-                        .fill(LinearGradient(colors: [.white.opacity(t.mode == .dark ? 0.12 : 0.6), .clear],
-                                             startPoint: .top, endPoint: .center))
-                        .allowsHitTesting(false)
-                }
-            )
-            .overlay(
-                Group {
-                    if border {
-                        RoundedRectangle(cornerRadius: radius, style: .continuous)
-                            .strokeBorder(active ? t.accentLine : t.glassBorder, lineWidth: 1)
-                    }
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .glassEffect(glass, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
     }
 }
 

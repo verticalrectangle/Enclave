@@ -21,19 +21,21 @@ enum SyntaxHighlighter {
 
     // MARK: - public
 
-    static func attributed(_ code: String, language rawLang: String, theme t: Theme) -> NSAttributedString {
+    static func attributed(_ code: String, language rawLang: String, theme t: Theme, baseColor: Color? = nil, fontSize: CGFloat? = 12.5) -> NSAttributedString {
         let lang = rawLang.lowercased().trimmingCharacters(in: .whitespaces)
-        if lang == "diff" || lang == "patch" { return diff(code, theme: t) }
-        return color(code, spec: spec(for: lang), theme: t)
+        if lang == "diff" || lang == "patch" { return diff(code, theme: t, baseColor: baseColor, fontSize: fontSize) }
+        return color(code, spec: spec(for: lang), theme: t, baseColor: baseColor, fontSize: fontSize)
     }
 
     // MARK: - tokenized coloring
 
-    private static func color(_ code: String, spec: LangSpec, theme t: Theme) -> NSAttributedString {
-        let base: [NSAttributedString.Key: Any] = [
-            .foregroundColor: UIColor(t.txtBody),
-            .font: UIFont.monospacedSystemFont(ofSize: 12.5, weight: .regular)
+    private static func color(_ code: String, spec: LangSpec, theme t: Theme, baseColor: Color? = nil, fontSize: CGFloat? = 12.5) -> NSAttributedString {
+        var base: [NSAttributedString.Key: Any] = [
+            .foregroundColor: UIColor(baseColor ?? t.txtBody)
         ]
+        if let fontSize {
+            base[.font] = UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        }
         let mut = NSMutableAttributedString(string: code, attributes: base)
         let regex = compiled(spec)
         let full = NSRange(location: 0, length: (code as NSString).length)
@@ -62,22 +64,23 @@ enum SyntaxHighlighter {
         }
     }
 
-    // MARK: - diff (+/- line tinting)
-
-    private static func diff(_ code: String, theme t: Theme) -> NSAttributedString {
+    private static func diff(_ code: String, theme t: Theme, baseColor: Color? = nil, fontSize: CGFloat? = 12.5) -> NSAttributedString {
         let mut = NSMutableAttributedString()
+        let defaultFG = baseColor ?? t.txtBody
         let lines = code.components(separatedBy: "\n")
         for (i, body) in lines.enumerated() {
-            var fg: Color = t.txtBody
+            var fg: Color = defaultFG
             var bg: UIColor?
             if body.hasPrefix("+") && !body.hasPrefix("+++") { fg = t.diffAdd;   bg = UIColor(t.diffAddBG) }
             else if body.hasPrefix("-") && !body.hasPrefix("---") { fg = t.diffDel; bg = UIColor(t.diffDelBG) }
             else if body.hasPrefix("@@") { fg = t.synKeyword }
             else if body.hasPrefix("diff ") || body.hasPrefix("Index:") { fg = t.txtMuted }
-            let attrs: [NSAttributedString.Key: Any] = [
-                .foregroundColor: UIColor(fg),
-                .font: UIFont.monospacedSystemFont(ofSize: 12.5, weight: .regular)
+            var attrs: [NSAttributedString.Key: Any] = [
+                .foregroundColor: UIColor(fg)
             ]
+            if let fontSize {
+                attrs[.font] = UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+            }
             let lineRange = NSRange(location: mut.length, length: (body as NSString).length)
             mut.append(NSAttributedString(string: body, attributes: attrs))
             if let bg { mut.addAttribute(.backgroundColor, value: bg, range: lineRange) }

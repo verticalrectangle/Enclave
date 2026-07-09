@@ -167,12 +167,13 @@ struct SubagentSheet: View {
                     HStack(spacing: 8) {
                         Button { client.sendAgentCmd("kill", agentId: agent.id); dismiss() } label: {
                             Text("KILL").font(.labl(10.5)).foregroundStyle(t.cAdvisor).frame(maxWidth: .infinity).padding(.vertical, 10)
-                                .overlay(RoundedRectangle(cornerRadius: 16).stroke(t.cAdvisor.opacity(0.5)))
-                        }.press()
+                        }
+                        .buttonStyle(.glass)
                         Button { client.sendAgentCmd("revive", agentId: agent.id) } label: {
-                            Text("REVIVE").font(.labl(10.5)).foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 10)
-                                .glass(t, 16, active: true)
-                        }.press()
+                            Text("REVIVE").font(.labl(10.5)).foregroundStyle(.white).frame(maxWidth: .infinity).padding(.vertical, 10)
+                        }
+                        .buttonStyle(.glassProminent)
+                        .tint(t.accent)
                     }
                 }.padding(.horizontal, 12).padding(.bottom, 6).background(t.bg)
             }
