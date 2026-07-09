@@ -45,6 +45,7 @@ struct EditorView: View {
     @State private var planExpanded = false
     @FocusState private var composerFocused: Bool
     @State private var stickToBottom = true
+    @State private var didInitialScroll = false
     @State private var scrollVisibleHeight: CGFloat = 0
 
     init(client: GuestClient) {
@@ -120,29 +121,7 @@ struct EditorView: View {
     private var transcript: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical) {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(vm.turns, id: \.id) { turn in
-                        TurnRow(turn: turn, t: t,
-                                onImage: { viewer = $0 },
-                                onAnswer: vm.readOnly ? nil : { vm.answer($0, $1) },
-                                onAnswerText: vm.readOnly ? nil : { vm.answer($0, $1) },
-                                onCancelAsk: vm.readOnly ? nil : { vm.skip($0) },
-                                onRewind: (vm.enhanced && !vm.isRunning && turn.type == .user) ? { vm.rewind(to: turn) } : nil,
-                                onEdit: (vm.enhanced && !vm.isRunning && turn.type == .user) ? { draft = turn.text; vm.rewindBefore(to: turn) } : nil)
-                            .id(turn.id)
-                    }
-                    if vm.isRunning { ThinkingLine(t: t).id("think") }
-                    Color.clear.frame(height: 8)
-                        .id("bottom")
-                        .background(
-                            GeometryReader { geo in
-                                Color.clear
-                                    .preference(key: BottomOffsetKey.self,
-                                                value: geo.frame(in: .named("scroll")).maxY)
-                            }
-                        )
-                }
-                .padding(16)
+                transcriptList
             }
             .coordinateSpace(name: "scroll")
             .background(
@@ -157,10 +136,19 @@ struct EditorView: View {
                 // If it's within (or just below) the visible area, we're at the bottom.
                 stickToBottom = bottomY <= scrollVisibleHeight + 50
             }
-            .onAppear { proxy.scrollTo("bottom", anchor: .bottom) }
             .onChange(of: vm.turns) { _, _ in
-                if stickToBottom {
+                if didInitialScroll && stickToBottom {
                     proxy.scrollTo("bottom", anchor: .bottom)
+                }
+            }
+            .onChange(of: vm.live.phase) { _, phase in
+                if phase == "live" && !didInitialScroll {
+                    didInitialScroll = true
+                    proxy.scrollTo("bottom", anchor: .bottom)
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 100_000_000)
+                        proxy.scrollTo("bottom", anchor: .bottom)
+                    }
                 }
             }
             .onChange(of: composerFocused) { _, focused in
@@ -173,6 +161,32 @@ struct EditorView: View {
             .scrollDismissesKeyboard(.interactively)
             .simultaneousGesture(TapGesture().onEnded { hideKeyboard() })
         }
+    }
+
+    @ViewBuilder private var transcriptList: some View {
+        LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(vm.turns, id: \.id) { turn in
+                TurnRow(turn: turn, t: t,
+                        onImage: { viewer = $0 },
+                        onAnswer: vm.readOnly ? nil : { vm.answer($0, $1) },
+                        onAnswerText: vm.readOnly ? nil : { vm.answer($0, $1) },
+                        onCancelAsk: vm.readOnly ? nil : { vm.skip($0) },
+                        onRewind: (vm.enhanced && !vm.isRunning && turn.type == .user) ? { vm.rewind(to: turn) } : nil,
+                        onEdit: (vm.enhanced && !vm.isRunning && turn.type == .user) ? { draft = turn.text; vm.rewindBefore(to: turn) } : nil)
+                    .id(turn.id)
+            }
+            if vm.isRunning { ThinkingLine(t: t).id("think") }
+            Color.clear.frame(height: 8)
+                .id("bottom")
+                .background(
+                    GeometryReader { geo in
+                        Color.clear
+                            .preference(key: BottomOffsetKey.self,
+                                        value: geo.frame(in: .named("scroll")).maxY)
+                    }
+                )
+        }
+        .padding(16)
     }
 
     private func hideKeyboard() {
