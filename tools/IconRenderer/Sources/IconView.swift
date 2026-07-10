@@ -1077,7 +1077,7 @@ struct IconView: View {
         Int(ProcessInfo.processInfo.environment["ENCLAVE_SLIT"] ?? "0") ?? 0
     }()
     private let split: CGFloat = {
-        CGFloat(Int(ProcessInfo.processInfo.environment["ENCLAVE_SPLIT"] ?? "0") ?? 0) * 0.15
+        CGFloat(Double(ProcessInfo.processInfo.environment["ENCLAVE_SPLIT"] ?? "0") ?? 0)
     }()
 
     var body: some View {

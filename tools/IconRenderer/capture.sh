@@ -13,7 +13,7 @@ VARIANTS="${VARIANTS:-ui-iris ui-foam ui-gold ui-pine ui-rose ui-love ui-muted \
           fg-ocean-dark fg-grape-dark fg-ember-dark fg-jade-dark fg-cobalt-dark fg-magenta-dark fg-bronze-dark \
           fg-ocean-ring fg-grape-ring fg-ember-ring fg-jade-ring fg-cobalt-ring fg-magenta-ring fg-bronze-ring \
           fg-ocean-ring-dark fg-grape-ring-dark fg-ember-ring-dark fg-jade-ring-dark fg-cobalt-ring-dark fg-magenta-ring-dark fg-bronze-ring-dark}"
-ENCLAVE_SPLIT="${ENCLAVE_SPLIT:-1}"
+ENCLAVE_SPLIT="${ENCLAVE_SPLIT:-0.066}"
 QA_PICKS="${QA_PICKS:-}"
 
 xcodegen generate
