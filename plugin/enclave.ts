@@ -142,7 +142,8 @@ interface WebSocketWithBinary {
 let current: { link: string; send: (frame: unknown, peer?: number) => Promise<void>; peers: Map<number, string> } | null = null;
 
 let uiReqSeq = 0;
-const pendingUi = new Map<number, { resolve: (value: string | undefined) => void; request: Record<string, unknown>; onFeedbackChange?: (value: string) => void; onSliderChange?: (index: number) => void; }>();
+type GuestUiResult = { kind: "answered"; value: string | undefined } | { kind: "unavailable" };
+const pendingUi = new Map<number, { resolve: (value: GuestUiResult) => void; request: Record<string, unknown>; onFeedbackChange?: (value: string) => void; onSliderChange?: (index: number) => void; }>();
 let originalShowPlanReview: ShowPlanReviewFn | undefined;
 
 // The activation api carries the runtime-bound ACTIONS (sendUserMessage, abort,
@@ -317,7 +318,7 @@ async function startShare(rawCtx: unknown): Promise<string> {
         }
         if (feedback !== undefined) pending.onFeedbackChange?.(feedback);
         if (sliderIndex !== undefined) pending.onSliderChange?.(sliderIndex);
-        pending.resolve(choice);
+        pending.resolve({ kind: "answered", value: choice });
         await send({ t: "ui-request-end", reqId: f.reqId });
         return;
       }
@@ -358,7 +359,7 @@ async function startShare(rawCtx: unknown): Promise<string> {
 
   ws.onclose = () => {
     current = null;
-    for (const p of pendingUi.values()) p.resolve(undefined);
+    for (const p of pendingUi.values()) p.resolve({ kind: "unavailable" });
     pendingUi.clear();
   };
 
@@ -557,7 +558,12 @@ function installPlanReview(): void {
       }
     }
 
-    return requestGuestUi(request, signal, { onFeedbackChange, onSliderChange });
+    const result = await requestGuestUi(request, signal, { onFeedbackChange, onSliderChange });
+    if (result.kind === "unavailable") {
+      if (!originalShowPlanReview) return undefined;
+      return originalShowPlanReview.call(this, planContent, title, options, dialogOptions, extra);
+    }
+    return result.value;
   };
 }
 
@@ -566,30 +572,30 @@ function installPlanReview(): void {
 async function requestGuestUi(
   request: Record<string, unknown>,
   signal?: AbortSignal,
-  callbacks?: { onFeedbackChange?: (value: string) => void; onSliderChange?: (index: number) => void },
-): Promise<string | undefined> {
+  callbacks?: { onFeedbackChange?: (value: string) => void; onSliderChange?: (index: number) => void; },
+): Promise<GuestUiResult> {
   const share = current;
-  if (!share) return Promise.resolve(undefined);
-  if (signal?.aborted) return Promise.resolve(undefined);
+  if (!share || share.peers.size === 0) return Promise.resolve({ kind: "unavailable" });
+  if (signal?.aborted) return Promise.resolve({ kind: "unavailable" });
 
   const reqId = ++uiReqSeq;
   request.reqId = reqId;
-  const { promise, resolve } = Promise.withResolvers<string | undefined>();
+  const { promise, resolve } = Promise.withResolvers<GuestUiResult>();
   let settled = false;
   let cleanup = () => {};
 
-  const settle = (value: string | undefined): void => {
+  const settle = (result: GuestUiResult): void => {
     if (settled) return;
     settled = true;
     cleanup();
     pendingUi.delete(reqId);
-    resolve(value);
+    resolve(result);
   };
 
   if (signal) {
     const onAbort = (): void => {
-      settle(undefined);
       void share.send({ t: "ui-request-end", reqId });
+      settle({ kind: "unavailable" });
     };
     signal.addEventListener("abort", onAbort, { once: true });
     cleanup = () => signal.removeEventListener("abort", onAbort);
@@ -599,39 +605,74 @@ async function requestGuestUi(
   await share.send({ t: "ui-request", request });
   return promise;
 }
+async function raceDialogs(
+  local: (signal: AbortSignal | undefined) => Promise<string | undefined>,
+  remote: (signal: AbortSignal | undefined) => Promise<GuestUiResult>,
+  signal?: AbortSignal,
+): Promise<string | undefined> {
+  const localAbort = new AbortController();
+  const remoteAbort = new AbortController();
+  const localSignal = signal ? AbortSignal.any([signal, localAbort.signal]) : localAbort.signal;
+  const remoteSignal = signal ? AbortSignal.any([signal, remoteAbort.signal]) : remoteAbort.signal;
+
+  const localWinner = local(localSignal).then((value): { source: "local"; value: string | undefined } => ({ source: "local", value }));
+  const remoteWinner = remote(remoteSignal).then(result =>
+    result.kind === "answered" ? { source: "remote" as const, value: result.value } : localWinner,
+  );
+  const winner = await Promise.race([localWinner, remoteWinner]);
+  if (winner.source === "remote") localAbort.abort();
+  else remoteAbort.abort();
+  return winner.value;
+}
 
 const selectWrapper: SelectFn = async function (this: unknown, title, options, dialogOptions): Promise<string | undefined> {
-  const share = current;
-  if (!share) {
-    const original = this && typeof this === "object" ? uiOriginals.get(this as object)?.select : undefined;
-    return original ? original.call(this, title, options, dialogOptions) : undefined;
-  }
-  const request: Record<string, unknown> = { kind: "select", title, options };
-  if (dialogOptions && typeof dialogOptions === "object") {
-    const d = dialogOptions as Record<string, unknown>;
-    if (typeof d.initialIndex === "number") request.initialIndex = d.initialIndex;
-    if (typeof d.selectionMarker === "string") request.selectionMarker = d.selectionMarker;
-    if (Array.isArray(d.checkedIndices)) request.checkedIndices = d.checkedIndices.filter((i: unknown) => typeof i === "number");
-    if (typeof d.markableCount === "number") request.markableCount = d.markableCount;
-    if (typeof d.helpText === "string") request.helpText = d.helpText;
-  }
-  const signal = dialogOptions?.signal instanceof AbortSignal ? (dialogOptions as Record<string, unknown>).signal as AbortSignal : undefined;
-  return requestGuestUi(request, signal);
+  const original = this && typeof this === "object" ? uiOriginals.get(this as object)?.select : undefined;
+  const baseSignal = dialogOptions?.signal instanceof AbortSignal ? (dialogOptions as Record<string, unknown>).signal as AbortSignal : undefined;
+
+  const local = async (signal: AbortSignal | undefined): Promise<string | undefined> => {
+    if (!original) return undefined;
+    return original.call(this, title, options, { ...dialogOptions, signal });
+  };
+
+  const remote = async (signal: AbortSignal | undefined): Promise<GuestUiResult> => {
+    const share = current;
+    if (!share) return { kind: "unavailable" };
+    const request: Record<string, unknown> = { kind: "select", title, options };
+    if (dialogOptions && typeof dialogOptions === "object") {
+      const d = dialogOptions as Record<string, unknown>;
+      if (typeof d.initialIndex === "number") request.initialIndex = d.initialIndex;
+      if (typeof d.selectionMarker === "string") request.selectionMarker = d.selectionMarker;
+      if (Array.isArray(d.checkedIndices)) request.checkedIndices = d.checkedIndices.filter((i: unknown) => typeof i === "number");
+      if (typeof d.markableCount === "number") request.markableCount = d.markableCount;
+      if (typeof d.helpText === "string") request.helpText = d.helpText;
+    }
+    return requestGuestUi(request, signal);
+  };
+
+  return raceDialogs(local, remote, baseSignal);
 };
 
 const editorWrapper: EditorFn = async function (this: unknown, title, prefill, dialogOptions, editorOptions): Promise<string | undefined> {
-  const share = current;
-  if (!share) {
-    const original = this && typeof this === "object" ? uiOriginals.get(this as object)?.editor : undefined;
-    return original ? original.call(this, title, prefill, dialogOptions, editorOptions) : undefined;
-  }
-  const request: Record<string, unknown> = { kind: "editor", title, prefill };
-  if (dialogOptions && typeof dialogOptions === "object") {
-    const d = dialogOptions as Record<string, unknown>;
-    if (typeof d.helpText === "string") request.helpText = d.helpText;
-  }
-  const signal = dialogOptions?.signal instanceof AbortSignal ? (dialogOptions as Record<string, unknown>).signal as AbortSignal : undefined;
-  return requestGuestUi(request, signal);
+  const original = this && typeof this === "object" ? uiOriginals.get(this as object)?.editor : undefined;
+  const baseSignal = dialogOptions?.signal instanceof AbortSignal ? (dialogOptions as Record<string, unknown>).signal as AbortSignal : undefined;
+
+  const local = async (signal: AbortSignal | undefined): Promise<string | undefined> => {
+    if (!original) return undefined;
+    return original.call(this, title, prefill, { ...dialogOptions, signal }, editorOptions);
+  };
+
+  const remote = async (signal: AbortSignal | undefined): Promise<GuestUiResult> => {
+    const share = current;
+    if (!share) return { kind: "unavailable" };
+    const request: Record<string, unknown> = { kind: "editor", title, prefill };
+    if (dialogOptions && typeof dialogOptions === "object") {
+      const d = dialogOptions as Record<string, unknown>;
+      if (typeof d.helpText === "string") request.helpText = d.helpText;
+    }
+    return requestGuestUi(request, signal);
+  };
+
+  return raceDialogs(local, remote, baseSignal);
 };
 
 function installAsk(runtime?: Runtime): void {
