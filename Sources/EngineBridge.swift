@@ -1362,6 +1362,21 @@ final class GuestClient: ObservableObject {
                 "helpText": "Type your answer and tap SEND, or SKIP to leave it blank.",
                 "prefill": "Investigate the failing build on CI."
             ]
+        case "plan":
+            return [
+                "reqId": 1,
+                "kind": "plan",
+                "title": "Plan mode - next step",
+                "helpText": "## Plan\n\n1. Refactor the wire protocol.\n2. Update the guest client.\n3. Verify the UI renders correctly.",
+                "selectionMarker": "radio",
+                "options": [
+                    "Approve and execute",
+                    "Approve and compact context",
+                    "Keep context and execute",
+                    "Refine plan"
+                ],
+                "disabledIndices": [2]
+            ]
         default:
             return [
                 "reqId": 1,
