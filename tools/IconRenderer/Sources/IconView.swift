@@ -1313,24 +1313,32 @@ struct IconView: View {
         let glyphSize = S * 0.82
         let gap = split * glyphSize
         let halfH = (glyphSize - gap) / 2
-        // Top half: clip to upper portion
+        // Top half: mask to upper portion
         PopMakerGlyph()
             .fill(RadialGradient(
                 colors: [color.shade(1.7), color, color.shade(0.45)],
                 center: UnitPoint(x: 0.36, y: 0.30),
                 startRadius: glyphSize * 0.02, endRadius: glyphSize * 0.50))
             .frame(width: glyphSize, height: glyphSize)
-            .clipShape(Rectangle().frame(width: glyphSize, height: halfH, alignment: .top))
+            .mask(
+                Rectangle()
+                    .frame(width: glyphSize, height: halfH)
+                    .offset(y: -(gap / 2 + halfH / 2))
+            )
             .offset(y: -gap / 2)
             .shadow(color: .black.opacity(0.20), radius: S * 0.006, x: 0, y: S * 0.004)
-        // Bottom half: clip to lower portion
+        // Bottom half: mask to lower portion
         PopMakerGlyph()
             .fill(RadialGradient(
                 colors: [color.shade(1.7), color, color.shade(0.45)],
                 center: UnitPoint(x: 0.36, y: 0.30),
                 startRadius: glyphSize * 0.02, endRadius: glyphSize * 0.50))
             .frame(width: glyphSize, height: glyphSize)
-            .clipShape(Rectangle().frame(width: glyphSize, height: halfH, alignment: .bottom))
+            .mask(
+                Rectangle()
+                    .frame(width: glyphSize, height: halfH)
+                    .offset(y: gap / 2 + halfH / 2)
+            )
             .offset(y: gap / 2)
             .shadow(color: .black.opacity(0.20), radius: S * 0.006, x: 0, y: S * 0.004)
     }
