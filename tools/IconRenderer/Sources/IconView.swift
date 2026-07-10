@@ -1150,18 +1150,18 @@ struct IconView: View {
                 Rectangle()
                     .fill(.white.opacity(0.001))
                     .glassEffect(.regular, in: .circle)
-                    .overlay(alignment: .center) {
-                        if split > 0 {
-                            EnclaveSlit(open: 1, split: split)
-                                .fill(.white.opacity(0.001))
-                                .glassEffect(.regular, in: EnclaveSlit(open: 1, split: split))
-                        } else {
-                            EnclaveSlit(open: 1)
-                                .stroke(slitStroke(),
-                                        style: StrokeStyle(lineWidth: S * 0.06,
-                                                            lineCap: .round, lineJoin: .round))
-                        }
-                    }
+                // glass ring annulus + split almond halves (independent glass pieces)
+                if split > 0 {
+                    GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355)
+                        .fill(.white.opacity(0.001))
+                        .glassEffect(.regular, in: GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355))
+                    splitAlmondGlass()
+                } else {
+                    EnclaveSlit(open: 1)
+                        .stroke(slitStroke(),
+                                style: StrokeStyle(lineWidth: S * 0.06,
+                                                    lineCap: .round, lineJoin: .round))
+                }
                 Circle().strokeBorder(Color.white.opacity(0.55), lineWidth: S * 0.004)
             }
             .frame(width: S * 0.82, height: S * 0.82)
@@ -1178,18 +1178,18 @@ struct IconView: View {
                     .fill(.white.opacity(0.001))
                     .glassEffect(.regular, in: .circle)
                     .frame(width: S * 0.66, height: S * 0.66)
-                    .overlay(alignment: .center) {
-                        if split > 0 {
-                            EnclaveSlit(open: 1, split: split)
-                                .fill(.white.opacity(0.001))
-                                .glassEffect(.regular, in: EnclaveSlit(open: 1, split: split))
-                        } else {
-                            EnclaveSlit(open: 1)
-                                .stroke(slitStroke(),
-                                        style: StrokeStyle(lineWidth: S * 0.06,
-                                                            lineCap: .round, lineJoin: .round))
-                        }
-                    }
+                // glass ring annulus + split almond halves (independent glass pieces)
+                if split > 0 {
+                    GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355)
+                        .fill(.white.opacity(0.001))
+                        .glassEffect(.regular, in: GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355))
+                    splitAlmondGlass()
+                } else {
+                    EnclaveSlit(open: 1)
+                        .stroke(slitStroke(),
+                                style: StrokeStyle(lineWidth: S * 0.06,
+                                                    lineCap: .round, lineJoin: .round))
+                }
                 // rims for both disks
                 Circle().strokeBorder(Color.white.opacity(0.55), lineWidth: S * 0.004)
                 Circle().strokeBorder(Color.white.opacity(0.55), lineWidth: S * 0.004)
@@ -1207,13 +1207,27 @@ struct IconView: View {
                 GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355)
                     .fill(.white.opacity(0.001))
                     .glassEffect(.regular, in: GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355))
-                EnclaveSlit(open: 1, split: split)
-                    .fill(.white.opacity(0.001))
-                    .glassEffect(.regular, in: EnclaveSlit(open: 1, split: split))
+                if split > 0 {
+                    splitAlmondGlass()
+                } else {
+                    EnclaveSlit(open: 1)
+                        .fill(.white.opacity(0.001))
+                        .glassEffect(.regular, in: EnclaveSlit(open: 1))
+                }
             }
             .frame(width: S * 0.82, height: S * 0.82)
             .shadow(color: .black.opacity(0.22), radius: S * 0.010, x: 0, y: S * 0.006)
         }
+    }
+
+    @ViewBuilder
+    private func splitAlmondGlass() -> some View {
+        EnclaveSlit(open: 1, split: split, splitHalf: .top)
+            .fill(.white.opacity(0.001))
+            .glassEffect(.regular, in: EnclaveSlit(open: 1, split: split, splitHalf: .top))
+        EnclaveSlit(open: 1, split: split, splitHalf: .bottom)
+            .fill(.white.opacity(0.001))
+            .glassEffect(.regular, in: EnclaveSlit(open: 1, split: split, splitHalf: .bottom))
     }
 
     private func slitStroke() -> Color {
