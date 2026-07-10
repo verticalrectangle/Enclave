@@ -11,6 +11,20 @@ extension Color {
     }
 }
 
+// MARK: - Glossy 3D ball shading (ported from PopMakerOrbs.swift)
+extension Color {
+    /// Brightness-scaled shade for sphere shading. f>1 → lighter + desaturated
+    /// (the lit highlight side); f<1 → darker + more saturated (the shadow side).
+    func shade(_ f: Double) -> Color {
+        let u = UIColor(self); var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        u.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        return Color(hue: Double(h),
+                     saturation: Double(max(0, min(1, s * (f > 1 ? 0.62 : 1.18)))),
+                     brightness: Double(max(0, min(1, b * f))),
+                     opacity: Double(a))
+    }
+}
+
 enum GlyphMode { case opaque, glass, flatGlass, flatGlassRing, liquidMark }     // how the Enclave mark is rendered
 enum GlassMode { case pane, lens }        // frosted pane over backdrop, or exposed backdrop with a glass glyph
 
@@ -1133,7 +1147,9 @@ struct IconView: View {
 
     @ViewBuilder
     private func markLayer(S: CGFloat) -> some View {
-        switch p.glyphMode {
+        if usePopMakerGlyph {
+            pmsMarkLayer(S: S)
+        } else switch p.glyphMode {
         case .opaque:
             EnclaveMark(side: S, ink: p.ink)
                 .shadow(color: .black.opacity(0.35), radius: S * 0.006,
@@ -1236,6 +1252,85 @@ struct IconView: View {
             .frame(width: S * 0.82, height: S * 0.82)
             .shadow(color: .black.opacity(0.22), radius: S * 0.010, x: 0, y: S * 0.006)
         }
+    }
+
+    // MARK: - PopMaker glossy 3D mark (no Liquid Glass — pure RadialGradient shading)
+    @ViewBuilder
+    private func pmsMarkLayer(S: CGFloat) -> some View {
+        let discColor = p.backdrop[0]
+        let glyphColor = discColor.shade(1.3)
+        let discSize = S * 0.82
+        ZStack {
+            // Glossy 3D disc
+            Circle()
+                .fill(RadialGradient(
+                    colors: [discColor.shade(1.7), discColor, discColor.shade(0.45)],
+                    center: UnitPoint(x: 0.36, y: 0.30),
+                    startRadius: discSize * 0.02, endRadius: discSize * 0.50))
+                .overlay(alignment: .topLeading) {
+                    Circle()
+                        .fill(RadialGradient(colors: [.white.opacity(0.70), .white.opacity(0)],
+                                             center: .center, startRadius: 0, endRadius: discSize * 0.10))
+                        .frame(width: discSize * 0.28, height: discSize * 0.28)
+                        .offset(x: discSize * 0.12, y: discSize * 0.08)
+                }
+                .frame(width: discSize, height: discSize)
+                .shadow(color: .black.opacity(0.30), radius: S * 0.012, x: 0, y: S * 0.008)
+
+            // Glossy 3D play-triangle glyph (split or solid)
+            if split > 0 {
+                splitPopGlyph(S: S, color: glyphColor)
+            } else {
+                glossyGlyph(S: S, color: glyphColor)
+            }
+        }
+        .frame(width: discSize, height: discSize)
+    }
+
+    @ViewBuilder
+    private func glossyGlyph(S: CGFloat, color: Color) -> some View {
+        let glyphSize = S * 0.82
+        PopMakerGlyph()
+            .fill(RadialGradient(
+                colors: [color.shade(1.7), color, color.shade(0.45)],
+                center: UnitPoint(x: 0.36, y: 0.30),
+                startRadius: glyphSize * 0.02, endRadius: glyphSize * 0.50))
+            .overlay(alignment: .topLeading) {
+                PopMakerGlyph()
+                    .fill(RadialGradient(colors: [.white.opacity(0.60), .white.opacity(0)],
+                                         center: .center, startRadius: 0, endRadius: glyphSize * 0.08))
+                    .frame(width: glyphSize * 0.24, height: glyphSize * 0.24)
+                    .offset(x: glyphSize * 0.14, y: glyphSize * 0.10)
+            }
+            .frame(width: glyphSize, height: glyphSize)
+            .shadow(color: .black.opacity(0.20), radius: S * 0.006, x: 0, y: S * 0.004)
+    }
+
+    @ViewBuilder
+    private func splitPopGlyph(S: CGFloat, color: Color) -> some View {
+        let glyphSize = S * 0.82
+        let gap = split * glyphSize
+        let halfH = (glyphSize - gap) / 2
+        // Top half: clip to upper portion
+        PopMakerGlyph()
+            .fill(RadialGradient(
+                colors: [color.shade(1.7), color, color.shade(0.45)],
+                center: UnitPoint(x: 0.36, y: 0.30),
+                startRadius: glyphSize * 0.02, endRadius: glyphSize * 0.50))
+            .frame(width: glyphSize, height: glyphSize)
+            .clipShape(Rectangle().frame(width: glyphSize, height: halfH, alignment: .top))
+            .offset(y: -gap / 2)
+            .shadow(color: .black.opacity(0.20), radius: S * 0.006, x: 0, y: S * 0.004)
+        // Bottom half: clip to lower portion
+        PopMakerGlyph()
+            .fill(RadialGradient(
+                colors: [color.shade(1.7), color, color.shade(0.45)],
+                center: UnitPoint(x: 0.36, y: 0.30),
+                startRadius: glyphSize * 0.02, endRadius: glyphSize * 0.50))
+            .frame(width: glyphSize, height: glyphSize)
+            .clipShape(Rectangle().frame(width: glyphSize, height: halfH, alignment: .bottom))
+            .offset(y: gap / 2)
+            .shadow(color: .black.opacity(0.20), radius: S * 0.006, x: 0, y: S * 0.004)
     }
 
     @ViewBuilder
