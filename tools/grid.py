@@ -84,7 +84,17 @@ FAMILIES = {
 
 def main() -> int:
     for p in sorted(OUT_DIR.glob("enclave-icon-*-1024.png")):
-        Image.open(p).convert("RGB").save(p, format="PNG")   # flatten alpha → opaque app-icon
+        img = Image.open(p).convert("RGBA")
+        # Fill transparent corners (outside clipShape) with backdrop color
+        # sampled from top-center edge, then flatten to opaque sRGB.
+        bg_color = img.getpixel((img.width // 2, 10))
+        bg = Image.new("RGBA", img.size, bg_color)
+        mask = Image.new("L", img.size, 0)
+        ImageDraw.Draw(mask).rounded_rectangle(
+            [0, 0, img.width - 1, img.height - 1],
+            radius=int(img.width * 0.2237), fill=255)
+        bg.paste(img, (0, 0), mask)
+        bg.convert("RGB").save(p, format="PNG")   # flatten alpha → opaque app-icon
     _make_grid()
     return 0
 
