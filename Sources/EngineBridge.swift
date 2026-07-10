@@ -437,7 +437,6 @@ final class GuestClient: ObservableObject {
         var frame: [String: Any] = ["t": "ui-response", "reqId": reqId]
         if let value { frame["value"] = value }
         socket.send(frame)
-        if (uiRequest?["reqId"] as? Int) == reqId { uiRequest = nil; rebuild() }
     }
 
     // ── /enclave control channel (no-ops unless the plugin is present) ────────
