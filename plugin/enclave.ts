@@ -140,7 +140,7 @@ interface WebSocketWithBinary {
 let current: { link: string; send: (frame: unknown, peer?: number) => Promise<void>; peers: Map<number, string> } | null = null;
 
 let uiReqSeq = 0;
-const pendingUi = new Map<number, { resolve: (value: string | undefined) => void; onFeedbackChange?: (value: string) => void; onSliderChange?: (index: number) => void; }>();
+const pendingUi = new Map<number, { resolve: (value: string | undefined) => void; request: Record<string, unknown>; onFeedbackChange?: (value: string) => void; onSliderChange?: (index: number) => void; }>();
 let originalShowPlanReview: ShowPlanReviewFn | undefined;
 
 // The activation api carries the runtime-bound ACTIONS (sendUserMessage, abort,
@@ -231,10 +231,6 @@ async function startShare(rawCtx: unknown): Promise<string> {
         if (msg && typeof msg === "object" && "t" in msg && typeof msg.t === "string") {
           if (msg.t === "peer-left" && "peer" in msg && typeof msg.peer === "number") {
             peers.delete(msg.peer);
-            if (peers.size === 0) {
-              for (const p of pendingUi.values()) p.resolve(undefined);
-              pendingUi.clear();
-            }
           }
         }
         return;
@@ -264,6 +260,9 @@ async function startShare(rawCtx: unknown): Promise<string> {
         await send({ t: "snapshot-chunk", entries: snap.entries, final: true }, peer);
         await send(buildCaps(ctx), peer);
         await send({ t: "state", state: stateFrame() }, peer);
+        for (const pending of pendingUi.values()) {
+          await send({ t: "ui-request", request: pending.request }, peer);
+        }
         return;
       }
       case "prompt": {
@@ -532,7 +531,6 @@ function installPlanReview(): void {
       }
     }
 
-    pendingUi.set(reqId, { resolve, onFeedbackChange, onSliderChange });
 
     const request: Record<string, unknown> = {
       reqId,
@@ -554,6 +552,7 @@ function installPlanReview(): void {
       }
     }
 
+    pendingUi.set(reqId, { resolve, request, onFeedbackChange, onSliderChange });
     await share.send({ t: "ui-request", request });
     return promise;
   };
