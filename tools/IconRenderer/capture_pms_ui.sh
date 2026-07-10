@@ -1,7 +1,7 @@
 #!/bin/bash
-# capture_pms_ui.sh — render PopMaker-style UI icons (play-triangle glyph, split).
-# Same UI palette backdrops as the existing ui-* variants, but with PopMakerGlyph
-# (play triangle) instead of EnclaveSlit. No orbs. Split blade-cut enabled.
+# capture_pms_ui.sh — render glossy 3D ball-shaded UI icons (EnclaveSlit almond, split).
+# Same UI palette backdrops + Liquid Glass disc/ring as the existing ui-* variants,
+# but the almond mark uses RadialGradient ball shading instead of flat glass. Split enabled.
 set -euo pipefail
 cd "$(dirname "$0")"
 CAPTURE_UDID="${CAPTURE_UDID:-B943CA0E-37E4-4F27-BA2E-9D38C145A74F}"   # iPad Pro 13" (M5)
