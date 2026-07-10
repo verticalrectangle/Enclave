@@ -155,10 +155,10 @@ let api: Runtime | undefined;
 // omp with "undefined is not an object (evaluating 'this.extension')".
 function bound(ctx: Runtime, name: string): ((...args: unknown[]) => unknown) | undefined {
   const fn = ctx[name];
-  if (typeof fn === "function") return (...args: unknown[]) => (fn as unknown as (...args: unknown[]) => unknown)(...args);
+  if (typeof fn === "function") return (...args: unknown[]) => fn.call(ctx, ...args) as unknown;
   if (api) {
     const afn = api[name];
-    if (typeof afn === "function") return (...args: unknown[]) => (afn as unknown as (...args: unknown[]) => unknown)(...args);
+    if (typeof afn === "function") return (...args: unknown[]) => afn.call(api, ...args) as unknown;
   }
   return undefined;
 }
@@ -456,9 +456,9 @@ async function handleControl(rawCtx: unknown, method: string, params: unknown): 
         if (!cmd || typeof cmd !== "object" || !("handler" in cmd) || typeof cmd.handler !== "function") {
           return { ok: false, message: `no such command /${name}` };
         }
-        const handler = cmd.handler as unknown as (args: string, ctx: Runtime) => unknown;
+        const handler = cmd.handler as unknown as (...args: unknown[]) => unknown;
         const args = "args" in p && typeof p.args === "string" ? p.args : "";
-        await handler(args, ctx);
+        await (handler.call(cmd, args, ctx) as unknown);
         return { ok: true, message: `ran /${name}` };
       }
       case "register-push":
