@@ -1079,6 +1079,9 @@ struct IconView: View {
     private let split: CGFloat = {
         CGFloat(Double(ProcessInfo.processInfo.environment["ENCLAVE_SPLIT"] ?? "0") ?? 0)
     }()
+    private let usePopMakerGlyph: Bool = {
+        ProcessInfo.processInfo.environment["ENCLAVE_PM_GLYPH"] == "1"
+    }()
 
     var body: some View {
         GeometryReader { geo in
@@ -1157,6 +1160,11 @@ struct IconView: View {
                         .fill(.white.opacity(0.001))
                         .glassEffect(.regular, in: GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355))
                     splitAlmondGlass()
+                } else if usePopMakerGlyph {
+                    PopMakerGlyph()
+                        .stroke(slitStroke(),
+                                style: StrokeStyle(lineWidth: S * 0.06,
+                                                    lineCap: .round, lineJoin: .round))
                 } else {
                     EnclaveSlit(open: 1)
                         .stroke(slitStroke(),
@@ -1185,6 +1193,11 @@ struct IconView: View {
                         .fill(.white.opacity(0.001))
                         .glassEffect(.regular, in: GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355))
                     splitAlmondGlass()
+                } else if usePopMakerGlyph {
+                    PopMakerGlyph()
+                        .stroke(slitStroke(),
+                                style: StrokeStyle(lineWidth: S * 0.06,
+                                                    lineCap: .round, lineJoin: .round))
                 } else {
                     EnclaveSlit(open: 1)
                         .stroke(slitStroke(),
@@ -1210,6 +1223,10 @@ struct IconView: View {
                     .glassEffect(.regular, in: GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355))
                 if split > 0 {
                     splitAlmondGlass()
+                } else if usePopMakerGlyph {
+                    PopMakerGlyph()
+                        .fill(.white.opacity(0.001))
+                        .glassEffect(.regular, in: PopMakerGlyph())
                 } else {
                     EnclaveSlit(open: 1)
                         .fill(.white.opacity(0.001))
