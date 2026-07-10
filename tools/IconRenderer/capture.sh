@@ -19,8 +19,9 @@ QA_PICKS="${QA_PICKS:-}"
 xcodegen generate
 xcodebuild -scheme IconRenderer -destination "id=$CAPTURE_UDID" -derivedDataPath build -quiet build
 xcrun simctl boot "$CAPTURE_UDID" 2>/dev/null || true
+xcrun simctl bootstatus "$CAPTURE_UDID" 2>/dev/null || true
 open -a Simulator
-sleep 3
+sleep 10
 xcrun simctl install "$CAPTURE_UDID" build/Build/Products/Debug-iphonesimulator/IconRenderer.app
 mkdir -p out
 DIM_LEVELS="${DIM_LEVELS:-0}"
@@ -35,7 +36,7 @@ for v in $VARIANTS; do
         SIMCTL_CHILD_ENCLAVE_TINT="$t" SIMCTL_CHILD_ENCLAVE_SLIT="$s" \
         SIMCTL_CHILD_ENCLAVE_SPLIT="$ENCLAVE_SPLIT" \
         xcrun simctl launch "$CAPTURE_UDID" "$BUNDLE" >/dev/null
-        sleep 2.5
+        sleep 5
         tag="$v"
         [[ "$d" != "0" ]] && tag="$tag-d$d"
         [[ "$t" != "0" ]] && tag="$tag-t$t"
