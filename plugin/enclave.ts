@@ -15,8 +15,8 @@
  *   Relay:          $ENCLAVE_RELAY (default wss://wickrunner.com:8443)
  *
  * Protocol (matches Sources/EngineBridge.swift + the mock host):
- *   host→guest  welcome / snapshot-chunk / entry / state / event / enclave-caps / enclave-result
- *   guest→host  hello / prompt / abort / enclave-cmd
+ *   host→guest  welcome / snapshot-chunk / entry / state / event / enclave-caps / enclave-result / ui-request
+ *   guest→host  hello / prompt / abort / enclave-cmd / ui-response
  */
 
 import { QrCode, renderQrHalfBlocks } from "./qrcode";
@@ -27,32 +27,37 @@ const COLLAB_PROTO = 3;
 const ROOM_ID_BYTES = 16;
 const WRITE_TOKEN_BYTES = 16;
 const IV = 12;
-const RELAY: string = (globalThis as any).process?.env?.ENCLAVE_RELAY || "wss://wickrunner.com:8443";
+const envRelay = process.env.ENCLAVE_RELAY;
+const RELAY = typeof envRelay === "string" ? envRelay : "wss://wickrunner.com:8443";
 
 // ── base64url / crypto / envelope (mirror of omp's collab codec) ──────────────
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
-// Slash commands not surfaced to the app: /enclave (already paired) plus anything
-// that takes over the terminal UI, which the phone can't render.
-const MOBILE_HIDE = new Set(["enclave", "collab", "vim", "theme", "keybindings", "quit", "exit", "help"]);
+const MOBILE_HIDE: Record<string, true> = {
+  enclave: true,
+  collab: true,
+  vim: true,
+  theme: true,
+  keybindings: true,
+  quit: true,
+  exit: true,
+  help: true,
+};
 function rand(n: number): Uint8Array { const a = new Uint8Array(n); crypto.getRandomValues(a); return a; }
 function b64url(bytes: Uint8Array): string {
   let s = ""; for (const b of bytes) s += String.fromCharCode(b);
   return btoa(s).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
-}
-function importKey(raw: Uint8Array): Promise<CryptoKey> {
-  return crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 async function seal(key: CryptoKey, frame: unknown): Promise<Uint8Array> {
   const iv = rand(IV);
   const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(JSON.stringify(frame))));
   const out = new Uint8Array(IV + ct.byteLength); out.set(iv, 0); out.set(ct, IV); return out;
 }
-async function open(key: CryptoKey, data: Uint8Array): Promise<any> {
+async function open(key: CryptoKey, data: Uint8Array): Promise<unknown> {
   const pt = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: data.subarray(0, IV) }, key, data.subarray(IV)));
-  return JSON.parse(dec.decode(pt));
+  return JSON.parse(dec.decode(pt)) as unknown;
 }
 function packEnvelope(peerId: number, sealed: Uint8Array): Uint8Array {
   const out = new Uint8Array(4 + sealed.byteLength); new DataView(out.buffer).setUint32(0, peerId, false); out.set(sealed, 4); return out;
@@ -67,75 +72,141 @@ function formatLink(roomId: string, key: Uint8Array, token: Uint8Array): string 
   return `${RELAY.startsWith("ws://") ? "ws://" : "wss://"}${host}/r/${roomId}.${b64url(secret)}`;
 }
 
+// ── domain types for the omp runtime contract (no external type imports) ──────
+
+interface Header {
+  title?: string;
+  cwd?: string;
+  id?: string;
+}
+
+interface Snapshot {
+  header: Header;
+  entries: unknown[];
+}
+
+interface Models {
+  current?: () => unknown;
+  list?: () => unknown[];
+  resolve?: (id: unknown) => unknown;
+}
+
+interface SessionManager {
+  snapshotForReplication?: () => Snapshot;
+  getSessionId?: () => string;
+  getCwd?: () => string;
+  onEntryAppended?: unknown;
+}
+
+type ShowPlanReviewFn = (this: unknown, planContent: string, title: string, options: string[], dialogOptions?: unknown, extra?: unknown) => Promise<string | undefined>;
+
+interface Runtime {
+  registerCommand?: (name: string, cmd: { description?: string; handler: (args: string, cmdCtx: unknown) => unknown }) => void;
+  on?: (event: string, handler: (event: unknown, ctx: unknown) => unknown) => void;
+  sendMessage?: (msg: { customType?: string; content?: string; display?: boolean; attribution?: string }) => void;
+  sessionManager?: SessionManager;
+  models?: Models;
+  getThinkingLevel?: () => unknown;
+  getContextUsage?: () => unknown;
+  getCommands?: () => unknown[];
+  setModel?: (model: unknown) => boolean | Promise<boolean>;
+  setThinkingLevel?: (level: unknown) => unknown;
+  abort?: () => unknown;
+  sendUserMessage?: (content: unknown) => unknown;
+  navigateTree?: (toEntryId: unknown) => unknown;
+  cwd?: string;
+  hostName?: string;
+  isStreaming?: boolean;
+  ui?: { write?: (msg: string) => void };
+  runtime?: { getAllTools?: () => string[] };
+  pi?: {
+    InteractiveMode?: {
+      prototype?: {
+        showPlanReview?: ShowPlanReviewFn;
+      };
+    };
+  };
+  [key: string]: unknown;
+}
+
+interface WebSocketWithBinary {
+  binaryType: "blob" | "arraybuffer";
+}
+
 // ── the extension ─────────────────────────────────────────────────────────────
 
 // One share per omp process. Re-running /enclave re-shows the QR for the existing
 // share instead of opening a second relay socket + duplicate handlers (which crashed).
-let current: { link: string } | null = null;
+let current: { link: string; send: (frame: unknown, peer?: number) => Promise<void>; peers: Map<number, string> } | null = null;
+
+let uiReqSeq = 0;
+const pendingUi = new Map<number, { resolve: (value: string | undefined) => void; onFeedbackChange?: (value: string) => void; onSliderChange?: (index: number) => void; }>();
+let originalShowPlanReview: ShowPlanReviewFn | undefined;
 
 // The activation api carries the runtime-bound ACTIONS (sendUserMessage, abort,
 // setModel, on, …). The per-invocation ctx (command/hook) carries the session
 // data (sessionManager, models, navigateTree) but NOT the actions. So we route
 // actions through `api` and session data through `ctx`.
-let api: any;
+let api: Runtime | undefined;
 
 // Return a bound caller for `name`, preferring ctx then the activation api.
 // IMPORTANT: the returned closure invokes the method AS a member (obj.name(...))
 // so `this` stays bound — extracting the fn and calling it standalone crashes
 // omp with "undefined is not an object (evaluating 'this.extension')".
-function bound(ctx: any, name: string): ((...a: any[]) => any) | undefined {
-  if (typeof ctx?.[name] === "function") return (...a: any[]) => ctx[name](...a);
-  if (typeof api?.[name] === "function") return (...a: any[]) => api[name](...a);
+function bound(ctx: Runtime, name: string): ((...args: unknown[]) => unknown) | undefined {
+  const fn = ctx[name];
+  if (typeof fn === "function") return (...args: unknown[]) => (fn as unknown as (...args: unknown[]) => unknown)(...args);
+  if (api) {
+    const afn = api[name];
+    if (typeof afn === "function") return (...args: unknown[]) => (afn as unknown as (...args: unknown[]) => unknown)(...args);
+  }
   return undefined;
 }
 
-/** Print the join QR + link as a normal transcript entry (not a modal overlay,
- *  which mangled the surrounding TUI). Rendered by the "enclave-share" renderer
- *  registered in activate(). */
-function showQr(ctx: any, link: string): void {
+function showQr(ctx: Runtime, link: string): void {
   try {
     const qr = renderQrHalfBlocks(QrCode.encodeText(link, "M"));
     const text = ["", "enclave: sharing this session — scan to pair", "", ...qr, "", link, ""].join("\n");
-    // A real transcript entry that reflows with the log (display:true is the render
-    // path); falls back to a raw write only if sendMessage is unavailable.
-    if (typeof api?.sendMessage === "function") {
+    if (api?.sendMessage) {
       api.sendMessage({ customType: "enclave-share", content: text, display: true, attribution: "system" });
     } else {
       log(ctx, text);
     }
-    try { (globalThis as any).process?.stderr?.write?.(`enclave: sharing ${link}\n`); } catch {}
+    process?.stderr?.write?.(`enclave: sharing ${link}\n`);
   } catch { /* headless / no TUI */ }
 }
 
-export default function activate(ctx: any): void {
-  api = ctx;   // runtime-bound actions live here
-  // The command handler's ctx (ExtensionCommandContext) is the rich one — it has
-  // sessionManager / models / navigateTree, which the activation api does not
-  // (no session exists yet at activate time).
-  ctx.registerCommand?.("enclave", {
+export default function activate(ctx: unknown): void {
+  // omp passes the activation API as a stable runtime contract.
+  const runtime = ctx as unknown as Runtime;
+  api = runtime;
+  runtime.registerCommand?.("enclave", {
     description: "Share this session to the Enclave app (collab + control channel)",
-    handler: (_args: string, cmdCtx: any) => startShare(cmdCtx),
+    handler: (_args: string, cmdCtx: unknown) => startShare(cmdCtx),
   });
-  // Headless testing seam: share once a session exists.
-  if ((globalThis as any).process?.env?.ENCLAVE_SHARE === "1") {
-    ctx.on?.("session_start", (_e: any, hookCtx: any) => startShare(hookCtx ?? ctx));
+  if (process.env.ENCLAVE_SHARE === "1") {
+    runtime.on?.("session_start", (_e: unknown, hookCtx: unknown) => startShare(hookCtx ?? ctx));
   }
+  installPlanReview();
 }
 
-async function startShare(ctx: any): Promise<string> {
-  if (current) { showQr(ctx, current.link); return current.link; }  // already sharing → re-show
+async function startShare(rawCtx: unknown): Promise<string> {
+  const ctx = rawCtx as unknown as Runtime; // omp command context is a stable runtime contract
+  if (current) { showQr(ctx, current.link); return current.link; }
+
   const roomId = b64url(rand(ROOM_ID_BYTES));
   const rawKey = rand(32);
   const writeToken = rand(WRITE_TOKEN_BYTES);
-  const key = await importKey(rawKey);
+  const key = await crypto.subtle.importKey("raw", rawKey, "AES-GCM", false, ["encrypt", "decrypt"]);
   const link = formatLink(roomId, rawKey, writeToken);
 
   const peers = new Map<number, string>();
   const ws = new WebSocket(`${RELAY}/r/${roomId}?role=host`);
-  (ws as any).binaryType = "arraybuffer";
+  const socket = ws as unknown as WebSocketWithBinary;
+  socket.binaryType = "arraybuffer";
 
   const send = async (frame: unknown, peer = 0) => {
-    try { ws.send(packEnvelope(peer, await seal(key, frame))); } catch (e) { /* socket closed */ }
+    try { ws.send(packEnvelope(peer, await seal(key, frame))); } catch { /* socket closed */ }
   };
   const stateFrame = () => ({
     isStreaming: !!ctx.isStreaming,
@@ -147,27 +218,47 @@ async function startShare(ctx: any): Promise<string> {
     contextUsage: ctx.getContextUsage?.(),
     participants: [{ name: ctx.hostName ?? "host", role: "host" }, ...[...peers.values()].map(name => ({ name, role: "guest" }))],
   });
-  let snapHeader: any;
+  let snapHeader: Header | undefined;
 
-  current = { link };
-  showQr(ctx, link);   // prints the QR + link straight to the transcript
-  ws.onmessage = async (ev: any) => {
-    if (typeof ev.data === "string") {                    // relay control
-      const c = JSON.parse(ev.data);
-      if (c.t === "peer-left") peers.delete(c.peer);
-      return;
+  current = { link, send, peers };
+  showQr(ctx, link);
+
+  ws.onmessage = async (ev: unknown) => {
+    if (ev && typeof ev === "object" && "data" in ev) {
+      const data = ev.data;
+      if (typeof data === "string") {
+        const msg = JSON.parse(data) as unknown;
+        if (msg && typeof msg === "object" && "t" in msg && typeof msg.t === "string") {
+          if (msg.t === "peer-left" && "peer" in msg && typeof msg.peer === "number") {
+            peers.delete(msg.peer);
+            if (peers.size === 0) {
+              for (const p of pendingUi.values()) p.resolve(undefined);
+              pendingUi.clear();
+            }
+          }
+        }
+        return;
+      }
+      if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
+        const env = unpackEnvelope(new Uint8Array(data));
+        if (!env) return;
+        let frame: unknown;
+        try { frame = await open(key, env.payload); } catch { return; }
+        await onGuestFrame(frame, env.peerId);
+      }
     }
-    const env = unpackEnvelope(new Uint8Array(ev.data));
-    if (!env) return;
-    let frame: any; try { frame = await open(key, env.payload); } catch { return; }
-    await onGuestFrame(frame, env.peerId);
   };
 
-  async function onGuestFrame(frame: any, peer: number): Promise<void> {
-    switch (frame.t) {
+  async function onGuestFrame(frame: unknown, peer: number): Promise<void> {
+    if (!frame || typeof frame !== "object") return;
+    const f = frame;
+    if (!("t" in f) || typeof f.t !== "string") return;
+    switch (f.t) {
       case "hello": {
-        peers.set(peer, (frame.name || `guest-${peer}`).slice(0, 64));
-        const snap = ctx.sessionManager.snapshotForReplication();
+        const name = "name" in f && typeof f.name === "string" ? f.name : "";
+        peers.set(peer, (name || `guest-${peer}`).slice(0, 64));
+        const snap = ctx.sessionManager?.snapshotForReplication?.();
+        if (!snap) return;
         snapHeader = snap.header;
         await send({ t: "welcome", proto: COLLAB_PROTO, header: snap.header, state: stateFrame(), agents: [], entryCount: snap.entries.length }, peer);
         await send({ t: "snapshot-chunk", entries: snap.entries, final: true }, peer);
@@ -176,25 +267,59 @@ async function startShare(ctx: any): Promise<string> {
         return;
       }
       case "prompt": {
-        // A guest prompt always starts a fresh turn (the app's send button is Stop
-        // mid-turn, so it never means "steer"). Steering on a stale isStreaming was
-        // swallowing every message after the first — so never pass deliverAs.
-        const imgs = (Array.isArray(frame.images) ? frame.images : [])
-          .filter((im: any) => im?.type === "image" && im.data && im.mimeType)
-          .map((im: any) => ({ type: "image", data: im.data, mimeType: im.mimeType }));
-        const content = imgs.length ? [{ type: "text", text: frame.text ?? "" }, ...imgs] : frame.text;
+        const text = "text" in f && typeof f.text === "string" ? f.text : "";
+        const images: unknown[] = [];
+        if ("images" in f && Array.isArray(f.images)) {
+          for (const im of f.images) {
+            if (im && typeof im === "object" && "type" in im && im.type === "image" && "data" in im && typeof im.data === "string" && "mimeType" in im && typeof im.mimeType === "string") {
+              images.push({ type: "image", data: im.data, mimeType: im.mimeType });
+            }
+          }
+        }
+        const content = images.length ? [{ type: "text", text }, ...images] : text;
         bound(ctx, "sendUserMessage")?.(content);
         return;
       }
       case "abort":
         bound(ctx, "abort")?.();
         return;
+      case "ui-response": {
+        if (!("reqId" in f) || typeof f.reqId !== "number") return;
+        const pending = pendingUi.get(f.reqId);
+        if (!pending) return;
+        pendingUi.delete(f.reqId);
+        const value = "value" in f ? f.value : undefined;
+        let choice: string | undefined;
+        let feedback: string | undefined;
+        let sliderIndex: number | undefined;
+        if (typeof value === "string") {
+          try {
+            const parsed = JSON.parse(value) as unknown;
+            if (parsed && typeof parsed === "object") {
+              const d = parsed;
+              if ("choice" in d && typeof d.choice === "string") choice = d.choice;
+              if ("feedback" in d && typeof d.feedback === "string") feedback = d.feedback;
+              if ("sliderIndex" in d && typeof d.sliderIndex === "number") sliderIndex = d.sliderIndex;
+            } else {
+              choice = value;
+            }
+          } catch {
+            choice = value;
+          }
+        }
+        if (feedback !== undefined) pending.onFeedbackChange?.(feedback);
+        if (sliderIndex !== undefined) pending.onSliderChange?.(sliderIndex);
+        pending.resolve(choice);
+        await send({ t: "ui-request-end", reqId: f.reqId });
+        return;
+      }
       case "enclave-cmd": {
-        const r = await handleControl(ctx, frame.method, frame.params);
-        await send({ t: "enclave-result", reqId: frame.reqId, ...r }, peer);
-        // A rewind drops entries below the target; re-send the transcript so guests
-        // reflect the rewound state (welcome resets the app's entries, snapshot reloads).
-        if (frame.method === "rewind" && r.ok && ctx.sessionManager) {
+        if (!("method" in f) || typeof f.method !== "string") return;
+        const r = await handleControl(ctx, f.method, "params" in f ? f.params : undefined);
+        const resFrame: Record<string, unknown> = { t: "enclave-result", ...r };
+        if ("reqId" in f && typeof f.reqId === "number") resFrame.reqId = f.reqId;
+        await send(resFrame, peer);
+        if (f.method === "rewind" && r.ok && ctx.sessionManager) {
           const snap = ctx.sessionManager.snapshotForReplication();
           snapHeader = snap.header;
           await send({ t: "welcome", proto: COLLAB_PROTO, header: snap.header, state: stateFrame(), agents: [], entryCount: snap.entries.length });
@@ -206,98 +331,147 @@ async function startShare(ctx: any): Promise<string> {
   }
 
   // Live stream to guests: new entries + agent events + state transitions.
-  if (ctx.sessionManager) ctx.sessionManager.onEntryAppended = (entry: any) => { void send({ t: "entry", entry }); };
+  if (ctx.sessionManager) ctx.sessionManager.onEntryAppended = (entry: unknown) => { void send({ t: "entry", entry }); };
   const on = bound(ctx, "on");
-  const fwd = (type: string) => (e: any) => { void send({ t: "event", event: { type, ...e } }); };
+  const fwd = (type: string) => (e: unknown) => {
+    const event: Record<string, unknown> = { type };
+    if (e && typeof e === "object") {
+      for (const [k, v] of Object.entries(e)) {
+        event[k] = v;
+      }
+    }
+    void send({ t: "event", event });
+  };
   for (const ev of ["message_start", "message_update", "message_end", "tool_execution_start", "tool_execution_update", "tool_execution_end"]) {
     on?.(ev, fwd(ev));
   }
   on?.("agent_start", () => { void send({ t: "event", event: { type: "agent_start" } }); void send({ t: "state", state: stateFrame() }); });
   on?.("agent_end", () => { void send({ t: "event", event: { type: "agent_end" } }); void send({ t: "state", state: stateFrame() }); });
 
-  ws.onclose = () => { current = null; };
+  ws.onclose = () => {
+    current = null;
+    for (const p of pendingUi.values()) p.resolve(undefined);
+    pendingUi.clear();
+  };
 
   return link;
 }
 
-function log(ctx: any, msg: string): void {
+function log(ctx: Runtime, msg: string): void {
   try { ctx.ui?.write?.(msg); } catch {}
-  try { (globalThis as any).process?.stderr?.write?.(msg + "\n"); } catch {}
+  try { process?.stderr?.write?.(msg + "\n"); } catch {}
 }
 
-// ── capability handshake ──────────────────────────────────────────────────────
-
-function buildCaps(ctx: any) {
+function buildCaps(rawCtx: unknown): Record<string, unknown> {
+  const ctx = rawCtx as unknown as Runtime;
   const models = ctx.models ?? api?.models;
   const getCommands = bound(ctx, "getCommands");
-  const getThinking = bound(ctx, "getThinkingLevel");
+  const getThinking = bound(ctx, "getThinkingLevel") ?? ctx.getThinkingLevel;
   const current = models?.current?.();
   const list = models?.list?.() ?? [];
-  const seesImages = (m: any) => Array.isArray(m?.input) && m.input.includes("image");
-  // An image is actually understandable if the current model sees pixels natively,
-  // OR the inspect_image tool is on (getAllTools only lists it when enabled) so omp
-  // can delegate to a vision model. visionModelAvailable = the fallback *could* be
-  // enabled (a vision model exists) → the app greys the paperclip with a how-to.
-  const nativeVision = seesImages(current);
+  const seesImages = (m: unknown) => {
+    if (m && typeof m === "object" && "input" in m) {
+      const input = m.input;
+      if (Array.isArray(input)) return input.includes("image");
+    }
+    return false;
+  };
+  const nativeVision = current ? seesImages(current) : false;
   const inspectImage = (api?.runtime?.getAllTools?.() ?? []).includes("inspect_image");
-  const visionModelAvailable = list.some(seesImages);
+  const visionModelAvailable = Array.isArray(list) ? list.some((m: unknown) => seesImages(m)) : false;
   const vision = nativeVision || inspectImage;
+  const raw = getCommands?.();
+  const commands = Array.isArray(raw) ? raw : [];
+  const commandList = commands
+    .filter((c: unknown) => {
+      if (!c || typeof c !== "object") return false;
+      const name = "name" in c && typeof c.name === "string" ? c.name : "";
+      return name && !(name in MOBILE_HIDE);
+    })
+    .map((c: unknown) => {
+      const name = c && typeof c === "object" && "name" in c && typeof c.name === "string" ? c.name : "";
+      const description = c && typeof c === "object" && "description" in c && typeof c.description === "string" ? c.description : "";
+      return { name, summary: description };
+    });
+  const currentModelId = current && typeof current === "object" && "id" in current && typeof current.id === "string" ? current.id : undefined;
+  const thinking = getThinking?.();
+  const currentThinking = typeof thinking === "string" ? thinking : undefined;
   return {
     t: "enclave-caps",
     version: 1,
-    vision,                            // images are actually understandable now
-    nativeVision,                      // current model sees images directly
-    inspectImage,                      // the inspect_image fallback tool is enabled
-    visionModelAvailable,              // a vision model exists (fallback could be turned on)
+    vision,
+    nativeVision,
+    inspectImage,
+    visionModelAvailable,
     thinking: ["minimal", "low", "medium", "high", "xhigh"],
-    models: list.map((m: any) => ({ id: m.id, name: m.name ?? m.id, vision: seesImages(m) })),
-    // Slash commands the guest can run — drop /enclave (you're already paired) and
-    // anything that only makes sense in the terminal (a TUI takeover the app can't show).
-    commands: (getCommands?.() ?? [])
-      .filter((c: any) => c.name && !MOBILE_HIDE.has(c.name))
-      .map((c: any) => ({ name: c.name, summary: c.description ?? "" })),
-    current: { model: current?.id, thinking: getThinking?.() },
+    models: list.map((m: unknown) => {
+      const id = m && typeof m === "object" && "id" in m ? m.id : undefined;
+      const name = m && typeof m === "object" && "name" in m ? m.name : undefined;
+      return { id: typeof id === "string" ? id : String(id), name: typeof name === "string" ? name : String(name), vision: seesImages(m) };
+    }),
+    commands: commandList,
+    current: { model: currentModelId, thinking: currentThinking },
   };
 }
 
-// ── control dispatch ──────────────────────────────────────────────────────────
-
-async function handleControl(ctx: any, method: string, params: any): Promise<{ ok: boolean; message?: string; data?: string; mimeType?: string }> {
+async function handleControl(rawCtx: unknown, method: string, params: unknown): Promise<{ ok: boolean; message?: string; data?: string; mimeType?: string }> {
+  const ctx = rawCtx as unknown as Runtime;
   try {
     switch (method) {
       case "set-model": {
+        if (!params || typeof params !== "object") return { ok: false, message: "params required" };
+        const p = params;
+        if (!("model" in p) || typeof p.model !== "string") return { ok: false, message: "model required" };
         const models = ctx.models ?? api?.models;
-        const model = models?.resolve?.(params.model);
-        if (!model) return { ok: false, message: `unknown model ${params.model}` };
+        const model = models?.resolve?.(p.model);
+        if (!model) return { ok: false, message: `unknown model ${p.model}` };
         const ok = await bound(ctx, "setModel")?.(model);
-        return { ok, message: ok ? `model → ${params.model}` : "no API key for that model" };
+        return { ok: ok === true, message: ok === true ? `model → ${p.model}` : "no API key for that model" };
       }
-      case "set-thinking":
-        await bound(ctx, "setThinkingLevel")?.(params.level);
-        return { ok: true, message: `thinking → ${params.level}` };
+      case "set-thinking": {
+        if (!params || typeof params !== "object") return { ok: false, message: "params required" };
+        const p = params;
+        if (!("level" in p) || typeof p.level !== "string") return { ok: false, message: "level required" };
+        await bound(ctx, "setThinkingLevel")?.(p.level);
+        return { ok: true, message: `thinking → ${p.level}` };
+      }
       case "rewind": {
-        const r = await bound(ctx, "navigateTree")?.(params.toEntryId);
-        return { ok: !r?.cancelled, message: r?.cancelled ? "rewind cancelled" : "rewound" };
+        if (!params || typeof params !== "object") return { ok: false, message: "params required" };
+        const p = params;
+        if (!("toEntryId" in p)) return { ok: false, message: "toEntryId required" };
+        const r = await bound(ctx, "navigateTree")?.(p.toEntryId);
+        let cancelled = false;
+        if (r && typeof r === "object" && "cancelled" in r && r.cancelled === true) cancelled = true;
+        return { ok: !cancelled, message: cancelled ? "rewind cancelled" : "rewound" };
       }
       case "slash": {
-        if (MOBILE_HIDE.has(params.name)) return { ok: false, message: `/${params.name} isn't available from the app` };
-        const cmd = (bound(ctx, "getCommands")?.() ?? []).find((c: any) => c.name === params.name);
-        if (!cmd) return { ok: false, message: `no such command /${params.name}` };
-        // Command handlers are (args, ctx) — omp built-in handlers crash without the
-        // context, so pass the live command context through.
-        await cmd.handler?.(params.args ?? "", ctx);
-        return { ok: true, message: `ran /${params.name}` };
+        if (!params || typeof params !== "object") return { ok: false, message: "params required" };
+        const p = params;
+        if (!("name" in p) || typeof p.name !== "string") return { ok: false, message: "name required" };
+        const name = p.name;
+        if (name in MOBILE_HIDE) return { ok: false, message: `/${name} isn't available from the app` };
+        const raw = bound(ctx, "getCommands")?.();
+        const commands = Array.isArray(raw) ? raw : [];
+        const cmd = commands.find((c: unknown) => c && typeof c === "object" && "name" in c && typeof c.name === "string" && c.name === name);
+        if (!cmd || typeof cmd !== "object" || !("handler" in cmd) || typeof cmd.handler !== "function") {
+          return { ok: false, message: `no such command /${name}` };
+        }
+        const handler = cmd.handler as unknown as (args: string, ctx: Runtime) => unknown;
+        const args = "args" in p && typeof p.args === "string" ? p.args : "";
+        await handler(args, ctx);
+        return { ok: true, message: `ran /${name}` };
       }
       case "register-push":
-        return { ok: true }; // TODO(push): persist token; APNs on asks
+        return { ok: true };
       case "fetch-image": {
-        // Read a host image file and return its bytes so the guest can render it.
-        // Non-mutating: allowed for read-only guests too. Only an /enclave host
-        // runs this plugin, so this is the scope boundary for the feature.
+        if (!params || typeof params !== "object") return { ok: false, message: "params required" };
+        const p = params;
+        if (!("path" in p)) return { ok: false, message: "path required" };
         const cwd = ctx.cwd ?? ctx.sessionManager?.getCwd?.() ?? ".";
-        const abs = resolve(cwd, String(params.path ?? ""));
-        const st = statSync(abs);                       // throws → caught → {ok:false}
-        const MAX = 20 * 1024 * 1024;                    // mirror inspect_image's cap
+        const path = String(p.path);
+        const abs = resolve(cwd, path);
+        const st = statSync(abs);
+        const MAX = 20 * 1024 * 1024;
         if (st.size > MAX) return { ok: false, message: "image too large (>20MB)" };
         const data = readFileSync(abs);
         const ext = extname(abs).toLowerCase();
@@ -308,9 +482,8 @@ async function handleControl(ctx: any, method: string, params: any): Promise<{ o
           ".gif": "image/gif",
           ".webp": "image/webp",
         };
-        const mime = typeof params.mimeType === "string" && params.mimeType
-          ? params.mimeType
-          : (mimeMap[ext] ?? "image/png");
+        const mimeType = "mimeType" in p && typeof p.mimeType === "string" ? p.mimeType : undefined;
+        const mime = mimeType ? mimeType : (mimeMap[ext] ?? "image/png");
         return { ok: true, data: Buffer.from(data).toString("base64"), mimeType: mime };
       }
       default:
@@ -319,4 +492,69 @@ async function handleControl(ctx: any, method: string, params: any): Promise<{ o
   } catch (err) {
     return { ok: false, message: String(err) };
   }
+}
+
+// ── plan review wiring ────────────────────────────────────────────────────────
+
+function installPlanReview(): void {
+  const IM = api?.pi?.InteractiveMode;
+  if (!IM || typeof IM.prototype?.showPlanReview !== "function") return;
+  originalShowPlanReview = IM.prototype.showPlanReview;
+  IM.prototype.showPlanReview = async function (this: unknown, planContent: string, title: string, options: string[], dialogOptions?: unknown, extra?: unknown): Promise<string | undefined> {
+    const share = current;
+    if (!share || share.peers.size === 0) {
+      if (!originalShowPlanReview) return undefined;
+      return originalShowPlanReview.call(this, planContent, title, options, dialogOptions, extra);
+    }
+
+    const reqId = ++uiReqSeq;
+    const { promise, resolve } = Promise.withResolvers<string | undefined>();
+
+    let onFeedbackChange: ((value: string) => void) | undefined;
+    let onSliderChange: ((index: number) => void) | undefined;
+
+    if (dialogOptions && typeof dialogOptions === "object") {
+      const d = dialogOptions;
+      if ("onFeedbackChange" in d && typeof d.onFeedbackChange === "function") {
+        const raw = d.onFeedbackChange;
+        onFeedbackChange = raw as unknown as (value: string) => void;
+      }
+    }
+
+    if (extra && typeof extra === "object") {
+      const e = extra;
+      if ("slider" in e && e.slider && typeof e.slider === "object") {
+        const s = e.slider;
+        if ("onChange" in s && typeof s.onChange === "function") {
+          const raw = s.onChange;
+          onSliderChange = raw as unknown as (index: number) => void;
+        }
+      }
+    }
+
+    pendingUi.set(reqId, { resolve, onFeedbackChange, onSliderChange });
+
+    const request: Record<string, unknown> = {
+      reqId,
+      kind: "plan",
+      title,
+      options,
+      helpText: planContent,
+      selectionMarker: "radio",
+    };
+
+    if (dialogOptions && typeof dialogOptions === "object") {
+      const d = dialogOptions;
+      if ("initialIndex" in d && typeof d.initialIndex === "number") {
+        request.initialIndex = d.initialIndex;
+      }
+      if ("disabledIndices" in d && Array.isArray(d.disabledIndices)) {
+        const disabled = d.disabledIndices.filter((i: unknown): i is number => typeof i === "number");
+        request.disabledIndices = disabled;
+      }
+    }
+
+    await share.send({ t: "ui-request", request });
+    return promise;
+  };
 }

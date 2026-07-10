@@ -41,10 +41,11 @@ struct UITurn: Identifiable, Equatable {
     var options: [String] = []
     var pending = false
     var reqId: Int? = nil          // live host ui-request id (answered via GuestClient)
-    var askKind: String = "select"            // "select" | "editor"
+    var askKind: String = "select"            // "select" | "editor" | "plan"
     var selectionMarker: String = "radio"     // "radio" | "checkbox"
     var checkedIndices: [Int] = []
     var initialIndex: Int? = nil              // recommended option (0-based)
+    var disabledIndices: [Int] = []           // unselectable options
     var optionDescriptions: [String] = []     // parallel to options; "" when absent
     var helpText: String = ""
     var prefill: String = ""
@@ -60,7 +61,7 @@ struct UITurn: Identifiable, Equatable {
             && a.askKind == b.askKind && a.question == b.question && a.options == b.options
             && a.optionDescriptions == b.optionDescriptions && a.selectionMarker == b.selectionMarker
             && a.checkedIndices == b.checkedIndices && a.helpText == b.helpText && a.prefill == b.prefill
-            && a.initialIndex == b.initialIndex
+            && a.initialIndex == b.initialIndex && a.disabledIndices == b.disabledIndices
     }
 
     static func sys(_ kind: String, _ text: String) -> UITurn {

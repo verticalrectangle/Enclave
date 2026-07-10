@@ -1115,6 +1115,8 @@ final class GuestClient: ObservableObject {
             turn.selectionMarker = req["selectionMarker"] as? String ?? "radio"
             turn.checkedIndices = (req["checkedIndices"] as? [Any] ?? [])
                 .compactMap { ($0 as? Int) ?? ($0 as? NSNumber)?.intValue }
+            turn.disabledIndices = (req["disabledIndices"] as? [Any] ?? [])
+                .compactMap { ($0 as? Int) ?? ($0 as? NSNumber)?.intValue }
             var labels: [String] = []; var descs: [String] = []
             for opt in (req["options"] as? [Any] ?? []) {
                 if let s = opt as? String { labels.append(s); descs.append("") }

@@ -243,7 +243,7 @@ struct EditorView: View {
     private var planReviewBanner: some View {
         HStack(spacing: 8) {
             Image(systemName: "checklist").font(.system(size: 13)).foregroundStyle(t.cAdvisor)
-            Text("Plan ready — approve it on the box. Enclave can't approve plans yet.")
+            Text("Plan ready — review it in the transcript above.")
                 .font(.term(13)).foregroundStyle(t.cAdvisor).lineLimit(2)
             Spacer()
         }

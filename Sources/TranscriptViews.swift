@@ -38,10 +38,15 @@ struct TurnRow: View {
         case .advisor: advisorNote
         case .sys where turn.kind == "system-notice": SystemNoticeCard(turn: turn, t: t)
         case .sys: SysChip(turn: turn, t: t)
-        case .ask: AskCard(turn: turn, t: t,
-            onSubmit: onAnswer.map { cb in { idx in cb(turn, idx) } },
-            onSubmitText: onAnswerText.map { cb in { text in cb(turn, text) } },
-            onCancel: onCancelAsk.map { cb in { cb(turn) } })
+        case .ask where turn.askKind == "plan":
+            PlanReviewCard(turn: turn, t: t,
+                onSubmit: onAnswer.map { cb in { idx in cb(turn, idx) } },
+                onSubmitText: onAnswerText.map { cb in { text in cb(turn, text) } })
+        case .ask:
+            AskCard(turn: turn, t: t,
+                onSubmit: onAnswer.map { cb in { idx in cb(turn, idx) } },
+                onSubmitText: onAnswerText.map { cb in { text in cb(turn, text) } },
+                onCancel: onCancelAsk.map { cb in { cb(turn) } })
         case .thinking: ThinkingBlock(turn: turn, t: t)
         }
     }
@@ -717,6 +722,156 @@ struct AskCard: View {
         guard !sent else { return }
         sent = true; picked = i
         onSubmit?(i)
+    }
+}
+// MARK: - Plan review
+
+/// Plan approval / refinement card for /enclave plan mode. The full plan markdown is
+/// shown as the body; approve options are radio rows; "Refine plan" expands a text
+/// editor and sends JSON `{"choice":"Refine plan","feedback":"..."}`.
+struct PlanReviewCard: View {
+    let turn: UITurn; let t: Theme
+    var onSubmit: ((Int) -> Void)? = nil
+    var onSubmitText: ((String) -> Void)? = nil
+
+    @State private var sent = false
+    @State private var picked: Int? = nil
+    @State private var feedback = ""
+    @State private var feedbackSent = false
+
+    private var refineIndex: Int { turn.options.firstIndex(of: "Refine plan") ?? -1 }
+    private var isRefine: Bool { refineIndex >= 0 && picked == refineIndex }
+    private var interactive: Bool { onSubmit != nil || onSubmitText != nil }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            header
+            if !turn.helpText.isEmpty { planBody }
+            options
+            if isRefine { refineEditor }
+            if isRefine && interactive { refineActions }
+        }
+        .padding(12)
+        .glass(t, 16, active: true)
+        .onChange(of: turn) { _ in
+            sent = false; picked = nil; feedback = ""; feedbackSent = false
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 7) {
+            Image(systemName: "checklist").font(.system(size: 14)).foregroundStyle(t.accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("PLAN REVIEW").font(.labl(9)).tracking(1.4).foregroundStyle(t.accent)
+                Text(turn.question).font(.bodyF(13.5)).foregroundStyle(t.txt).textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var planBody: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(markdownBlocks(turn.helpText).enumerated()), id: \.offset) { _, block in
+                switch block {
+                case .prose(let p):
+                    if !p.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(inlineMarkdown(p, t: t))
+                            .font(.bodyF(13)).foregroundStyle(t.txtBody).textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                case .advisory(let severity, let guidance, let body):
+                    AdvisoryCard(severity: severity, guidance: guidance, advisoryBody: body, t: t)
+                case .code(let lang, let body):
+                    CodeBlock(lang: lang, code: body, t: t)
+                }
+            }
+        }
+        .padding(10)
+        .glass(t, 14, flat: true)
+    }
+
+    private var options: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            ForEach(Array(turn.options.enumerated()), id: \.offset) { i, label in
+                optionRow(i, label)
+            }
+        }
+    }
+
+    private func optionRow(_ i: Int, _ label: String) -> some View {
+        let disabled = turn.disabledIndices.contains(i) || !interactive
+        let chosen = picked == i
+        let on = chosen
+        return Button { tap(i) } label: {
+            HStack(alignment: .top, spacing: 9) {
+                Image(systemName: on ? "largecircle.fill" : "circle")
+                    .font(.system(size: 13))
+                    .foregroundStyle(disabled ? t.txtGhost : (on ? t.accent : t.txtGhost))
+                    .frame(width: 15)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label).font(.bodyF(13))
+                        .foregroundStyle(disabled ? t.txtMuted : (on ? t.accent : t.txtBody))
+                    if i < turn.optionDescriptions.count, !turn.optionDescriptions[i].isEmpty {
+                        Text(turn.optionDescriptions[i]).font(.bodyF(12))
+                            .foregroundStyle(t.txtMuted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 11).padding(.vertical, 9)
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(on ? t.accentLine : t.line))
+            .background(on ? t.glassFill2 : .clear)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+    }
+
+    private var refineEditor: some View {
+        TextEditor(text: $feedback)
+            .font(.bodyF(13.5)).foregroundStyle(t.txt)
+            .scrollContentBackground(.hidden)
+            .frame(minHeight: 84, maxHeight: 160)
+            .padding(.horizontal, 11).padding(.vertical, 7)
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(t.line))
+            .background(t.glassFill2)
+    }
+
+    private var refineActions: some View {
+        HStack(spacing: 10) {
+            Button { sendFeedback() } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: feedbackSent ? "checkmark" : "paperplane.fill")
+                    Text(feedbackSent ? "SENT" : "SEND").font(.labl(10.5))
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity).padding(.vertical, 10)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(t.accent)
+            .disabled(feedbackSent || feedback.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+    }
+
+    private func tap(_ i: Int) {
+        guard !sent else { return }
+        picked = i
+        if i == refineIndex {
+            // Refine needs feedback; user types then taps SEND.
+            return
+        }
+        sent = true
+        onSubmit?(i)
+    }
+
+    private func sendFeedback() {
+        guard !feedbackSent else { return }
+        feedbackSent = true
+        let payload: [String: String] = ["choice": "Refine plan", "feedback": feedback]
+        let json = (try? JSONSerialization.data(withJSONObject: payload, options: []))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "{\"choice\":\"Refine plan\",\"feedback\":\"\"}"
+        onSubmitText?(json)
     }
 }
 
