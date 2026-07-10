@@ -99,6 +99,8 @@ interface SessionManager {
 }
 
 type ShowPlanReviewFn = (this: unknown, planContent: string, title: string, options: string[], dialogOptions?: unknown, extra?: unknown) => Promise<string | undefined>;
+type SelectFn = (this: unknown, title: string, options: unknown[], dialogOptions?: Record<string, unknown>) => Promise<string | undefined>;
+type EditorFn = (this: unknown, title: string, prefill?: string, dialogOptions?: Record<string, unknown>, editorOptions?: Record<string, unknown>) => Promise<string | undefined>;
 
 interface Runtime {
   registerCommand?: (name: string, cmd: { description?: string; handler: (args: string, cmdCtx: unknown) => unknown }) => void;
@@ -117,7 +119,7 @@ interface Runtime {
   cwd?: string;
   hostName?: string;
   isStreaming?: boolean;
-  ui?: { write?: (msg: string) => void };
+  ui?: { write?: (msg: string) => void; select?: SelectFn; editor?: EditorFn };
   runtime?: { getAllTools?: () => string[] };
   pi?: {
     InteractiveMode?: {
@@ -147,6 +149,7 @@ let originalShowPlanReview: ShowPlanReviewFn | undefined;
 // setModel, on, …). The per-invocation ctx (command/hook) carries the session
 // data (sessionManager, models, navigateTree) but NOT the actions. So we route
 // actions through `api` and session data through `ctx`.
+const uiOriginals = new WeakMap<object, { select?: SelectFn; editor?: EditorFn }>();
 let api: Runtime | undefined;
 
 // Return a bound caller for `name`, preferring ctx then the activation api.
@@ -188,10 +191,12 @@ export default function activate(ctx: unknown): void {
     runtime.on?.("session_start", (_e: unknown, hookCtx: unknown) => startShare(hookCtx ?? ctx));
   }
   installPlanReview();
+  installAsk(runtime);
 }
 
 async function startShare(rawCtx: unknown): Promise<string> {
   const ctx = rawCtx as unknown as Runtime; // omp command context is a stable runtime contract
+  installAsk(ctx);
   if (current) { showQr(ctx, current.link); return current.link; }
 
   const roomId = b64url(rand(ROOM_ID_BYTES));
@@ -292,17 +297,21 @@ async function startShare(rawCtx: unknown): Promise<string> {
         let feedback: string | undefined;
         let sliderIndex: number | undefined;
         if (typeof value === "string") {
-          try {
-            const parsed = JSON.parse(value) as unknown;
-            if (parsed && typeof parsed === "object") {
-              const d = parsed;
-              if ("choice" in d && typeof d.choice === "string") choice = d.choice;
-              if ("feedback" in d && typeof d.feedback === "string") feedback = d.feedback;
-              if ("sliderIndex" in d && typeof d.sliderIndex === "number") sliderIndex = d.sliderIndex;
-            } else {
+          if (typeof pending.request.kind === "string" && pending.request.kind === "plan") {
+            try {
+              const parsed = JSON.parse(value) as unknown;
+              if (parsed && typeof parsed === "object") {
+                const d = parsed;
+                if ("choice" in d && typeof d.choice === "string") choice = d.choice;
+                if ("feedback" in d && typeof d.feedback === "string") feedback = d.feedback;
+                if ("sliderIndex" in d && typeof d.sliderIndex === "number") sliderIndex = d.sliderIndex;
+              } else {
+                choice = value;
+              }
+            } catch {
               choice = value;
             }
-          } catch {
+          } else {
             choice = value;
           }
         }
@@ -506,34 +515,27 @@ function installPlanReview(): void {
       return originalShowPlanReview.call(this, planContent, title, options, dialogOptions, extra);
     }
 
-    const reqId = ++uiReqSeq;
-    const { promise, resolve } = Promise.withResolvers<string | undefined>();
-
     let onFeedbackChange: ((value: string) => void) | undefined;
     let onSliderChange: ((index: number) => void) | undefined;
 
     if (dialogOptions && typeof dialogOptions === "object") {
-      const d = dialogOptions;
+      const d = dialogOptions as Record<string, unknown>;
       if ("onFeedbackChange" in d && typeof d.onFeedbackChange === "function") {
-        const raw = d.onFeedbackChange;
-        onFeedbackChange = raw as unknown as (value: string) => void;
+        onFeedbackChange = d.onFeedbackChange as unknown as (value: string) => void;
       }
     }
 
     if (extra && typeof extra === "object") {
-      const e = extra;
+      const e = extra as Record<string, unknown>;
       if ("slider" in e && e.slider && typeof e.slider === "object") {
-        const s = e.slider;
+        const s = e.slider as Record<string, unknown>;
         if ("onChange" in s && typeof s.onChange === "function") {
-          const raw = s.onChange;
-          onSliderChange = raw as unknown as (index: number) => void;
+          onSliderChange = s.onChange as unknown as (index: number) => void;
         }
       }
     }
 
-
     const request: Record<string, unknown> = {
-      reqId,
       kind: "plan",
       title,
       options,
@@ -541,19 +543,101 @@ function installPlanReview(): void {
       selectionMarker: "radio",
     };
 
+    let signal: AbortSignal | undefined;
     if (dialogOptions && typeof dialogOptions === "object") {
-      const d = dialogOptions;
+      const d = dialogOptions as Record<string, unknown>;
       if ("initialIndex" in d && typeof d.initialIndex === "number") {
         request.initialIndex = d.initialIndex;
       }
       if ("disabledIndices" in d && Array.isArray(d.disabledIndices)) {
-        const disabled = d.disabledIndices.filter((i: unknown): i is number => typeof i === "number");
-        request.disabledIndices = disabled;
+        request.disabledIndices = d.disabledIndices.filter((i: unknown): i is number => typeof i === "number");
+      }
+      if ("signal" in d && d.signal instanceof AbortSignal) {
+        signal = d.signal as AbortSignal;
       }
     }
 
-    pendingUi.set(reqId, { resolve, request, onFeedbackChange, onSliderChange });
-    await share.send({ t: "ui-request", request });
-    return promise;
+    return requestGuestUi(request, signal, { onFeedbackChange, onSliderChange });
   };
+}
+
+// ── ask questionnaire wiring (ctx.ui.select / ctx.ui.editor) ──────────────────
+
+async function requestGuestUi(
+  request: Record<string, unknown>,
+  signal?: AbortSignal,
+  callbacks?: { onFeedbackChange?: (value: string) => void; onSliderChange?: (index: number) => void },
+): Promise<string | undefined> {
+  const share = current;
+  if (!share) return Promise.resolve(undefined);
+  if (signal?.aborted) return Promise.resolve(undefined);
+
+  const reqId = ++uiReqSeq;
+  request.reqId = reqId;
+  const { promise, resolve } = Promise.withResolvers<string | undefined>();
+  let settled = false;
+  let cleanup = () => {};
+
+  const settle = (value: string | undefined): void => {
+    if (settled) return;
+    settled = true;
+    cleanup();
+    pendingUi.delete(reqId);
+    resolve(value);
+  };
+
+  if (signal) {
+    const onAbort = (): void => {
+      settle(undefined);
+      void share.send({ t: "ui-request-end", reqId });
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    cleanup = () => signal.removeEventListener("abort", onAbort);
+  }
+
+  pendingUi.set(reqId, { resolve: settle, request, onFeedbackChange: callbacks?.onFeedbackChange, onSliderChange: callbacks?.onSliderChange });
+  await share.send({ t: "ui-request", request });
+  return promise;
+}
+
+const selectWrapper: SelectFn = async function (this: unknown, title, options, dialogOptions): Promise<string | undefined> {
+  const share = current;
+  if (!share) {
+    const original = this && typeof this === "object" ? uiOriginals.get(this as object)?.select : undefined;
+    return original ? original.call(this, title, options, dialogOptions) : undefined;
+  }
+  const request: Record<string, unknown> = { kind: "select", title, options };
+  if (dialogOptions && typeof dialogOptions === "object") {
+    const d = dialogOptions as Record<string, unknown>;
+    if (typeof d.initialIndex === "number") request.initialIndex = d.initialIndex;
+    if (typeof d.selectionMarker === "string") request.selectionMarker = d.selectionMarker;
+    if (Array.isArray(d.checkedIndices)) request.checkedIndices = d.checkedIndices.filter((i: unknown) => typeof i === "number");
+    if (typeof d.markableCount === "number") request.markableCount = d.markableCount;
+    if (typeof d.helpText === "string") request.helpText = d.helpText;
+  }
+  const signal = dialogOptions?.signal instanceof AbortSignal ? (dialogOptions as Record<string, unknown>).signal as AbortSignal : undefined;
+  return requestGuestUi(request, signal);
+};
+
+const editorWrapper: EditorFn = async function (this: unknown, title, prefill, dialogOptions, editorOptions): Promise<string | undefined> {
+  const share = current;
+  if (!share) {
+    const original = this && typeof this === "object" ? uiOriginals.get(this as object)?.editor : undefined;
+    return original ? original.call(this, title, prefill, dialogOptions, editorOptions) : undefined;
+  }
+  const request: Record<string, unknown> = { kind: "editor", title, prefill };
+  if (dialogOptions && typeof dialogOptions === "object") {
+    const d = dialogOptions as Record<string, unknown>;
+    if (typeof d.helpText === "string") request.helpText = d.helpText;
+  }
+  const signal = dialogOptions?.signal instanceof AbortSignal ? (dialogOptions as Record<string, unknown>).signal as AbortSignal : undefined;
+  return requestGuestUi(request, signal);
+};
+
+function installAsk(runtime?: Runtime): void {
+  const ui = runtime?.ui ?? api?.ui;
+  if (!ui || typeof ui !== "object" || uiOriginals.has(ui)) return;
+  uiOriginals.set(ui, { select: ui.select, editor: ui.editor });
+  if (typeof ui.select === "function") ui.select = selectWrapper;
+  if (typeof ui.editor === "function") ui.editor = editorWrapper;
 }

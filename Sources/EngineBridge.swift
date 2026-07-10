@@ -541,7 +541,7 @@ final class GuestClient: ObservableObject {
             welcomed = true
             reconnectAttempt = 0
             reconnectTask?.cancel()
-            entries = []
+            entries = []; cachedStaticTurns = []; cachedEntryCount = 0; cachedTail = []
             stream = nil; streamDone = false; activeTools = []; uiRequest = nil
             progressMap = [:]; progress = []
             enhanced = false; canSendImages = false; nativeVision = false; visionModelAvailable = false; commands = []
