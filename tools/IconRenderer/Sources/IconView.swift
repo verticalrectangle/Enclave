@@ -11,6 +11,20 @@ extension Color {
     }
 }
 
+// MARK: - Glossy 3D ball shading (ported from PopMakerOrbs.swift)
+extension Color {
+    /// Brightness-scaled shade for sphere shading. f>1 → lighter + desaturated
+    /// (the lit highlight side); f<1 → darker + more saturated (the shadow side).
+    func shade(_ f: Double) -> Color {
+        let u = UIColor(self); var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        u.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        return Color(hue: Double(h),
+                     saturation: Double(max(0, min(1, s * (f > 1 ? 0.62 : 1.18)))),
+                     brightness: Double(max(0, min(1, b * f))),
+                     opacity: Double(a))
+    }
+}
+
 enum GlyphMode { case opaque, glass, flatGlass, flatGlassRing, liquidMark }     // how the Enclave mark is rendered
 enum GlassMode { case pane, lens }        // frosted pane over backdrop, or exposed backdrop with a glass glyph
 
@@ -1079,8 +1093,8 @@ struct IconView: View {
     private let split: CGFloat = {
         CGFloat(Double(ProcessInfo.processInfo.environment["ENCLAVE_SPLIT"] ?? "0") ?? 0)
     }()
-    private let usePopMakerGlyph: Bool = {
-        ProcessInfo.processInfo.environment["ENCLAVE_PM_GLYPH"] == "1"
+    private let useGlossyMark: Bool = {
+        ProcessInfo.processInfo.environment["ENCLAVE_GLOSSY"] == "1"
     }()
 
     var body: some View {
@@ -1160,11 +1174,6 @@ struct IconView: View {
                         .fill(.white.opacity(0.001))
                         .glassEffect(.regular, in: GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355))
                     splitAlmondGlass()
-                } else if usePopMakerGlyph {
-                    PopMakerGlyph()
-                        .stroke(slitStroke(),
-                                style: StrokeStyle(lineWidth: S * 0.06,
-                                                    lineCap: .round, lineJoin: .round))
                 } else {
                     EnclaveSlit(open: 1)
                         .stroke(slitStroke(),
@@ -1193,11 +1202,6 @@ struct IconView: View {
                         .fill(.white.opacity(0.001))
                         .glassEffect(.regular, in: GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355))
                     splitAlmondGlass()
-                } else if usePopMakerGlyph {
-                    PopMakerGlyph()
-                        .stroke(slitStroke(),
-                                style: StrokeStyle(lineWidth: S * 0.06,
-                                                    lineCap: .round, lineJoin: .round))
                 } else {
                     EnclaveSlit(open: 1)
                         .stroke(slitStroke(),
@@ -1221,16 +1225,15 @@ struct IconView: View {
                 GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355)
                     .fill(.white.opacity(0.001))
                     .glassEffect(.regular, in: GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355))
-                if split > 0 {
-                    if usePopMakerGlyph {
-                        splitPopGlyphGlass()
+                if useGlossyMark {
+                    // Glossy 3D ball-shaded almond (RadialGradient + specular)
+                    if split > 0 {
+                        splitAlmondGlossy(S: S)
                     } else {
-                        splitAlmondGlass()
+                        glossyAlmond(S: S)
                     }
-                } else if usePopMakerGlyph {
-                    PopMakerGlyph()
-                        .fill(.white.opacity(0.001))
-                        .glassEffect(.regular, in: PopMakerGlyph())
+                } else if split > 0 {
+                    splitAlmondGlass()
                 } else {
                     EnclaveSlit(open: 1)
                         .fill(.white.opacity(0.001))
@@ -1243,16 +1246,51 @@ struct IconView: View {
     }
 
 
+    // MARK: - Glossy 3D ball-shaded almond (RadialGradient + specular, no Liquid Glass)
     @ViewBuilder
-    private func splitPopGlyphGlass() -> some View {
-        PopMakerGlyph(split: split, splitHalf: .top)
-            .fill(.white.opacity(0.001))
-            .glassEffect(.regular, in: PopMakerGlyph(split: split, splitHalf: .top))
-        PopMakerGlyph(split: split, splitHalf: .bottom)
-            .fill(.white.opacity(0.001))
-            .glassEffect(.regular, in: PopMakerGlyph(split: split, splitHalf: .bottom))
+    private func glossyAlmond(S: CGFloat) -> some View {
+        let markSize = S * 0.82
+        let baseColor = p.backdrop[0].shade(1.3)
+        EnclaveSlit(open: 1)
+            .fill(RadialGradient(
+                colors: [baseColor.shade(1.7), baseColor, baseColor.shade(0.45)],
+                center: UnitPoint(x: 0.5, y: 0.28),
+                startRadius: markSize * 0.01, endRadius: markSize * 0.44))
+            .overlay(alignment: .top) {
+                Circle()
+                    .fill(RadialGradient(colors: [.white.opacity(0.55), .white.opacity(0)],
+                                         center: .center, startRadius: 0, endRadius: markSize * 0.06))
+                    .frame(width: markSize * 0.10, height: markSize * 0.10)
+                    .offset(y: markSize * 0.20)
+            }
+            .frame(width: markSize, height: markSize)
+            .shadow(color: .black.opacity(0.20), radius: S * 0.006, x: 0, y: S * 0.004)
     }
 
+    @ViewBuilder
+    private func splitAlmondGlossy(S: CGFloat) -> some View {
+        let markSize = S * 0.82
+        let baseColor = p.backdrop[0].shade(1.3)
+        let grad = RadialGradient(
+            colors: [baseColor.shade(1.7), baseColor, baseColor.shade(0.45)],
+            center: UnitPoint(x: 0.5, y: 0.28),
+            startRadius: markSize * 0.01, endRadius: markSize * 0.44)
+        EnclaveSlit(open: 1, split: split, splitHalf: .top)
+            .fill(grad)
+            .overlay(alignment: .top) {
+                Circle()
+                    .fill(RadialGradient(colors: [.white.opacity(0.55), .white.opacity(0)],
+                                         center: .center, startRadius: 0, endRadius: markSize * 0.06))
+                    .frame(width: markSize * 0.10, height: markSize * 0.10)
+                    .offset(y: markSize * 0.20)
+            }
+            .frame(width: markSize, height: markSize)
+            .shadow(color: .black.opacity(0.20), radius: S * 0.006, x: 0, y: S * 0.004)
+        EnclaveSlit(open: 1, split: split, splitHalf: .bottom)
+            .fill(grad)
+            .frame(width: markSize, height: markSize)
+            .shadow(color: .black.opacity(0.20), radius: S * 0.006, x: 0, y: S * 0.004)
+    }
     @ViewBuilder
     private func splitAlmondGlass() -> some View {
         EnclaveSlit(open: 1, split: split, splitHalf: .top)

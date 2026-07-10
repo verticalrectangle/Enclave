@@ -26,7 +26,7 @@ for v in $VARIANTS; do
   if [[ -f "$out_path" ]]; then echo "skip $tag"; continue; fi
   xcrun simctl terminate "$CAPTURE_UDID" "$BUNDLE" 2>/dev/null || true
   SIMCTL_CHILD_ENCLAVE_VARIANT="$v" \
-  SIMCTL_CHILD_ENCLAVE_PM_GLYPH="1" \
+  SIMCTL_CHILD_ENCLAVE_GLOSSY="1" \
   SIMCTL_CHILD_ENCLAVE_SPLIT="$ENCLAVE_SPLIT" \
   xcrun simctl launch "$CAPTURE_UDID" "$BUNDLE" >/dev/null
   sleep 5
