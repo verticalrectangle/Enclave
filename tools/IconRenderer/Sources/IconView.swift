@@ -1339,6 +1339,9 @@ struct IconView: View {
             startRadius: markSize * 0.02, endRadius: markSize * 0.62).opacity(0.7)
         // Top half: glass + glossy overlay
         EnclaveSlit(open: 1, split: split, splitHalf: .top)
+            .fill(.white.opacity(0.001))
+            .glassEffect(.regular, in: EnclaveSlit(open: 1, split: split, splitHalf: .top))
+        EnclaveSlit(open: 1, split: split, splitHalf: .top)
             .fill(grad)
             .overlay {
                 Rectangle()
