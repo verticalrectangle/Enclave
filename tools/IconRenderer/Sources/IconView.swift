@@ -189,6 +189,35 @@ enum IconVariant: String, CaseIterable {
     case uiLoveDark   = "ui-love-dark"
     case uiMutedDark  = "ui-muted-dark"
     case uiAccent     = "ui-accent"
+    // Curated flat-glass variants — solid vivid backdrop, flat frosted-glass mark, no shimmer
+    case fgOcean           = "fg-ocean"
+    case fgGrape           = "fg-grape"
+    case fgEmber           = "fg-ember"
+    case fgJade            = "fg-jade"
+    case fgCobalt          = "fg-cobalt"
+    case fgMagenta         = "fg-magenta"
+    case fgBronze          = "fg-bronze"
+    case fgOceanDark       = "fg-ocean-dark"
+    case fgGrapeDark       = "fg-grape-dark"
+    case fgEmberDark       = "fg-ember-dark"
+    case fgJadeDark        = "fg-jade-dark"
+    case fgCobaltDark      = "fg-cobalt-dark"
+    case fgMagentaDark     = "fg-magenta-dark"
+    case fgBronzeDark      = "fg-bronze-dark"
+    case fgOceanRing       = "fg-ocean-ring"
+    case fgGrapeRing       = "fg-grape-ring"
+    case fgEmberRing       = "fg-ember-ring"
+    case fgJadeRing        = "fg-jade-ring"
+    case fgCobaltRing      = "fg-cobalt-ring"
+    case fgMagentaRing     = "fg-magenta-ring"
+    case fgBronzeRing      = "fg-bronze-ring"
+    case fgOceanRingDark   = "fg-ocean-ring-dark"
+    case fgGrapeRingDark   = "fg-grape-ring-dark"
+    case fgEmberRingDark   = "fg-ember-ring-dark"
+    case fgJadeRingDark    = "fg-jade-ring-dark"
+    case fgCobaltRingDark  = "fg-cobalt-ring-dark"
+    case fgMagentaRingDark = "fg-magenta-ring-dark"
+    case fgBronzeRingDark  = "fg-bronze-ring-dark"
 
     private static let auroraBloomCols: [(Color, UnitPoint, CGFloat)] = [
         (Color(hex: 0x56B4C9), UnitPoint(x: 0.28, y: 0.30), 0.50),
@@ -981,7 +1010,44 @@ enum IconVariant: String, CaseIterable {
             return .init(backdrop: [Color(hex: 0xC8D6E5), Color(hex: 0xC8D6E5)],
                          blooms: [], glass: .clear, tint: nil, glassMode: .lens,
                          glyphMode: .liquidMark, ink: .white, coreShadow: 0, shimmer: false)
+        // ── Curated flat-glass variants: solid vivid backdrop, flat frosted disc/ring mark ──
+        case .fgOcean:      return fg(hex: 0x1A6E8C)
+        case .fgGrape:      return fg(hex: 0x6B3FA0)
+        case .fgEmber:      return fg(hex: 0xC0452C)
+        case .fgJade:       return fg(hex: 0x2A7553)
+        case .fgCobalt:     return fg(hex: 0x2A45C7)
+        case .fgMagenta:    return fg(hex: 0xB03370)
+        case .fgBronze:     return fg(hex: 0x946018)
+        case .fgOceanDark:  return fg(hex: 0x4DB8D4)
+        case .fgGrapeDark:  return fg(hex: 0xA880DC)
+        case .fgEmberDark:  return fg(hex: 0xE97550)
+        case .fgJadeDark:   return fg(hex: 0x5DBA8E)
+        case .fgCobaltDark: return fg(hex: 0x6B85E8)
+        case .fgMagentaDark:return fg(hex: 0xE06BA8)
+        case .fgBronzeDark: return fg(hex: 0xCC9038)
+        case .fgOceanRing:      return fgRing(hex: 0x1A6E8C)
+        case .fgGrapeRing:      return fgRing(hex: 0x6B3FA0)
+        case .fgEmberRing:      return fgRing(hex: 0xC0452C)
+        case .fgJadeRing:       return fgRing(hex: 0x2A7553)
+        case .fgCobaltRing:     return fgRing(hex: 0x2A45C7)
+        case .fgMagentaRing:    return fgRing(hex: 0xB03370)
+        case .fgBronzeRing:     return fgRing(hex: 0x946018)
+        case .fgOceanRingDark:  return fgRing(hex: 0x4DB8D4)
+        case .fgGrapeRingDark:  return fgRing(hex: 0xA880DC)
+        case .fgEmberRingDark:  return fgRing(hex: 0xE97550)
+        case .fgJadeRingDark:   return fgRing(hex: 0x5DBA8E)
+        case .fgCobaltRingDark: return fgRing(hex: 0x6B85E8)
+        case .fgMagentaRingDark:return fgRing(hex: 0xE06BA8)
+        case .fgBronzeRingDark: return fgRing(hex: 0xCC9038)
         }
+    }
+    private func fg(hex: UInt) -> IconPalette {
+        .init(backdrop: [Color(hex: hex), Color(hex: hex)], blooms: [], glass: .clear,
+              tint: nil, glassMode: .lens, glyphMode: .flatGlass, ink: .white, coreShadow: 0, shimmer: false)
+    }
+    private func fgRing(hex: UInt) -> IconPalette {
+        .init(backdrop: [Color(hex: hex), Color(hex: hex)], blooms: [], glass: .clear,
+              tint: nil, glassMode: .lens, glyphMode: .flatGlassRing, ink: .white, coreShadow: 0, shimmer: false)
     }
 }
 
@@ -1009,6 +1075,9 @@ struct IconView: View {
     }()
     private let slit: Int = {
         Int(ProcessInfo.processInfo.environment["ENCLAVE_SLIT"] ?? "0") ?? 0
+    }()
+    private let split: CGFloat = {
+        CGFloat(Int(ProcessInfo.processInfo.environment["ENCLAVE_SPLIT"] ?? "0") ?? 0) * 0.15
     }()
 
     var body: some View {
@@ -1082,10 +1151,16 @@ struct IconView: View {
                     .fill(.white.opacity(0.001))
                     .glassEffect(.regular, in: .circle)
                     .overlay(alignment: .center) {
-                        EnclaveSlit(open: 1)
-                            .stroke(slitStroke(),
-                                    style: StrokeStyle(lineWidth: S * 0.06,
-                                                        lineCap: .round, lineJoin: .round))
+                        if split > 0 {
+                            EnclaveSlit(open: 1, split: split)
+                                .fill(.white.opacity(0.001))
+                                .glassEffect(.regular, in: EnclaveSlit(open: 1, split: split))
+                        } else {
+                            EnclaveSlit(open: 1)
+                                .stroke(slitStroke(),
+                                        style: StrokeStyle(lineWidth: S * 0.06,
+                                                            lineCap: .round, lineJoin: .round))
+                        }
                     }
                 Circle().strokeBorder(Color.white.opacity(0.55), lineWidth: S * 0.004)
             }
@@ -1104,10 +1179,16 @@ struct IconView: View {
                     .glassEffect(.regular, in: .circle)
                     .frame(width: S * 0.66, height: S * 0.66)
                     .overlay(alignment: .center) {
-                        EnclaveSlit(open: 1)
-                            .stroke(slitStroke(),
-                                    style: StrokeStyle(lineWidth: S * 0.06,
-                                                        lineCap: .round, lineJoin: .round))
+                        if split > 0 {
+                            EnclaveSlit(open: 1, split: split)
+                                .fill(.white.opacity(0.001))
+                                .glassEffect(.regular, in: EnclaveSlit(open: 1, split: split))
+                        } else {
+                            EnclaveSlit(open: 1)
+                                .stroke(slitStroke(),
+                                        style: StrokeStyle(lineWidth: S * 0.06,
+                                                            lineCap: .round, lineJoin: .round))
+                        }
                     }
                 // rims for both disks
                 Circle().strokeBorder(Color.white.opacity(0.55), lineWidth: S * 0.004)
@@ -1126,9 +1207,9 @@ struct IconView: View {
                 GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355)
                     .fill(.white.opacity(0.001))
                     .glassEffect(.regular, in: GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355))
-                EnclaveSlit(open: 1)
+                EnclaveSlit(open: 1, split: split)
                     .fill(.white.opacity(0.001))
-                    .glassEffect(.regular, in: EnclaveSlit(open: 1))
+                    .glassEffect(.regular, in: EnclaveSlit(open: 1, split: split))
             }
             .frame(width: S * 0.82, height: S * 0.82)
             .shadow(color: .black.opacity(0.22), radius: S * 0.010, x: 0, y: S * 0.006)
