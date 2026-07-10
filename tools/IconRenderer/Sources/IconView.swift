@@ -1271,7 +1271,8 @@ struct IconView: View {
             .fill(RadialGradient(
                 colors: [c.shade(1.7), c, c.shade(0.45)],
                 center: UnitPoint(x: 0.36, y: 0.30),
-                startRadius: size * 0.02, endRadius: size * 0.62).opacity(0.7))
+                startRadius: size * 0.02, endRadius: size * 0.62))
+            .opacity(0.7)
             .overlay(alignment: .topLeading) {
                 Circle()
                     .fill(RadialGradient(colors: [.white.opacity(0.95), .white.opacity(0)],
@@ -1291,7 +1292,8 @@ struct IconView: View {
             .fill(RadialGradient(
                 colors: [c.shade(1.7), c, c.shade(0.45)],
                 center: UnitPoint(x: 0.36, y: 0.30),
-                startRadius: size * 0.02, endRadius: size * 0.62).opacity(0.7))
+                startRadius: size * 0.02, endRadius: size * 0.62))
+            .opacity(0.7)
             .overlay(alignment: .topLeading) {
                 Circle()
                     .fill(RadialGradient(colors: [.white.opacity(0.95), .white.opacity(0)],
@@ -1315,7 +1317,8 @@ struct IconView: View {
             .fill(RadialGradient(
                 colors: [gc.shade(1.7), gc, gc.shade(0.45)],
                 center: UnitPoint(x: 0.36, y: 0.30),
-                startRadius: markSize * 0.02, endRadius: markSize * 0.62).opacity(0.7))
+                startRadius: markSize * 0.02, endRadius: markSize * 0.62))
+            .opacity(0.7)
             .overlay {
                 Rectangle()
                     .fill(RadialGradient(colors: [.white.opacity(0.95), .white.opacity(0)],
@@ -1336,13 +1339,14 @@ struct IconView: View {
         let grad = RadialGradient(
             colors: [gc.shade(1.7), gc, gc.shade(0.45)],
             center: UnitPoint(x: 0.36, y: 0.30),
-            startRadius: markSize * 0.02, endRadius: markSize * 0.62).opacity(0.7)
+            startRadius: markSize * 0.02, endRadius: markSize * 0.62)
         // Top half: glass + glossy overlay
         EnclaveSlit(open: 1, split: split, splitHalf: .top)
             .fill(.white.opacity(0.001))
             .glassEffect(.regular, in: EnclaveSlit(open: 1, split: split, splitHalf: .top))
         EnclaveSlit(open: 1, split: split, splitHalf: .top)
             .fill(grad)
+            .opacity(0.7)
             .overlay {
                 Rectangle()
                     .fill(RadialGradient(colors: [.white.opacity(0.95), .white.opacity(0)],
@@ -1360,6 +1364,7 @@ struct IconView: View {
             .glassEffect(.regular, in: EnclaveSlit(open: 1, split: split, splitHalf: .bottom))
         EnclaveSlit(open: 1, split: split, splitHalf: .bottom)
             .fill(grad)
+            .opacity(0.7)
             .frame(width: markSize, height: markSize)
             .shadow(color: .black.opacity(0.20), radius: S * 0.006, x: 0, y: S * 0.004)
     }
