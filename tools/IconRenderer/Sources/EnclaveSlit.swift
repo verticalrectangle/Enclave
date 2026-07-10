@@ -44,8 +44,8 @@ struct EnclaveSlit: Shape {
             }
             let tT = findT(topCut), tB = findT(botCut)
             // Left curve: L0→L3  Right curve: R0→R3 (reversed direction)
-            let L0 = (0.50, 0.28), L1 = (0.50-b, 0.40), L2 = (0.50-b, 0.60), L3 = (0.50, 0.72)
-            let R0 = (0.50, 0.72), R1 = (0.50+b, 0.60), R2 = (0.50+b, 0.40), R3 = (0.50, 0.28)
+            let L0: (CGFloat, CGFloat) = (0.50, 0.28), L1: (CGFloat, CGFloat) = (0.50-b, 0.40), L2: (CGFloat, CGFloat) = (0.50-b, 0.60), L3: (CGFloat, CGFloat) = (0.50, 0.72)
+            let R0: (CGFloat, CGFloat) = (0.50, 0.72), R1: (CGFloat, CGFloat) = (0.50+b, 0.60), R2: (CGFloat, CGFloat) = (0.50+b, 0.40), R3: (CGFloat, CGFloat) = (0.50, 0.28)
             let rtT = 1 - tT, rtB = 1 - tB
             // De Casteljau splits
             let lq1 = lerp(L0,L1,tT), lq2 = lerp(L1,L2,tT), lq3 = lerp(L2,L3,tT)
