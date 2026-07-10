@@ -1122,6 +1122,7 @@ struct IconView: View {
             }
             .clipShape(shape)
             .frame(width: S, height: S)
+            .background(LinearGradient(colors: p.backdrop, startPoint: .top, endPoint: .bottom))
             .frame(width: geo.size.width, height: geo.size.height)
         }
         .ignoresSafeArea()
