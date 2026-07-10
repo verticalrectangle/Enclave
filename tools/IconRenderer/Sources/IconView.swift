@@ -1149,108 +1149,110 @@ struct IconView: View {
     private func markLayer(S: CGFloat) -> some View {
         if usePopMakerGlyph {
             pmsMarkLayer(S: S)
-        } else switch p.glyphMode {
-        case .opaque:
-            EnclaveMark(side: S, ink: p.ink)
-                .shadow(color: .black.opacity(0.35), radius: S * 0.006,
-                        x: S * 0.003, y: S * 0.008)
-        case .glass:
-            // glass disc lens refracting the backdrop, with the ink mark on top
-            ZStack {
-                Circle().fill(.white.opacity(0.001))
-                    .glassEffect(.regular, in: .circle)
+        } else {
+            switch p.glyphMode {
+            case .opaque:
                 EnclaveMark(side: S, ink: p.ink)
-                    .shadow(color: .black.opacity(0.30), radius: S * 0.005,
-                            x: S * 0.003, y: S * 0.007)
-            }
-            .frame(width: S * 0.82, height: S * 0.82)
-        case .flatGlass:
-            // flat frosted-glass disc tile (iOS 26 Liquid Glass control); slit as etched seam
-            ZStack {
-                Rectangle()
-                    .fill(.white.opacity(0.001))
-                    .glassEffect(.regular, in: .circle)
-                // glass ring annulus + split almond halves (independent glass pieces)
-                if split > 0 {
+                    .shadow(color: .black.opacity(0.35), radius: S * 0.006,
+                            x: S * 0.003, y: S * 0.008)
+            case .glass:
+                // glass disc lens refracting the backdrop, with the ink mark on top
+                ZStack {
+                    Circle().fill(.white.opacity(0.001))
+                        .glassEffect(.regular, in: .circle)
+                    EnclaveMark(side: S, ink: p.ink)
+                        .shadow(color: .black.opacity(0.30), radius: S * 0.005,
+                                x: S * 0.003, y: S * 0.007)
+                }
+                .frame(width: S * 0.82, height: S * 0.82)
+            case .flatGlass:
+                // flat frosted-glass disc tile (iOS 26 Liquid Glass control); slit as etched seam
+                ZStack {
+                    Rectangle()
+                        .fill(.white.opacity(0.001))
+                        .glassEffect(.regular, in: .circle)
+                    // glass ring annulus + split almond halves (independent glass pieces)
+                    if split > 0 {
+                        GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355)
+                            .fill(.white.opacity(0.001))
+                            .glassEffect(.regular, in: GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355))
+                        splitAlmondGlass()
+                    } else if usePopMakerGlyph {
+                        PopMakerGlyph()
+                            .stroke(slitStroke(),
+                                    style: StrokeStyle(lineWidth: S * 0.06,
+                                                        lineCap: .round, lineJoin: .round))
+                    } else {
+                        EnclaveSlit(open: 1)
+                            .stroke(slitStroke(),
+                                    style: StrokeStyle(lineWidth: S * 0.06,
+                                                        lineCap: .round, lineJoin: .round))
+                    }
+                    Circle().strokeBorder(Color.white.opacity(0.55), lineWidth: S * 0.004)
+                }
+                .frame(width: S * 0.82, height: S * 0.82)
+                .shadow(color: .black.opacity(0.22), radius: S * 0.010, x: 0, y: S * 0.006)
+            case .flatGlassRing:
+                // flat frosted-glass "disk on top of disk" ring-mold; slit etched on the inner disk
+                ZStack {
+                    // outer frosted glass disc
+                    Circle()
+                        .fill(.white.opacity(0.001))
+                        .glassEffect(.regular, in: .circle)
+                    // inner frosted glass disc on top, slightly smaller
+                    Circle()
+                        .fill(.white.opacity(0.001))
+                        .glassEffect(.regular, in: .circle)
+                        .frame(width: S * 0.66, height: S * 0.66)
+                    // glass ring annulus + split almond halves (independent glass pieces)
+                    if split > 0 {
+                        GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355)
+                            .fill(.white.opacity(0.001))
+                            .glassEffect(.regular, in: GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355))
+                        splitAlmondGlass()
+                    } else if usePopMakerGlyph {
+                        PopMakerGlyph()
+                            .stroke(slitStroke(),
+                                    style: StrokeStyle(lineWidth: S * 0.06,
+                                                        lineCap: .round, lineJoin: .round))
+                    } else {
+                        EnclaveSlit(open: 1)
+                            .stroke(slitStroke(),
+                                    style: StrokeStyle(lineWidth: S * 0.06,
+                                                        lineCap: .round, lineJoin: .round))
+                    }
+                    // rims for both disks
+                    Circle().strokeBorder(Color.white.opacity(0.55), lineWidth: S * 0.004)
+                    Circle().strokeBorder(Color.white.opacity(0.55), lineWidth: S * 0.004)
+                        .frame(width: S * 0.66, height: S * 0.66)
+                }
+                .frame(width: S * 0.82, height: S * 0.82)
+                .shadow(color: .black.opacity(0.22), radius: S * 0.010, x: 0, y: S * 0.006)
+            case .liquidMark:
+                // iOS 26 Liquid Glass: the Enclave form (ring + almond) sculpted from the
+                // same glass material as the disc — no ink, just refracting glass shapes.
+                ZStack {
+                    Rectangle()
+                        .fill(.white.opacity(0.001))
+                        .glassEffect(.regular, in: .circle)
                     GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355)
                         .fill(.white.opacity(0.001))
                         .glassEffect(.regular, in: GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355))
-                    splitAlmondGlass()
-                } else if usePopMakerGlyph {
-                    PopMakerGlyph()
-                        .stroke(slitStroke(),
-                                style: StrokeStyle(lineWidth: S * 0.06,
-                                                    lineCap: .round, lineJoin: .round))
-                } else {
-                    EnclaveSlit(open: 1)
-                        .stroke(slitStroke(),
-                                style: StrokeStyle(lineWidth: S * 0.06,
-                                                    lineCap: .round, lineJoin: .round))
+                    if split > 0 {
+                        splitAlmondGlass()
+                    } else if usePopMakerGlyph {
+                        PopMakerGlyph()
+                            .fill(.white.opacity(0.001))
+                            .glassEffect(.regular, in: PopMakerGlyph())
+                    } else {
+                        EnclaveSlit(open: 1)
+                            .fill(.white.opacity(0.001))
+                            .glassEffect(.regular, in: EnclaveSlit(open: 1))
+                    }
                 }
-                Circle().strokeBorder(Color.white.opacity(0.55), lineWidth: S * 0.004)
+                .frame(width: S * 0.82, height: S * 0.82)
+                .shadow(color: .black.opacity(0.22), radius: S * 0.010, x: 0, y: S * 0.006)
             }
-            .frame(width: S * 0.82, height: S * 0.82)
-            .shadow(color: .black.opacity(0.22), radius: S * 0.010, x: 0, y: S * 0.006)
-        case .flatGlassRing:
-            // flat frosted-glass "disk on top of disk" ring-mold; slit etched on the inner disk
-            ZStack {
-                // outer frosted glass disc
-                Circle()
-                    .fill(.white.opacity(0.001))
-                    .glassEffect(.regular, in: .circle)
-                // inner frosted glass disc on top, slightly smaller
-                Circle()
-                    .fill(.white.opacity(0.001))
-                    .glassEffect(.regular, in: .circle)
-                    .frame(width: S * 0.66, height: S * 0.66)
-                // glass ring annulus + split almond halves (independent glass pieces)
-                if split > 0 {
-                    GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355)
-                        .fill(.white.opacity(0.001))
-                        .glassEffect(.regular, in: GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355))
-                    splitAlmondGlass()
-                } else if usePopMakerGlyph {
-                    PopMakerGlyph()
-                        .stroke(slitStroke(),
-                                style: StrokeStyle(lineWidth: S * 0.06,
-                                                    lineCap: .round, lineJoin: .round))
-                } else {
-                    EnclaveSlit(open: 1)
-                        .stroke(slitStroke(),
-                                style: StrokeStyle(lineWidth: S * 0.06,
-                                                    lineCap: .round, lineJoin: .round))
-                }
-                // rims for both disks
-                Circle().strokeBorder(Color.white.opacity(0.55), lineWidth: S * 0.004)
-                Circle().strokeBorder(Color.white.opacity(0.55), lineWidth: S * 0.004)
-                    .frame(width: S * 0.66, height: S * 0.66)
-            }
-            .frame(width: S * 0.82, height: S * 0.82)
-            .shadow(color: .black.opacity(0.22), radius: S * 0.010, x: 0, y: S * 0.006)
-        case .liquidMark:
-            // iOS 26 Liquid Glass: the Enclave form (ring + almond) sculpted from the
-            // same glass material as the disc — no ink, just refracting glass shapes.
-            ZStack {
-                Rectangle()
-                    .fill(.white.opacity(0.001))
-                    .glassEffect(.regular, in: .circle)
-                GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355)
-                    .fill(.white.opacity(0.001))
-                    .glassEffect(.regular, in: GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355))
-                if split > 0 {
-                    splitAlmondGlass()
-                } else if usePopMakerGlyph {
-                    PopMakerGlyph()
-                        .fill(.white.opacity(0.001))
-                        .glassEffect(.regular, in: PopMakerGlyph())
-                } else {
-                    EnclaveSlit(open: 1)
-                        .fill(.white.opacity(0.001))
-                        .glassEffect(.regular, in: EnclaveSlit(open: 1))
-                }
-            }
-            .frame(width: S * 0.82, height: S * 0.82)
-            .shadow(color: .black.opacity(0.22), radius: S * 0.010, x: 0, y: S * 0.006)
         }
     }
 
