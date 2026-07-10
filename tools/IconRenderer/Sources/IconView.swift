@@ -1286,7 +1286,7 @@ struct IconView: View {
 
     @ViewBuilder
     private func glossyRingOverlay(S: CGFloat) -> some View {
-        let size = S * 0.355
+        let size = S * 0.82
         let c = p.backdrop[0].shade(1.5)
         GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355)
             .fill(RadialGradient(
