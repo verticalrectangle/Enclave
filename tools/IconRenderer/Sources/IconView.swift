@@ -1093,8 +1093,14 @@ struct IconView: View {
     private let split: CGFloat = {
         CGFloat(Double(ProcessInfo.processInfo.environment["ENCLAVE_SPLIT"] ?? "0") ?? 0)
     }()
-    private let useGlossyMark: Bool = {
-        ProcessInfo.processInfo.environment["ENCLAVE_GLOSSY"] == "1"
+    private let glossyDisc: Bool = {
+        ProcessInfo.processInfo.environment["ENCLAVE_GLOSSY_DISC"] == "1"
+    }()
+    private let glossyRing: Bool = {
+        ProcessInfo.processInfo.environment["ENCLAVE_GLOSSY_RING"] == "1"
+    }()
+    private let glossyGlyph: Bool = {
+        ProcessInfo.processInfo.environment["ENCLAVE_GLOSSY_GLYPH"] == "1"
     }()
 
     var body: some View {
@@ -1217,16 +1223,26 @@ struct IconView: View {
             .shadow(color: .black.opacity(0.22), radius: S * 0.010, x: 0, y: S * 0.006)
         case .liquidMark:
             // iOS 26 Liquid Glass: the Enclave form (ring + almond) sculpted from the
-            // same glass material as the disc — no ink, just refracting glass shapes.
+            // same glass material as the disc. Per-element glossy ball-style overlays
+            // (RadialGradient + specular from PopMakerOrbs.ball()) controlled by
+            // ENCLAVE_GLOSSY_DISC / ENCLAVE_GLOSSY_RING / ENCLAVE_GLOSSY_GLYPH.
             ZStack {
+                // (1) Glass disc
                 Rectangle()
                     .fill(.white.opacity(0.001))
                     .glassEffect(.regular, in: .circle)
+                if glossyDisc {
+                    glossyDiscOverlay(S: S)
+                }
+                // (2) Glass ring
                 GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355)
                     .fill(.white.opacity(0.001))
                     .glassEffect(.regular, in: GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355))
-                if useGlossyMark {
-                    // Glossy 3D ball-shaded almond (RadialGradient + specular)
+                if glossyRing {
+                    glossyRingOverlay(S: S)
+                }
+                // (3) Glass glyph (almond)
+                if glossyGlyph {
                     if split > 0 {
                         splitAlmondGlossy(S: S)
                     } else {
@@ -1245,24 +1261,70 @@ struct IconView: View {
         }
     }
 
+    // MARK: - Glossy 3D ball-style overlays (exact ball() params, semi-transparent over Liquid Glass)
 
-    // MARK: - Glossy 3D ball-shaded almond (RadialGradient + specular, no Liquid Glass)
+    @ViewBuilder
+    private func glossyDiscOverlay(S: CGFloat) -> some View {
+        let size = S * 0.82
+        let c = p.backdrop[0]
+        Circle()
+            .fill(RadialGradient(
+                colors: [c.shade(1.7), c, c.shade(0.45)],
+                center: UnitPoint(x: 0.36, y: 0.30),
+                startRadius: size * 0.02, endRadius: size * 0.62).opacity(0.7))
+            .overlay(alignment: .topLeading) {
+                Circle()
+                    .fill(RadialGradient(colors: [.white.opacity(0.95), .white.opacity(0)],
+                                         center: .center, startRadius: 0, endRadius: size * 0.12))
+                    .frame(width: size * 0.32, height: size * 0.32)
+                    .offset(x: size * 0.14, y: size * 0.10)
+            }
+            .frame(width: size, height: size)
+            .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private func glossyRingOverlay(S: CGFloat) -> some View {
+        let size = S * 0.355
+        let c = p.backdrop[0].shade(1.5)
+        GlassRing(innerRadius: S * 0.285, outerRadius: S * 0.355)
+            .fill(RadialGradient(
+                colors: [c.shade(1.7), c, c.shade(0.45)],
+                center: UnitPoint(x: 0.36, y: 0.30),
+                startRadius: size * 0.02, endRadius: size * 0.62).opacity(0.7))
+            .overlay(alignment: .topLeading) {
+                Circle()
+                    .fill(RadialGradient(colors: [.white.opacity(0.95), .white.opacity(0)],
+                                         center: .center, startRadius: 0, endRadius: size * 0.12))
+                    .frame(width: size * 0.32, height: size * 0.32)
+                    .offset(x: size * 0.14, y: size * 0.10)
+            }
+            .allowsHitTesting(false)
+    }
+
     @ViewBuilder
     private func glossyAlmond(S: CGFloat) -> some View {
         let markSize = S * 0.82
-        let baseColor = p.backdrop[0].shade(1.3)
+        let gc = p.backdrop[0].shade(1.3)
+        // Glass underneath
+        EnclaveSlit(open: 1)
+            .fill(.white.opacity(0.001))
+            .glassEffect(.regular, in: EnclaveSlit(open: 1))
+        // Glossy ball overlay — exact ball() params, specular clipped to almond
         EnclaveSlit(open: 1)
             .fill(RadialGradient(
-                colors: [baseColor.shade(1.7), baseColor, baseColor.shade(0.45)],
-                center: UnitPoint(x: 0.5, y: 0.28),
-                startRadius: markSize * 0.01, endRadius: markSize * 0.44))
-            .overlay(alignment: .top) {
-                Circle()
-                    .fill(RadialGradient(colors: [.white.opacity(0.55), .white.opacity(0)],
-                                         center: .center, startRadius: 0, endRadius: markSize * 0.06))
-                    .frame(width: markSize * 0.10, height: markSize * 0.10)
-                    .offset(y: markSize * 0.20)
+                colors: [gc.shade(1.7), gc, gc.shade(0.45)],
+                center: UnitPoint(x: 0.36, y: 0.30),
+                startRadius: markSize * 0.02, endRadius: markSize * 0.62).opacity(0.7))
+            .overlay {
+                Rectangle()
+                    .fill(RadialGradient(colors: [.white.opacity(0.95), .white.opacity(0)],
+                                         center: UnitPoint(x: 0.36, y: 0.30),
+                                         startRadius: 0, endRadius: markSize * 0.12))
+                    .frame(width: markSize * 0.32, height: markSize * 0.32)
+                    .position(x: markSize * (0.36 + 0.14), y: markSize * (0.30 + 0.10))
             }
+            .clipShape(EnclaveSlit(open: 1))
             .frame(width: markSize, height: markSize)
             .shadow(color: .black.opacity(0.20), radius: S * 0.006, x: 0, y: S * 0.004)
     }
@@ -1270,22 +1332,29 @@ struct IconView: View {
     @ViewBuilder
     private func splitAlmondGlossy(S: CGFloat) -> some View {
         let markSize = S * 0.82
-        let baseColor = p.backdrop[0].shade(1.3)
+        let gc = p.backdrop[0].shade(1.3)
         let grad = RadialGradient(
-            colors: [baseColor.shade(1.7), baseColor, baseColor.shade(0.45)],
-            center: UnitPoint(x: 0.5, y: 0.28),
-            startRadius: markSize * 0.01, endRadius: markSize * 0.44)
+            colors: [gc.shade(1.7), gc, gc.shade(0.45)],
+            center: UnitPoint(x: 0.36, y: 0.30),
+            startRadius: markSize * 0.02, endRadius: markSize * 0.62).opacity(0.7)
+        // Top half: glass + glossy overlay
         EnclaveSlit(open: 1, split: split, splitHalf: .top)
             .fill(grad)
-            .overlay(alignment: .top) {
-                Circle()
-                    .fill(RadialGradient(colors: [.white.opacity(0.55), .white.opacity(0)],
-                                         center: .center, startRadius: 0, endRadius: markSize * 0.06))
-                    .frame(width: markSize * 0.10, height: markSize * 0.10)
-                    .offset(y: markSize * 0.20)
+            .overlay {
+                Rectangle()
+                    .fill(RadialGradient(colors: [.white.opacity(0.95), .white.opacity(0)],
+                                         center: UnitPoint(x: 0.36, y: 0.30),
+                                         startRadius: 0, endRadius: markSize * 0.12))
+                    .frame(width: markSize * 0.32, height: markSize * 0.32)
+                    .position(x: markSize * (0.36 + 0.14), y: markSize * (0.30 + 0.10))
             }
+            .clipShape(EnclaveSlit(open: 1, split: split, splitHalf: .top))
             .frame(width: markSize, height: markSize)
             .shadow(color: .black.opacity(0.20), radius: S * 0.006, x: 0, y: S * 0.004)
+        // Bottom half: glass + glossy overlay
+        EnclaveSlit(open: 1, split: split, splitHalf: .bottom)
+            .fill(.white.opacity(0.001))
+            .glassEffect(.regular, in: EnclaveSlit(open: 1, split: split, splitHalf: .bottom))
         EnclaveSlit(open: 1, split: split, splitHalf: .bottom)
             .fill(grad)
             .frame(width: markSize, height: markSize)
