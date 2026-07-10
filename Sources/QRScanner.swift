@@ -9,10 +9,12 @@ import AVFoundation
 
 struct QRScanner: UIViewControllerRepresentable {
     var onFound: (String) -> Void
+    var onError: (() -> Void)? = nil
 
     func makeUIViewController(context: Context) -> ScannerViewController {
         let vc = ScannerViewController()
         vc.onFound = onFound
+        vc.onError = onError
         return vc
     }
     func updateUIViewController(_ vc: ScannerViewController, context: Context) {}
@@ -20,6 +22,7 @@ struct QRScanner: UIViewControllerRepresentable {
 
 final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
     var onFound: ((String) -> Void)?
+    var onError: (() -> Void)?
     private let session = AVCaptureSession()
     private var preview: AVCaptureVideoPreviewLayer?
     private var handled = false
@@ -27,6 +30,31 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .black
+        requestCameraAccess()
+    }
+
+    private func requestCameraAccess() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            setupSession()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        self?.setupSession()
+                    } else {
+                        self?.onError?()
+                    }
+                }
+            }
+        case .denied, .restricted:
+            onError?()
+        @unknown default:
+            onError?()
+        }
+    }
+
+    private func setupSession() {
         guard let device = AVCaptureDevice.default(for: .video),
               let input = try? AVCaptureDeviceInput(device: device),
               session.canAddInput(input)
@@ -41,10 +69,13 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
 
         let layer = AVCaptureVideoPreviewLayer(session: session)
         layer.videoGravity = .resizeAspectFill
+        layer.frame = view.layer.bounds
         view.layer.addSublayer(layer)
         preview = layer
 
-        Task.detached(priority: .userInitiated) { [session] in session.startRunning() }
+        Task.detached(priority: .userInitiated) { [session] in
+            session.startRunning()
+        }
     }
 
     override func viewDidLayoutSubviews() {
@@ -71,7 +102,6 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
     }
 }
 
-/// Full-screen scanner with a viewfinder overlay, presented from Pair.
 struct ScannerScreen: View {
     @EnvironmentObject var theme: ThemeStore
     var onFound: (String) -> Void
@@ -80,7 +110,7 @@ struct ScannerScreen: View {
 
     var body: some View {
         ZStack {
-            QRScanner(onFound: onFound).ignoresSafeArea()
+            QRScanner(onFound: onFound, onError: onCancel).ignoresSafeArea()
             // dim + cut-out viewfinder
             GeometryReader { g in
                 let side = min(g.size.width, g.size.height) * 0.66

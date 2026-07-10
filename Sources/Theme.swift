@@ -120,11 +120,13 @@ struct GlassBG: ViewModifier {
     var active = false
     var panel = false
     var border = true
+    var interactive: Bool? = nil
     func body(content: Content) -> some View {
         // flat/panel/border are kept for backward compatibility; native Liquid Glass
         // does not expose equivalent variants and renders its own edge.
+        let isInteractive = interactive ?? active
         let glass: Glass = active
-            ? .regular.tint(t.accent.opacity(0.15)).interactive()
+            ? .regular.tint(t.accent.opacity(0.15)).interactive(isInteractive)
             : .regular
         content
             .glassEffect(glass, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
@@ -132,8 +134,8 @@ struct GlassBG: ViewModifier {
 }
 
 extension View {
-    func glass(_ t: Theme, _ radius: CGFloat = 22, flat: Bool = false, active: Bool = false, panel: Bool = false, border: Bool = true) -> some View {
-        modifier(GlassBG(t: t, radius: radius, flat: flat, active: active, panel: panel, border: border))
+    func glass(_ t: Theme, _ radius: CGFloat = 22, flat: Bool = false, active: Bool = false, panel: Bool = false, border: Bool = true, interactive: Bool? = nil) -> some View {
+        modifier(GlassBG(t: t, radius: radius, flat: flat, active: active, panel: panel, border: border, interactive: interactive))
     }
     func press() -> some View { buttonStyle(PressStyle()) }
     func etched(_ t: Theme, tint: Color? = nil, radius: CGFloat = 2) -> some View {

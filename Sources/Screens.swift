@@ -239,7 +239,7 @@ struct PairView: View {
                     Button { error = nil; showScanner = true } label: {
                         HStack(spacing: 9) { Image(systemName: "qrcode.viewfinder").font(.system(size: 19)); Text("SCAN QR CODE").font(.labl(11)) }
                             .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 16)
-                            .glass(t, 16, active: true, border: false)
+                            .glass(t, 16, active: true, border: false, interactive: false)
                     }.press()
                     .frame(maxWidth: sessionCardMaxWidth)
                     .frame(maxWidth: .infinity)
@@ -263,7 +263,7 @@ struct PairView: View {
                     Button(action: connect) {
                         HStack(spacing: 8) { Image(systemName: "bolt.fill"); Text("CONNECT").font(.labl(11)) }
                             .foregroundStyle(t.accent).frame(maxWidth: .infinity).padding(.vertical, 14)
-                            .glass(t, 16, active: true, border: false)
+                            .glass(t, 16, active: true, border: false, interactive: false)
                     }.press()
                     .frame(maxWidth: sessionCardMaxWidth)
                     .frame(maxWidth: .infinity)
@@ -276,7 +276,8 @@ struct PairView: View {
             }
         }
         .fullScreenCover(isPresented: $showScanner) {
-            ScannerScreen(onFound: scanned, onCancel: { showScanner = false }).environmentObject(theme)
+            ScannerScreen(onFound: scanned, onCancel: { showScanner = false })
+                .environmentObject(theme)
         }
         .preferredColorScheme(theme.preferredScheme)
     }
